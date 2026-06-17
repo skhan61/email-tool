@@ -1,0 +1,13 @@
+{
+  "name": "alchlight-email",
+  "version": "1.0.0",
+  "description": "IMAP/SMTP email for Claude Code — read, search, draft, and send mail from your own mailbox. Wraps the imap-email-mcp server with reusable email workflows and slash commands.",
+  "author": {
+    "name": "Sayem Khan",
+    "email": "s.khan@alchlight.com"
+  },
+  "keywords": ["email", "imap", "smtp", "mcp", "mail"],
+  "mcpServers": "./.mcp.json",
+  "commands": "./commands",
+  "skills": "./skills"
+}

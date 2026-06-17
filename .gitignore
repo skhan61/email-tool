@@ -1,0 +1,4 @@
+# Never commit real credentials. Only .env.example is tracked.
+.env
+.env.local
+*.local
