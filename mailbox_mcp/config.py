@@ -1,17 +1,31 @@
-"""Immutable per-mailbox configuration, built from explicit arguments.
+"""Immutable per-mailbox configuration.
 
-Every value is required. There are no defaults, so a mailbox is never reached
-over a host, port or account that nobody chose.
+Split by sensitivity, on purpose:
+
+- Host, port and label are plain arguments in `.mcp.json`. They are not secret
+  and they belong in version control.
+- The address and password arrive as environment variables, which Claude Code
+  fills from `userConfig` in `plugin.json`. Anything marked `sensitive` there is
+  masked on entry and kept in secure storage, never in `settings.json` and never
+  in this repository.
+
+Credentials are therefore never arguments, so they cannot appear in a process
+listing, and never live in a file this plugin manages.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Sequence
+from typing import Final, Sequence
 
-from credentials import read_secret
+USER_VARIABLE: Final[str] = "MAILBOX_USER"
+PASSWORD_VARIABLE: Final[str] = "MAILBOX_PASSWORD"
+
+
+class MailboxNotConfigured(RuntimeError):
+    """Raised when this machine has no credentials for the mailbox."""
 
 
 @dataclass(frozen=True)
@@ -36,21 +50,29 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--label", required=True, help="Human name for this mailbox, used in logs.")
     parser.add_argument("--imap-host", required=True, help="IMAP hostname, also sent as the TLS SNI name.")
     parser.add_argument("--imap-port", required=True, type=int, help="IMAP port, normally 993.")
-    parser.add_argument("--user-key", required=True, help="Key inside the secrets file holding the mailbox login.")
     parser.add_argument("--smtp-host", required=True, help="SMTP hostname, also sent as the TLS SNI name.")
     parser.add_argument("--smtp-port", required=True, type=int, help="Implicit-TLS SMTP port, normally 465.")
-    parser.add_argument("--secrets-file", required=True, type=Path, help="Path to the machine-local secrets file.")
-    parser.add_argument("--password-key", required=True, help="Key inside the secrets file holding the password.")
     return parser
 
 
-def parse_config(argv: Sequence[str]) -> MailboxConfig:
-    """Parse `argv` and resolve the mailbox password from the secrets file."""
-    parser: argparse.ArgumentParser = build_parser()
-    namespace: argparse.Namespace = parser.parse_args(argv)
-    secrets_file: Path = Path(namespace.secrets_file).expanduser()
-    password: str = read_secret(secrets_file, namespace.password_key)
-    imap_user: str = read_secret(secrets_file, namespace.user_key)
+def parse_config(argv: Sequence[str], environment: dict[str, str] | None = None) -> MailboxConfig:
+    """Parse `argv` and take the credentials from the environment.
+
+    Raises MailboxNotConfigured when either credential is absent or blank, which
+    is the normal state for a mailbox the user chose not to configure on this
+    machine.
+    """
+    namespace: argparse.Namespace = build_parser().parse_args(argv)
+    source: dict[str, str] = dict(os.environ) if environment is None else environment
+
+    imap_user: str = source.get(USER_VARIABLE, "").strip()
+    password: str = source.get(PASSWORD_VARIABLE, "").strip().replace(" ", "")
+    if not imap_user or not password:
+        raise MailboxNotConfigured(
+            f"mailbox {namespace.label!r} has no credentials on this machine; "
+            f"run /plugin to set them, or leave it unconfigured to keep it off here"
+        )
+
     return MailboxConfig(
         label=namespace.label,
         imap_host=namespace.imap_host,

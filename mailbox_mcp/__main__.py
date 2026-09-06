@@ -3,10 +3,11 @@
     python3 mailbox_mcp/__main__.py \
         --label gmail \
         --imap-host imap.gmail.com --imap-port 993 \
-        --imap-user you@gmail.com \
-        --smtp-host smtp.gmail.com --smtp-port 465 \
-        --secrets-file ~/.config/claude-secrets.env \
-        --password-key GMAIL_APP_PASSWORD
+        --smtp-host smtp.gmail.com --smtp-port 465
+
+The address and password arrive as MAILBOX_USER and MAILBOX_PASSWORD, which
+Claude Code fills from `userConfig` in plugin.json. They are never arguments,
+so the password cannot appear in a process listing.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from typing import Final
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import MailboxConfig, parse_config  # noqa: E402
+from config import MailboxConfig, MailboxNotConfigured, parse_config  # noqa: E402
 from jsonrpc_server import MailboxMcpServer  # noqa: E402
 from tools.base import Tool  # noqa: E402
 from tools.registry import build_tools  # noqa: E402
@@ -41,9 +42,10 @@ def main(argv: list[str]) -> int:
     logger: logging.Logger = logging.getLogger("mailbox_mcp")
     try:
         config: MailboxConfig = parse_config(argv)
-    except (FileNotFoundError, KeyError) as error:
-        logger.error("cannot resolve credentials: %s", error)
-        return 2
+    except MailboxNotConfigured as reason:
+        # Not an error: the user deliberately left this mailbox off this machine.
+        logger.info("%s", reason)
+        return 0
 
     tools: dict[str, Tool] = build_tools(config)
     server: MailboxMcpServer = MailboxMcpServer(
