@@ -6,13 +6,13 @@
   },
   "metadata": {
     "description": "Alchlight internal Claude Code tools.",
-    "version": "1.0.0"
+    "version": "2.0.0"
   },
   "plugins": [
     {
-      "name": "alchlight-email",
+      "name": "email-tool",
       "source": "./",
-      "description": "IMAP/SMTP email for Claude Code — read, search, draft, and send mail."
+      "description": "IMAP/SMTP email for Claude Code: read, search, draft, and send mail."
     }
   ]
 }
