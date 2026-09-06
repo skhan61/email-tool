@@ -1,11 +1,11 @@
 {
-  "name": "alchlight-tools",
+  "name": "email-tool",
   "owner": {
     "name": "Sayem Khan",
     "email": "s.khan@alchlight.com"
   },
   "metadata": {
-    "description": "Alchlight internal Claude Code tools.",
+    "description": "Email for Claude Code: IMAP/SMTP mailbox access.",
     "version": "2.1.0"
   },
   "plugins": [
