@@ -1,6 +1,6 @@
 {
   "name": "email-tool",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "IMAP/SMTP email for Claude Code: read, search, draft, and send mail from your own mailbox. Ships a dependency-free Python MCP server (standard library only) plus email workflows and slash commands.",
   "author": {
     "name": "Sayem Khan",
