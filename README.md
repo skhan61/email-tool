@@ -31,41 +31,28 @@ library only) and adds reusable email workflows (a skill) and slash commands.
 - Your mailbox **IMAP/SMTP credentials** (for HostGator-hosted Alchlight mail,
   that's your full email address + mailbox password).
 
-### 2. Set your credentials
-After installing, run `/email-tool:setup` and it will walk you through it, or
-run the script directly in a terminal:
-
-```bash
-python3 ~/.claude/vendor/email-tool/setup/__main__.py --list
-python3 ~/.claude/vendor/email-tool/setup/__main__.py --mailbox gmail
-```
-
-It asks for the address, then the password **with typing hidden**, verifies the
-login against the real mail server, and only writes anything if the login works.
-Credentials go to `~/.config/claude-secrets.env` at mode 600.
-
-The password is never passed as an argument or an environment variable, so it
-cannot land in shell history, a process listing, or a Claude Code transcript.
-
-A mailbox with no keys on this machine simply does not start here. That is how
-one machine runs a different set of mailboxes from another.
-
-### 3. Add the marketplace and install
-From Claude Code:
-
+### 2. Install it
 ```
 /plugin marketplace add <git-url-or-path-to-this-repo>
 /plugin install email-tool@email-tool
 ```
 
-Or for a local checkout:
+Claude Code then **asks you for each mailbox's address and password**. Password
+fields are masked as you type and stored in secure storage (the macOS Keychain,
+or `~/.claude/.credentials.json`), never in `settings.json` and never in this
+repository.
 
-```
-/plugin marketplace add ~/.claude/vendor/email-tool
-/plugin install email-tool@email-tool
-```
+**Leave a mailbox blank to keep it off this machine.** That server logs one line
+and exits quietly. This is how one machine runs Alchlight only while another
+runs both, with no per-machine config file and nothing to sync.
 
-Restart Claude Code (or reload plugins). Verify the MCP server connects with
+To change or add credentials later, run `/plugin` and edit the plugin's
+configuration.
+
+Gmail needs a Google App Password, not your account password.
+
+### 3. Verify
+Restart Claude Code (or reload plugins). Check the servers connect with
 `/mcp`, you should see `email-tool` listed.
 
 ---
@@ -85,8 +72,10 @@ your mailbox without your explicit confirmation.
 
 ## Security notes
 
-- Credentials live **only** in `~/.config/claude-secrets.env` (mode 600),
-  never in this repo and never in `.mcp.json`. The `.gitignore` blocks `.env`.
+- Credentials are entered once at install, masked, and held by Claude Code in
+  secure storage. They are never in this repo, never in `.mcp.json`, never in
+  `settings.json`, and never passed as command-line arguments, so they cannot
+  appear in a process listing.
 - TLS certificates are **always** verified, and there is no option to disable
   verification. The server sends SNI, which is required by Gmail and by any
   other host that serves more than one domain.
@@ -100,10 +89,8 @@ your mailbox without your explicit confirmation.
 
 ## Troubleshooting
 
-- **`/mcp` shows it failing to connect** → check the keys named by `--user-key`
-  and `--password-key` in `.mcp.json` actually exist in
-  `~/.config/claude-secrets.env`. The server logs the missing key to stderr and
-  exits with status 2.
+- **A mailbox is missing from `/mcp`** - its fields were left blank at install.
+  Run `/plugin`, edit the plugin config, fill them in, restart.
 - **Auth errors** → verify host/port match your provider (Alchlight is HostGator
   `gator3272.hostgator.com`, IMAP 993 / SMTP 465, both TLS).
 - **`self-signed certificate` on Gmail** → that was the old `imap-email-mcp`
