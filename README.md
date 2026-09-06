@@ -50,14 +50,14 @@ From Claude Code:
 
 ```
 /plugin marketplace add <git-url-or-path-to-this-repo>
-/plugin install email-tool@alchlight-tools
+/plugin install email-tool@email-tool
 ```
 
 Or for a local checkout:
 
 ```
 /plugin marketplace add ~/.claude/vendor/email-tool
-/plugin install email-tool@alchlight-tools
+/plugin install email-tool@email-tool
 ```
 
 Restart Claude Code (or reload plugins). Verify the MCP server connects with
