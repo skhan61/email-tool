@@ -15,7 +15,8 @@ library only) and adds reusable email workflows (a skill) and slash commands.
 
 | Type | Name | What it does |
 |------|------|--------------|
-| MCP server | `email-tool` | IMAP/SMTP tools: list, search, read, draft, send, delete |
+| MCP server | `alchlight` | IMAP/SMTP tools for the Alchlight work mailbox |
+| MCP server | `gmail` | IMAP/SMTP tools for the personal Gmail mailbox |
 | Skill | `email-tool` | Email triage / reply / compose workflows with safety rules |
 | Command | `/inbox` | Summarize recent inbox messages |
 | Command | `/email-search` | Search the mailbox |
