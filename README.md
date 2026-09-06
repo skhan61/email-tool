@@ -3,11 +3,11 @@
 A Claude Code **plugin** that gives Claude access to your email mailbox over
 IMAP/SMTP — read, search, draft, and send mail from inside a session.
 
-It wraps the public [`imap-email-mcp`](https://www.npmjs.com/package/imap-email-mcp)
-MCP server and adds reusable email workflows (a skill) and slash commands.
+It ships its own dependency-free MCP server (`mailbox_mcp/`, Python standard
+library only) and adds reusable email workflows (a skill) and slash commands.
 
 > **Each person uses their own mailbox.** This plugin ships *no credentials*.
-> You supply your own IMAP/SMTP login via environment variables.
+> You supply your own IMAP/SMTP login via a machine-local secrets file.
 
 ---
 
@@ -26,22 +26,23 @@ MCP server and adds reusable email workflows (a skill) and slash commands.
 ## Install
 
 ### 1. Prerequisites
-- **Node.js** installed (the MCP server runs via `npx`).
+- **Python 3.10+** on PATH. There are no third-party packages to install.
 - Your mailbox **IMAP/SMTP credentials** (for HostGator-hosted Alchlight mail,
   that's your full email address + mailbox password).
 
 ### 2. Set your credentials
-Copy `.env.example`, fill in your own values, and make sure the variables are
-**exported in the shell that launches Claude Code**:
+Put them in a machine-local secrets file. The server reads this file directly,
+so it does not matter what the shell that launched Claude Code exported:
 
 ```bash
-export IMAP_USER="you@alchlight.com"
-export IMAP_PASSWORD="your-mailbox-password"
-# host/port default to the Alchlight server; override only if yours differs
+cat >> ~/.config/claude-secrets.env <<'EOF'
+export ALCHLIGHT_MAIL_USER=you@alchlight.com
+export ALCHLIGHT_MAIL_PASSWORD=your-mailbox-password
+EOF
+chmod 600 ~/.config/claude-secrets.env
 ```
 
-Add these to `~/.bashrc` / `~/.zshrc` (or a [direnv](https://direnv.net/) `.envrc`)
-so they persist. **Do not commit them.**
+**Do not commit them.** See `.env.example` for adding a second mailbox.
 
 ### 3. Add the marketplace and install
 From Claude Code:
@@ -78,8 +79,11 @@ your mailbox without your explicit confirmation.
 
 ## Security notes
 
-- Credentials live **only** in your environment, never in this repo. The
-  `.gitignore` blocks `.env`.
+- Credentials live **only** in `~/.config/claude-secrets.env` (mode 600),
+  never in this repo and never in `.mcp.json`. The `.gitignore` blocks `.env`.
+- TLS certificates are **always** verified, and there is no option to disable
+  verification. The server sends SNI, which is required by Gmail and by any
+  other host that serves more than one domain.
 - The MCP server talks directly to your mail host over TLS; mail contents are
   visible to Claude during a session — treat them as you would any data you
   share with an assistant.
@@ -90,8 +94,11 @@ your mailbox without your explicit confirmation.
 
 ## Troubleshooting
 
-- **`/mcp` shows it failing to connect** → check `IMAP_USER` / `IMAP_PASSWORD`
-  are exported in the same shell that started Claude Code; confirm Node is on PATH.
-- **Auth errors** → verify host/port match your provider (defaults are HostGator
+- **`/mcp` shows it failing to connect** → check the keys named by `--user-key`
+  and `--password-key` in `.mcp.json` actually exist in
+  `~/.config/claude-secrets.env`. The server logs the missing key to stderr and
+  exits with status 2.
+- **Auth errors** → verify host/port match your provider (Alchlight is HostGator
   `gator3272.hostgator.com`, IMAP 993 / SMTP 465, both TLS).
-- **`npx` is slow on first run** → it downloads `imap-email-mcp` once, then caches it.
+- **`self-signed certificate` on Gmail** → that was the old `imap-email-mcp`
+  engine, which sent no TLS SNI. It is gone; see `mailbox_mcp/imap_session.py`.
