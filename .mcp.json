@@ -2,18 +2,18 @@
   "mcpServers": {
     "alchlight-email": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "imap-email-mcp@1.0.0"],
-      "env": {
-        "IMAP_HOST": "${IMAP_HOST:-gator3272.hostgator.com}",
-        "IMAP_PORT": "${IMAP_PORT:-993}",
-        "IMAP_TLS": "${IMAP_TLS:-true}",
-        "IMAP_USER": "${IMAP_USER}",
-        "IMAP_PASSWORD": "${IMAP_PASSWORD}",
-        "SMTP_HOST": "${SMTP_HOST:-gator3272.hostgator.com}",
-        "SMTP_PORT": "${SMTP_PORT:-465}",
-        "SMTP_SECURE": "${SMTP_SECURE:-true}"
-      }
+      "command": "python3",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mailbox_mcp/__main__.py",
+        "--label", "alchlight",
+        "--imap-host", "gator3272.hostgator.com",
+        "--imap-port", "993",
+        "--user-key", "ALCHLIGHT_MAIL_USER",
+        "--smtp-host", "gator3272.hostgator.com",
+        "--smtp-port", "465",
+        "--secrets-file", "${HOME}/.config/claude-secrets.env",
+        "--password-key", "ALCHLIGHT_MAIL_PASSWORD"
+      ]
     }
   }
 }
