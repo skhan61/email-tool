@@ -32,18 +32,23 @@ library only) and adds reusable email workflows (a skill) and slash commands.
   that's your full email address + mailbox password).
 
 ### 2. Set your credentials
-Put them in a machine-local secrets file. The server reads this file directly,
-so it does not matter what the shell that launched Claude Code exported:
+After installing, run `/email-tool:setup` and it will walk you through it, or
+run the script directly in a terminal:
 
 ```bash
-cat >> ~/.config/claude-secrets.env <<'EOF'
-export ALCHLIGHT_MAIL_USER=you@alchlight.com
-export ALCHLIGHT_MAIL_PASSWORD=your-mailbox-password
-EOF
-chmod 600 ~/.config/claude-secrets.env
+python3 ~/.claude/vendor/email-tool/setup/__main__.py --list
+python3 ~/.claude/vendor/email-tool/setup/__main__.py --mailbox gmail
 ```
 
-**Do not commit them.** See `.env.example` for adding a second mailbox.
+It asks for the address, then the password **with typing hidden**, verifies the
+login against the real mail server, and only writes anything if the login works.
+Credentials go to `~/.config/claude-secrets.env` at mode 600.
+
+The password is never passed as an argument or an environment variable, so it
+cannot land in shell history, a process listing, or a Claude Code transcript.
+
+A mailbox with no keys on this machine simply does not start here. That is how
+one machine runs a different set of mailboxes from another.
 
 ### 3. Add the marketplace and install
 From Claude Code:

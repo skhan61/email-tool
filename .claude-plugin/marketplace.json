@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Email for Claude Code: IMAP/SMTP mailbox access.",
-    "version": "2.1.0"
+    "version": "2.2.0"
   },
   "plugins": [
     {
