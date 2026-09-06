@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "email-tool": {
+    "alchlight": {
       "type": "stdio",
       "command": "python3",
       "args": [
@@ -8,11 +8,26 @@
         "--label", "alchlight",
         "--imap-host", "gator3272.hostgator.com",
         "--imap-port", "993",
-        "--user-key", "ALCHLIGHT_MAIL_USER",
         "--smtp-host", "gator3272.hostgator.com",
         "--smtp-port", "465",
         "--secrets-file", "${HOME}/.config/claude-secrets.env",
+        "--user-key", "ALCHLIGHT_MAIL_USER",
         "--password-key", "ALCHLIGHT_MAIL_PASSWORD"
+      ]
+    },
+    "gmail": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mailbox_mcp/__main__.py",
+        "--label", "gmail",
+        "--imap-host", "imap.gmail.com",
+        "--imap-port", "993",
+        "--smtp-host", "smtp.gmail.com",
+        "--smtp-port", "465",
+        "--secrets-file", "${HOME}/.config/claude-secrets.env",
+        "--user-key", "GMAIL_USER",
+        "--password-key", "GMAIL_APP_PASSWORD"
       ]
     }
   }
