@@ -1,7 +1,7 @@
-# alchlight-email
+# email-tool
 
 A Claude Code **plugin** that gives Claude access to your email mailbox over
-IMAP/SMTP — read, search, draft, and send mail from inside a session.
+IMAP/SMTP, read, search, draft, and send mail from inside a session.
 
 It ships its own dependency-free MCP server (`mailbox_mcp/`, Python standard
 library only) and adds reusable email workflows (a skill) and slash commands.
@@ -15,8 +15,8 @@ library only) and adds reusable email workflows (a skill) and slash commands.
 
 | Type | Name | What it does |
 |------|------|--------------|
-| MCP server | `alchlight-email` | IMAP/SMTP tools: list, search, read, draft, send, delete |
-| Skill | `alchlight-email` | Email triage / reply / compose workflows with safety rules |
+| MCP server | `email-tool` | IMAP/SMTP tools: list, search, read, draft, send, delete |
+| Skill | `email-tool` | Email triage / reply / compose workflows with safety rules |
 | Command | `/inbox` | Summarize recent inbox messages |
 | Command | `/email-search` | Search the mailbox |
 | Command | `/email-send` | Draft + send (with confirmation) |
@@ -49,30 +49,30 @@ From Claude Code:
 
 ```
 /plugin marketplace add <git-url-or-path-to-this-repo>
-/plugin install alchlight-email@alchlight-tools
+/plugin install email-tool@alchlight-tools
 ```
 
 Or for a local checkout:
 
 ```
-/plugin marketplace add ~/alchlight-email-plugin
-/plugin install alchlight-email@alchlight-tools
+/plugin marketplace add ~/.claude/vendor/email-tool
+/plugin install email-tool@alchlight-tools
 ```
 
 Restart Claude Code (or reload plugins). Verify the MCP server connects with
-`/mcp` — you should see `alchlight-email` listed.
+`/mcp`, you should see `email-tool` listed.
 
 ---
 
 ## Usage
 
-- `/inbox` — recent mail at a glance
-- `/email-search from:jane invoice` — find messages
+- `/inbox`, recent mail at a glance
+- `/email-search from:jane invoice`, find messages
 - `/email-send reply to the last message from Jane confirming the meeting`
 - Or just ask naturally: *"check my inbox", "find the email about the contract",
   "draft a reply to Bob"*. The skill activates automatically.
 
-The skill **always drafts and asks before sending or deleting** — nothing leaves
+The skill **always drafts and asks before sending or deleting**, nothing leaves
 your mailbox without your explicit confirmation.
 
 ---
@@ -85,7 +85,7 @@ your mailbox without your explicit confirmation.
   verification. The server sends SNI, which is required by Gmail and by any
   other host that serves more than one domain.
 - The MCP server talks directly to your mail host over TLS; mail contents are
-  visible to Claude during a session — treat them as you would any data you
+  visible to Claude during a session, treat them as you would any data you
   share with an assistant.
 - Use a dedicated mailbox password / app password where your provider supports
   it, rather than your primary account password.
