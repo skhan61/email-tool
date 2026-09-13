@@ -8,7 +8,7 @@ import ssl
 from email.message import EmailMessage
 from typing import Any, Final
 
-from message_compose import compose, envelope_recipients
+from message_compose import COMPOSE_PROPERTIES, compose, envelope_recipients
 from tools.base import Tool
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
@@ -29,12 +29,7 @@ class SendEmail(Tool):
     def input_schema(self) -> dict[str, Any]:
         return {
             "type": "object",
-            "properties": {
-                "to": {"type": "string", "description": "Comma-separated recipient addresses."},
-                "cc": {"type": "string", "description": "Comma-separated Cc addresses."},
-                "subject": {"type": "string", "description": "Subject line."},
-                "body": {"type": "string", "description": "Plain text body."},
-            },
+            "properties": COMPOSE_PROPERTIES,
             "required": ["to", "subject", "body"],
         }
 

@@ -52,6 +52,13 @@ only when search returns nothing.
 3. Only call `send_email` after the user confirms. Sending is irreversible
    and outward-facing, never send unprompted.
 
+### Links and formatting
+Never paste a bare URL into a message. Pass `html` with the link behind
+descriptive text (`<a href="...">NSC 2026 customer list</a>`), and a matching
+plain-text `body` as the fallback. `send_email`, `create_draft` and
+`update_draft` all accept `html`; a draft saved with it opens in rich-text
+mode in the mail client.
+
 ## Safety rules
 
 - **Never send or delete without explicit user confirmation.** Show the exact

@@ -5,7 +5,7 @@ from __future__ import annotations
 from email.message import EmailMessage
 from typing import Any, Final
 
-from message_compose import compose
+from message_compose import COMPOSE_PROPERTIES, compose
 from message_render import MessageSummary
 from tools.base import Tool
 from tools.messages import GetEmail, newest_summaries, render_summaries
@@ -15,12 +15,6 @@ _DRAFT_FLAGS: Final[str] = r"(\Draft)"
 _FOLDER_PROPERTY: Final[dict[str, str]] = {
     "type": "string",
     "description": "Drafts folder, for example '[Gmail]/Drafts' or 'INBOX.Drafts'.",
-}
-_COMPOSE_PROPERTIES: Final[dict[str, Any]] = {
-    "to": {"type": "string", "description": "Comma-separated recipient addresses."},
-    "cc": {"type": "string", "description": "Comma-separated Cc addresses."},
-    "subject": {"type": "string", "description": "Subject line."},
-    "body": {"type": "string", "description": "Plain text body."},
 }
 
 
@@ -39,7 +33,7 @@ class CreateDraft(Tool):
     def input_schema(self) -> dict[str, Any]:
         return {
             "type": "object",
-            "properties": {"folder": _FOLDER_PROPERTY, **_COMPOSE_PROPERTIES},
+            "properties": {"folder": _FOLDER_PROPERTY, **COMPOSE_PROPERTIES},
             "required": ["folder", "to"],
         }
 
@@ -128,7 +122,7 @@ class UpdateDraft(Tool):
             "properties": {
                 "folder": _FOLDER_PROPERTY,
                 "uid": {"type": "integer", "description": "UID of the draft to replace."},
-                **_COMPOSE_PROPERTIES,
+                **COMPOSE_PROPERTIES,
             },
             "required": ["folder", "uid", "to"],
         }
