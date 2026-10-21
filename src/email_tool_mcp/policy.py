@@ -16,6 +16,7 @@ MailboxBook checks the recipients of every message it sends or saves as a draft
 
     [mailboxes.work]               # one mailbox, combined with [default]
     allowed_tools = ["list_emails", "get_email", "create_draft"]
+    cui_recipient_domains = ["example.com"]   # CUI-marked mail only to these
 
 Limit: this stops the agent and accidental loosening. A user who controls their
 own machine can run different code; enforce the install itself (managed
@@ -53,6 +54,7 @@ class Rules:
     require_approval: bool = False
     allowed_tools: list[str] | None = None
     allowed_recipient_domains: list[str] | None = None
+    cui_recipient_domains: list[str] | None = None
 
 
 def narrower(first: list[str] | None, second: list[str] | None) -> list[str] | None:
@@ -73,11 +75,17 @@ def combine(rules: Iterable[Rules]) -> Rules:
             if rule.allowed_recipient_domains is not None
             else None
         )
+        cui_domains: list[str] | None = (
+            [domain.lower() for domain in rule.cui_recipient_domains]
+            if rule.cui_recipient_domains is not None
+            else None
+        )
         combined = Rules(
             read_only=combined.read_only or rule.read_only,
             require_approval=combined.require_approval or rule.require_approval,
             allowed_tools=narrower(combined.allowed_tools, rule.allowed_tools),
             allowed_recipient_domains=narrower(combined.allowed_recipient_domains, domains),
+            cui_recipient_domains=narrower(combined.cui_recipient_domains, cui_domains),
         )
     return combined
 
@@ -151,6 +159,20 @@ class Policy:
                 raise PolicyRefusal(f"policy: {tool} is not in allowed_tools for mailbox {mailbox!r}")
         if rules.read_only and changes_mail:
             raise PolicyRefusal(f"policy: mailbox {mailbox!r} is read_only, so {tool} is refused")
+
+    def check_cui(self, mailbox: str, recipients: list[str], found: list[str]) -> None:
+        """Raise PolicyRefusal when a CUI-marked message goes outside `cui_recipient_domains` (3.1.3)."""
+        allowed: list[str] | None = self.rules_for(mailbox).cui_recipient_domains
+        if allowed is None or not found:
+            return
+        outside: list[str] = sorted(
+            address for address in recipients if address.rpartition("@")[2].lower() not in allowed
+        )
+        if outside or not recipients:
+            raise PolicyRefusal(
+                f"policy: the message carries CUI markings ({'; '.join(found)}) and "
+                f"{', '.join(outside) or 'its recipients'} are outside cui_recipient_domains"
+            )
 
     def check_recipients(self, mailbox: str, recipients: list[str], addressed: bool) -> None:
         """Raise PolicyRefusal unless every recipient is in an allowed domain.

@@ -19,6 +19,7 @@ from typing import Final
 
 from keyring.errors import KeyringError
 
+from email_tool_mcp.cui import message_markings
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.message_compose import envelope_recipients
 from email_tool_mcp.passwords import MissingPassword, environment_password, read_password
@@ -129,6 +130,7 @@ class MailboxBook:
         recipients: list[str] = envelope_recipients(message)
         addressed: bool = bool(str(message.get("To", "")).strip() or str(message.get("Cc", "")).strip())
         self.policy.check_recipients(mailbox.name, recipients, addressed)
+        self.policy.check_cui(mailbox.name, recipients, message_markings(message))
         return recipients
 
     def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:
