@@ -1,4 +1,4 @@
-"""Command line: `email-tool-mcp add|remove|list|serve`. Arguments and dispatch only.
+"""Command line: `email-tool-mcp add|remove|list|serve|audit`. Arguments and dispatch only.
 
 Standard: `fire` builds the CLI from these typed signatures; `[project.scripts]` installs it.
 Placement: __main__.py, so `python -m email_tool_mcp` and the console script share one entry.
@@ -12,14 +12,30 @@ import sys
 
 import fire
 
+from email_tool_mcp.audit import AuditLog, verify
 from email_tool_mcp.enrol import add_mailbox, describe_mailboxes, remove_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, settings_path
 
 
+class AuditCommands:
+    """Inspect the audit log of agent actions."""
+
+    def path(self) -> str:
+        """Print where the audit log is written."""
+        return str(AuditLog.from_environment(os.environ).path)
+
+    def verify(self) -> str:
+        """Check the hash chain; report the first edited, inserted or removed record."""
+        return verify(AuditLog.from_environment(os.environ).path).render()
+
+
 class Cli:
     """Email for any MCP client. Passwords live in the OS keyring."""
+
+    def __init__(self) -> None:
+        self.audit: AuditCommands = AuditCommands()
 
     def add(
         self,
@@ -44,7 +60,7 @@ class Cli:
     def serve(self) -> None:
         """Run the MCP server on stdio (what an AI agent launches)."""
         logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-        build_server(MailboxBook(settings_path(), os.environ)).run("stdio")
+        build_server(MailboxBook(settings_path(), os.environ), AuditLog.from_environment(os.environ)).run("stdio")
 
 
 def main() -> None:

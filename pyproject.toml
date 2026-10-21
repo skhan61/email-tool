@@ -8,6 +8,7 @@ license = "MIT"
 authors = [{ name = "Sayem Khan", email = "sayem.eee.kuet@gmail.com" }]
 maintainers = [{ name = "Sayem Khan", email = "s.khan@alchlight.com" }]
 dependencies = [
+    "filelock==4.0.12",
     "fire==0.7.1",
     "imapclient==4.1.0",
     "keyring==25.7.0",
