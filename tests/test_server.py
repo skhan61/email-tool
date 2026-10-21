@@ -10,7 +10,7 @@ from email.message import EmailMessage
 
 import pytest
 from mcp import Client
-from mcp_types import CallToolResult, ListToolsResult, TextContent, Tool
+from mcp_types import CallToolResult, ListToolsResult, TextContent, Tool, ToolAnnotations
 
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose
@@ -56,15 +56,20 @@ async def test_every_tool_is_listed_with_safety_hints(book: MailboxBook) -> None
         listed: ListToolsResult = await client.list_tools()
     tools: dict[str, Tool] = {tool.name: tool for tool in listed.tools}
     assert set(tools) == TOOL_NAMES
-    for name in ("delete_email", "update_draft", "send_email"):
-        assert tools[name].annotations is not None and tools[name].annotations.destructiveHint
-    assert tools["list_emails"].annotations is not None and tools["list_emails"].annotations.readOnlyHint
-    assert "mailbox" in tools["list_emails"].inputSchema["properties"]
+    hints: dict[str, ToolAnnotations] = {name: tool.annotations for name, tool in tools.items() if tool.annotations}
+    assert set(hints) == TOOL_NAMES
+    assert {name for name, hint in hints.items() if hint.destructive_hint} == {
+        "delete_email",
+        "update_draft",
+        "send_email",
+    }
+    assert hints["list_emails"].read_only_hint
+    assert "mailbox" in tools["list_emails"].input_schema["properties"]
 
 
 async def test_missing_password_reaches_the_model_with_the_fix(book: MailboxBook) -> None:
     result: CallToolResult = await call(book, "list_emails", {"mailbox": "work"})
-    assert result.isError
+    assert result.is_error
     assert "email-tool-mcp add work" in text_of(result)
 
 
@@ -74,7 +79,7 @@ async def test_list_and_read_a_message(book: MailboxBook, mail_server: FakeMailS
     uid: int = mail_server.add("INBOX", message.as_bytes())
 
     listing: CallToolResult = await call(book, "list_emails", {"mailbox": "work", "limit": 5})
-    assert not listing.isError
+    assert not listing.is_error
     assert "Quarterly report" in text_of(listing)
 
     full: CallToolResult = await call(book, "get_email", {"mailbox": "work", "uid": uid})
@@ -86,7 +91,7 @@ async def test_send_uses_the_named_mailbox(book: MailboxBook, mail_server: FakeM
     result: CallToolResult = await call(
         book, "send_email", {"mailbox": "home", "to": "a@example.com", "subject": "Hi", "body": "hello"}
     )
-    assert not result.isError
+    assert not result.is_error
     sent, recipients = mail_server.sent[0]
     assert sent["From"] == "me@gmail.com"
     assert recipients == ["a@example.com"]
@@ -95,6 +100,6 @@ async def test_send_uses_the_named_mailbox(book: MailboxBook, mail_server: FakeM
 async def test_update_draft_replaces_the_original(book: MailboxBook, mail_server: FakeMailServer) -> None:
     store_password("work", "secret")
     created: CallToolResult = await call(book, "create_draft", {"mailbox": "work", "folder": "Drafts", "to": "a@x.com"})
-    assert not created.isError
+    assert not created.is_error
     await call(book, "update_draft", {"mailbox": "work", "folder": "Drafts", "uid": 1, "to": "b@x.com"})
     assert list(mail_server.folders["Drafts"]) == [2]

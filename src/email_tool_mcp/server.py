@@ -40,10 +40,12 @@ _EXPECTED_FAILURES: Final[tuple[type[Exception], ...]] = (
     ValueError,
 )
 
-_READ_ONLY: Final[ToolAnnotations] = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
-_WRITES: Final[ToolAnnotations] = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False)
-_DESTRUCTIVE: Final[ToolAnnotations] = ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False)
-_SENDS: Final[ToolAnnotations] = ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=True)
+_READ_ONLY: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=True, open_world_hint=False)
+_WRITES: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
+_DESTRUCTIVE: Final[ToolAnnotations] = ToolAnnotations(
+    read_only_hint=False, destructive_hint=True, open_world_hint=False
+)
+_SENDS: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True)
 
 Params = ParamSpec("Params")
 
