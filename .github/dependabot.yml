@@ -1,6 +1,8 @@
 version: 2
-# One grouped PR per ecosystem per week, and nothing younger than 14 days:
-# a fresh release gets two weeks for regressions and yanks to surface first.
+# Grouped weekly PRs, and nothing younger than 14 days: a fresh release gets two
+# weeks for regressions and yanks to surface first. Runtime and dev bumps stay in
+# separate PRs so a breaking runtime release cannot block tooling updates.
+# The pre-commit-hooks rev is not covered; bump it with `pre-commit autoupdate`.
 updates:
   - package-ecosystem: uv
     directory: /
@@ -9,8 +11,10 @@ updates:
     cooldown:
       default-days: 14
     groups:
-      python:
-        patterns: ["*"]
+      runtime:
+        dependency-type: production
+      dev:
+        dependency-type: development
   - package-ecosystem: github-actions
     directory: /
     schedule:

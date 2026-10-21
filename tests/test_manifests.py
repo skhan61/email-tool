@@ -27,6 +27,27 @@ def read_json(relative: str) -> dict[str, Any]:
     return loaded
 
 
+def package_license() -> str:
+    license_id: str = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["license"]
+    return license_id
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ("manifest.json", ("license",)),
+        (".claude-plugin/plugin.json", ("license",)),
+        (".codex-plugin/plugin.json", ("license",)),
+        (".claude-plugin/marketplace.json", ("plugins", 0, "license")),
+    ],
+)
+def test_manifest_license_matches_the_package(path: tuple[str, tuple[str | int, ...]]) -> None:
+    value: Any = read_json(path[0])
+    for key in path[1]:
+        value = value[key]
+    assert value == package_license()
+
+
 def package_version() -> str:
     project: dict[str, Any] = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     version: str = project["version"]
