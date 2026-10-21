@@ -16,6 +16,7 @@ recipients, and the outcome. It never holds a subject, a body or a password.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import hmac
 import json
@@ -52,8 +53,13 @@ class AuditError(RuntimeError):
     """Raised when a record cannot be written; the caller must not act."""
 
 
+@functools.cache
 def os_account() -> str:
-    """The account this process runs as, from its credentials, not from USER/LOGNAME (3.3.2)."""
+    """The account this process runs as, from its credentials, not from USER/LOGNAME (3.3.2).
+
+    Computed once: the process account does not change. A POSIX uid with no passwd
+    entry (common in containers) is recorded as `uid:<n>`, still from the credentials.
+    """
     if sys.platform == "win32":
         import ctypes
 
@@ -64,7 +70,10 @@ def os_account() -> str:
         raise OSError("GetUserNameW failed")
     import pwd
 
-    return pwd.getpwuid(os.getuid()).pw_name
+    try:
+        return pwd.getpwuid(os.getuid()).pw_name
+    except KeyError:
+        return f"uid:{os.getuid()}"
 
 
 def default_audit_path() -> Path:
@@ -161,8 +170,8 @@ def verify(path: Path) -> VerifyResult:
     return VerifyResult(count, None, "")
 
 
-def syslog_handler(address: str) -> logging.Handler:
-    """Build a SysLogHandler from `host:port`, `udp://host:port` or `tcp://host:port`."""
+def syslog_target(address: str) -> tuple[str, int, socket.SocketKind]:
+    """Parse `host:port`, `udp://host:port` or `tcp://host:port`; SettingsError when malformed."""
     target: SplitResult = urlsplit(address if "://" in address else f"udp://{address}")
     if target.scheme not in ("udp", "tcp") or not target.hostname:
         raise SettingsError(f"{ENV_AUDIT_SYSLOG}={address!r}: use host:port, udp://host:port or tcp://host:port")
@@ -171,30 +180,40 @@ def syslog_handler(address: str) -> logging.Handler:
     except ValueError as error:
         raise SettingsError(f"{ENV_AUDIT_SYSLOG}={address!r}: the port is not a number") from error
     transport: socket.SocketKind = socket.SOCK_STREAM if target.scheme == "tcp" else socket.SOCK_DGRAM
-    return logging.handlers.SysLogHandler(address=(target.hostname, port), socktype=transport)
+    return target.hostname, port, transport
+
+
+def syslog_handler(address: str) -> logging.Handler:
+    """Open a SysLogHandler to `address`; OSError when the target cannot be reached now."""
+    target: tuple[str, int, socket.SocketKind] = syslog_target(address)
+    return logging.handlers.SysLogHandler(address=(target[0], target[1]), socktype=target[2])
 
 
 class AuditLog:
     """Writes one MAC-chained record before and one after each tool call."""
 
-    def __init__(self, path: Path, syslog: logging.Handler | None = None) -> None:
+    def __init__(self, path: Path, syslog_address: str = "") -> None:
         self._path: Path = path
         self._lock: FileLock = FileLock(str(path) + ".lock")
-        self._syslog: logging.Handler | None = syslog
+        self._syslog_address: str = syslog_address
+        self._syslog: logging.Handler | None = None
+        if syslog_address:
+            syslog_target(syslog_address)  # a malformed address is a settings error at once
+            self._connect_syslog()
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str], with_syslog: bool) -> AuditLog:
         """Build from EMAIL_TOOL_AUDIT_FILE / EMAIL_TOOL_AUDIT_SYSLOG, defaulting to the user log folder."""
         path: Path = Path(environment.get(ENV_AUDIT_FILE, "") or default_audit_path())
-        address: str = environment.get(ENV_AUDIT_SYSLOG, "")
-        if not (with_syslog and address):
-            return cls(path)
+        return cls(path, environment.get(ENV_AUDIT_SYSLOG, "") if with_syslog else "")
+
+    def _connect_syslog(self) -> None:
+        """(Re)open the syslog copy; a target that is down is retried on the next record."""
         try:
-            return cls(path, syslog_handler(address))
+            self._syslog = syslog_handler(self._syslog_address)
         except OSError as error:
-            # The local log is authoritative; a SIEM that is down must not stop the tool.
-            logger.warning("audit copy to syslog %s unavailable, local log only: %s", address, error)
-            return cls(path)
+            self._syslog = None
+            logger.warning("audit copy to %s unavailable, retrying on the next record: %s", self._syslog_address, error)
 
     @property
     def path(self) -> Path:
@@ -213,9 +232,13 @@ class AuditLog:
 
     def _append(self, fields: dict[str, Any]) -> None:
         arguments: Mapping[str, Any] = fields.pop("arguments", {})
+        try:
+            account: str = os_account()
+        except Exception as error:
+            raise AuditError(f"cannot tell which OS account is running: {error}") from error
         body: dict[str, Any] = {
             "time": datetime.now(UTC).isoformat(timespec="milliseconds"),
-            "user": os_account(),
+            "user": account,
             "host": socket.gethostname(),
             **fields,
         }
@@ -242,5 +265,7 @@ class AuditLog:
             raise
         except Exception as error:
             raise AuditError(f"cannot write the audit log {self._path}: {error}") from error
+        if self._syslog_address and self._syslog is None:
+            self._connect_syslog()
         if self._syslog is not None:
             self._syslog.handle(logging.makeLogRecord({"msg": line, "levelno": logging.INFO, "levelname": "INFO"}))

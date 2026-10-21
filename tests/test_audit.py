@@ -14,7 +14,7 @@ import pytest
 from mcp import Client
 from mcp_types import CallToolResult
 
-from email_tool_mcp.audit import AuditError, AuditLog, syslog_handler, verify
+from email_tool_mcp.audit import AuditError, AuditLog, syslog_target, verify
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.passwords import store_password
 from email_tool_mcp.server import build_server
@@ -94,7 +94,7 @@ def test_subject_and_body_are_never_recorded(audit: AuditLog) -> None:
 @pytest.mark.parametrize("address", ["siem:udp", "ftp://siem:514", "tcp://:514"])
 def test_a_bad_syslog_address_is_a_clear_settings_error(address: str) -> None:
     with pytest.raises(SettingsError, match="EMAIL_TOOL_AUDIT_SYSLOG"):
-        syslog_handler(address)
+        syslog_target(address)
 
 
 @pytest.mark.anyio

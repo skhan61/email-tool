@@ -30,6 +30,7 @@ from mcp_types import ToolAnnotations
 from email_tool_mcp.approval import Approval, approval_resolver, enforce
 from email_tool_mcp.audit import AuditError, AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
+from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.drafts import DraftTools
 from email_tool_mcp.tools.reading import ReadingTools
 from email_tool_mcp.tools.sending import SendingTools
@@ -62,16 +63,30 @@ def reported(
     changes_mail: bool = not hints.read_only_hint
     destructive: bool = bool(hints.destructive_hint)
     signature: inspect.Signature = inspect.signature(tool, eval_str=True)
+    takes_mailbox: bool = "mailbox" in signature.parameters
 
     def execute(args: tuple[Any, ...], kwargs: dict[str, Any], approval: ElicitationResult[Any] | None) -> str:
-        mailbox: str = book.label(str(kwargs.get("mailbox", "")))
+        given: str = str(kwargs.get("mailbox", ""))
+        target: Mailbox | None = None
+        unresolved: Exception | None = None
+        if takes_mailbox:
+            try:
+                target = book.resolve(given)
+            except Exception as error:
+                unresolved = error
+        mailbox: str = target.name if target is not None else given
         try:
             call: str = audit.started(mailbox, name, kwargs)
         except AuditError as error:
             raise ToolError(f"Refused, nothing was done: {error}") from error
         approved: bool = False
         try:
-            book.policy.check_call(mailbox, book.address_of(mailbox), name, changes_mail, known_tools)
+            if unresolved is not None:
+                # Never check policy without the address: a mailbox that cannot be resolved does not run.
+                raise unresolved
+            book.policy.check_call(
+                mailbox, target.address if target is not None else "", name, changes_mail, known_tools
+            )
             if destructive:
                 approved = enforce(name, approval)
             result: str = tool(*args, **kwargs)

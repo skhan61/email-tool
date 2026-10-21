@@ -191,10 +191,12 @@ allowed_recipient_domains = ["example.com"]  # send/draft only to these domains
 require_approval = true                      # send, delete and replace-draft ask you first
 cui_recipient_domains = ["example.com"]      # mail marked CUI only to these domains
 
-[mailboxes.archive]
+allow_environment_mailbox = false            # ignore mailboxes an app sets in its environment
+
+[mailboxes."archive@example.com"]            # by address: binds under any mailbox name
 read_only = true                             # no send, draft or delete
 
-[mailboxes.work]
+[mailboxes.work]                             # by name (case-insensitive); a user could re-enrol under another name
 allowed_tools = ["list_emails", "search_emails", "get_email", "create_draft"]
 ```
 

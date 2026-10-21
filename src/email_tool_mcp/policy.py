@@ -158,15 +158,15 @@ class Policy:
         """The effective rules for the mailbox called `mailbox` with `address`.
 
         A `[mailboxes.<key>]` table applies when its key is the mailbox's name or its
-        address (case-insensitive); an administrator who keys by address cannot be
-        escaped by enrolling the same account under another name.
+        address, both compared case-insensitively; an administrator who keys by address
+        cannot be escaped by enrolling the same account under another name.
         """
-        keys: set[str] = {mailbox, address.lower()} - {""}
+        keys: set[str] = {mailbox.lower(), address.lower()} - {""}
         layers: list[Rules] = []
         for path in self._paths:
             default, mailboxes = self._tables(path)
             layers.append(default)
-            layers.extend(rules for key, rules in mailboxes.items() if key in keys or key.lower() in keys)
+            layers.extend(rules for key, rules in mailboxes.items() if key.lower() in keys)
         return combine(layers)
 
     def check_fips(self, mailbox: str, address: str) -> None:
@@ -221,3 +221,17 @@ class Policy:
                 f"policy: the message carries CUI markings ({'; '.join(found)}) and "
                 f"{', '.join(cui_outside)} are outside cui_recipient_domains"
             )
+
+
+def show_rules(policy: Policy, settings_file: Path, mailbox: str, address: str) -> str:
+    """The effective rules for a mailbox, saying when address-keyed rules could not be included."""
+    from email_tool_mcp.settings import load_mailboxes
+
+    known_address: str = address or getattr(load_mailboxes(settings_file).get(mailbox), "address", "")
+    rules: Rules = policy.rules_for(mailbox, known_address)
+    if known_address:
+        return f"{mailbox} ({known_address}): {rules}"
+    return (
+        f"{mailbox}: {rules}\nNote: no address known for {mailbox!r}, so rules keyed by address are not "
+        "shown. Pass --address you@example.com (e.g. for a mailbox an app sets in its environment)."
+    )
