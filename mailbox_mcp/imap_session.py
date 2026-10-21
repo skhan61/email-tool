@@ -17,8 +17,9 @@ import imaplib
 import logging
 import re
 import ssl
+from collections.abc import Sequence
 from types import TracebackType
-from typing import Final, Sequence
+from typing import Final
 
 import imap_utf7
 from config import MailboxConfig
@@ -43,7 +44,7 @@ class ImapSession:
         self._connection: imaplib.IMAP4_SSL | None = None
         self._selected_folder: str | None = None
 
-    def __enter__(self) -> "ImapSession":
+    def __enter__(self) -> ImapSession:
         context: ssl.SSLContext = ssl.create_default_context()
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED
@@ -71,10 +72,10 @@ class ImapSession:
             return
         try:
             if self._selected_folder is not None:
-                closed: tuple[str, list[bytes | None]] = connection.close()
-                logger.debug("closed folder: %s", closed[0])
-            logged_out: tuple[str, list[bytes | None]] = connection.logout()
-            logger.debug("logout: %s", logged_out[0])
+                closed_status: str = connection.close()[0]
+                logger.debug("closed folder: %s", closed_status)
+            logout_status: str = connection.logout()[0]
+            logger.debug("logout: %s", logout_status)
         except (imaplib.IMAP4.error, OSError) as error:
             logger.warning("error while closing connection: %s", error)
 
@@ -130,7 +131,7 @@ class ImapSession:
 
     def search(self, criteria: Sequence[str]) -> list[int]:
         """Return matching UIDs, oldest first, for the selected folder."""
-        typ, data = self._live.uid("SEARCH", None, *criteria)
+        typ, data = self._live.uid("SEARCH", *criteria)
         if typ != "OK":
             raise ImapError(f"SEARCH failed for criteria {list(criteria)!r}")
         payload: bytes | None = data[0] if data else None

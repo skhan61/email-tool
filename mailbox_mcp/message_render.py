@@ -101,8 +101,8 @@ def header_block(message: Message) -> str:
 
 
 def _decode_part(part: Message) -> str:
-    payload: bytes | None = part.get_payload(decode=True)
-    if payload is None:
+    payload: object = part.get_payload(decode=True)
+    if not isinstance(payload, bytes):
         return ""
     charset: str = part.get_content_charset() or "utf-8"
     return payload.decode(charset, "replace")

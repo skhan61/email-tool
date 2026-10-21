@@ -7,7 +7,7 @@ composed by exactly one piece of code.
 from __future__ import annotations
 
 from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+from email.utils import formatdate, getaddresses, make_msgid
 from typing import Any, Final
 
 COMPOSE_PROPERTIES: Final[dict[str, Any]] = {
@@ -20,10 +20,7 @@ COMPOSE_PROPERTIES: Final[dict[str, Any]] = {
     },
     "html": {
         "type": "string",
-        "description": (
-            "Optional HTML body, for embedded links and formatting. "
-            "Sent as multipart/alternative alongside `body`."
-        ),
+        "description": "Optional HTML body for links and formatting, sent as multipart/alternative with `body`.",
     },
 }
 
@@ -54,10 +51,5 @@ def compose(sender: str, arguments: dict[str, Any]) -> EmailMessage:
 
 def envelope_recipients(message: EmailMessage) -> list[str]:
     """Return every address the message must actually be delivered to."""
-    addresses: list[str] = []
-    for field in ("To", "Cc"):
-        value: str | None = message.get(field)
-        if not value:
-            continue
-        addresses.extend(part.strip() for part in value.split(",") if part.strip())
-    return addresses
+    pairs: list[tuple[str, str]] = getaddresses(message.get_all("To", []) + message.get_all("Cc", []))
+    return [address for _, address in pairs if address]

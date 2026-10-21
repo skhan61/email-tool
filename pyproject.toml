@@ -1,0 +1,43 @@
+[project]
+name = "email-tool-mcp"
+version = "4.0.0.dev0"
+description = "IMAP/SMTP email for any MCP client: read, search, draft and send mail."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Sayem Khan" }]
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mailbox_mcp"]
+
+[dependency-groups]
+# The pre-commit hooks run these exact versions.
+dev = [
+    "mypy==2.4.0",
+    "pre-commit==4.6.2",
+    "pytest==9.1.1",
+    "ruff==0.16.10",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "T201"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+mypy_path = "mailbox_mcp"
+explicit_package_bases = true
+files = ["mailbox_mcp", "tests"]
+
+[tool.pytest.ini_options]
+pythonpath = ["mailbox_mcp"]
+addopts = "--strict-markers"
+testpaths = ["tests"]
