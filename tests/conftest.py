@@ -13,6 +13,7 @@ import keyring
 import pytest
 from keyring.backend import KeyringBackend
 
+from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.settings import Mailbox, save_mailboxes
 from tests.fakes import FakeMailServer
@@ -74,3 +75,9 @@ def mail_server() -> FakeMailServer:
 def book(settings_file: Path, mail_server: FakeMailServer) -> MailboxBook:
     """A mailbox book over the two settings mailboxes, connected to the fake server."""
     return MailboxBook(settings_file, {}, mail_server.open_imap, mail_server.open_smtp)
+
+
+@pytest.fixture
+def audit(tmp_path: Path) -> AuditLog:
+    """An audit log in the test's own folder."""
+    return AuditLog(tmp_path / "audit" / "audit.jsonl")

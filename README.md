@@ -141,6 +141,26 @@ workspace members, and stop the tunnel when you are done.
 Add a stdio server that runs
 `uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve`.
 
+## Audit log
+
+Every action an agent takes is recorded twice: once before it runs and once with
+its outcome. A record holds the time, OS user, host, mailbox, tool, folder,
+message UIDs, recipients and the outcome. Subjects, bodies and passwords are
+never written. If the "before" record cannot be written, the action is refused.
+
+```
+email-tool-mcp audit path      # where the log is
+email-tool-mcp audit verify    # detects edited, inserted, reordered or removed records
+```
+
+Records are chained with HMAC-SHA256 using a key kept in the OS keyring, and the
+newest record's MAC is kept there too, so anyone without access to the user's
+keyring cannot change or trim the log unnoticed. Someone in full control of the
+account could; send a copy off the machine for that:
+`EMAIL_TOOL_AUDIT_SYSLOG=tcp://siem.example.com:6514` (or `udp://`, or `host:port`).
+`EMAIL_TOOL_AUDIT_FILE` moves the log. Retention follows your organization's
+policy: the tool never deletes records.
+
 ## Security
 
 - The server reads passwords from the OS keyring, or from `EMAIL_TOOL_PASSWORD`
