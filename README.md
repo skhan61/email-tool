@@ -2,22 +2,21 @@
 
 <h1 align="center">email-tool</h1>
 
-<p align="center"><b>Email for AI agents, built for CMMC Level 2 environments.</b><br>
-Read, search, draft and send mail from Claude or ChatGPT, with passwords in your OS keyring,
-an audit log of every action, and policies your administrator controls.</p>
+<p align="center"><b>Email for any AI agent that speaks MCP: Claude Code, Claude Desktop, Cowork, ChatGPT desktop, Codex and others.</b><br>
+Read, search, draft and send mail over IMAP/SMTP.</p>
 
 <p align="center">
   <b>Works with</b><br>
   <a href="#claude-code"><img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-D97757?logo=claude&logoColor=white"></a>
   <a href="#claude-desktop-and-claude-cowork"><img alt="Claude Desktop and Cowork" src="https://img.shields.io/badge/Claude%20Desktop%20%2F%20Cowork-.mcpb-D97757?logo=claude&logoColor=white"></a>
-  <a href="#chatgpt-desktop-and-codex"><img alt="ChatGPT desktop and Codex" src="https://img.shields.io/badge/ChatGPT%20%2F%20Codex-plugin-10A37F"></a>
+  <a href="#chatgpt-desktop-and-codex"><img alt="ChatGPT desktop and Codex" src="https://img.shields.io/badge/ChatGPT%20desktop%20%2F%20Codex-plugin-10A37F"></a>
   <a href="https://modelcontextprotocol.io"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-1F2A44"></a>
 </p>
 
 <p align="center">
   <b>Build and security</b><br>
-  <a href="https://github.com/skhan61/email-tool/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/skhan61/email-tool/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white"></a>
-  <a href="https://github.com/skhan61/email-tool/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://img.shields.io/github/actions/workflow/status/skhan61/email-tool/codeql.yml?branch=main&label=CodeQL&logo=github"></a>
+  <a href="https://github.com/skhan61/email-tool/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/skhan61/email-tool/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/skhan61/email-tool/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/skhan61/email-tool/actions/workflows/codeql.yml/badge.svg?branch=main"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/skhan61/email-tool"><img alt="OpenSSF Scorecard" src="https://img.shields.io/ossf-scorecard/github.com/skhan61/email-tool?label=OpenSSF%20Scorecard"></a>
   <a href="https://github.com/skhan61/email-tool/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/skhan61/email-tool?label=release&logo=github"></a>
 </p>
@@ -39,12 +38,6 @@ an audit log of every action, and policies your administrator controls.</p>
   <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-C0392B"></a>
   <a href="CONTRIBUTING.md"><img alt="Contributing" src="https://img.shields.io/badge/PRs-welcome-2EA44F"></a>
 </p>
-
----
-
-Email for any AI agent that speaks MCP (Claude Code, Claude Desktop, Claude
-Cowork, ChatGPT desktop, Codex and others): read, search, draft and send mail
-over IMAP/SMTP.
 
 - **One server for all your mailboxes.** Work and personal mail side by side;
   every tool takes a `mailbox` argument.
