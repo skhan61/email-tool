@@ -160,11 +160,15 @@ class Policy:
                 layers.append(mailboxes[mailbox])
         return combine(layers)
 
+    def check_fips(self, mailbox: str) -> None:
+        """Raise PolicyRefusal before any connection when `require_fips` is set and OpenSSL is not in FIPS mode."""
+        if self.rules_for(mailbox).require_fips and not fips_enabled():
+            raise PolicyRefusal("policy: require_fips is set but Python's OpenSSL is not in FIPS mode")
+
     def check_call(self, mailbox: str, tool: str, changes_mail: bool, known_tools: frozenset[str]) -> None:
         """Raise PolicyRefusal when `tool` may not run on `mailbox`; SettingsError for an unknown tool name."""
         rules: Rules = self.rules_for(mailbox)
-        if rules.require_fips and not fips_enabled():
-            raise PolicyRefusal("policy: require_fips is set but Python's OpenSSL is not in FIPS mode")
+        self.check_fips(mailbox)
         if rules.allowed_tools is not None:
             unknown: set[str] = set(rules.allowed_tools) - known_tools
             if unknown:

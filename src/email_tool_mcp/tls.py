@@ -28,3 +28,16 @@ def fips_enabled() -> bool:
         return bool(_hashlib.get_fips_mode())
     except (ImportError, AttributeError, ValueError):
         return False
+
+
+def socket_details(sock: ssl.SSLSocket) -> str:
+    """Protocol and cipher a TLS socket negotiated, e.g. "TLSv1.3 TLS_AES_256_GCM_SHA384"."""
+    cipher: tuple[str, str, int] | None = sock.cipher()
+    return f"{sock.version() or '?'} {cipher[0] if cipher else '?'}"
+
+
+def describe_context(context: ssl.SSLContext) -> str:
+    """What a context enforces, read from the context itself (evidence, not a claim)."""
+    floor: str = context.minimum_version.name.replace("TLSv", "TLS ").replace("_", ".")
+    verified: bool = context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+    return f"minimum accepted: {floor}   certificate verification: {'on' if verified else 'OFF'}"

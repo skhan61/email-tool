@@ -72,7 +72,8 @@ class Cli:
 
     def check(self, name: str) -> str:
         """Log in to mailbox NAME and report the TLS version, cipher and FIPS state actually in use."""
-        return check_mailbox(MailboxBook(settings_path(), os.environ), name)
+        book: MailboxBook = MailboxBook(settings_path(), os.environ, policy=Policy(policy_paths()))
+        return check_mailbox(book, AuditLog.from_environment(os.environ, with_syslog=True), name)
 
     def list(self) -> str:
         """Show every mailbox on this machine."""

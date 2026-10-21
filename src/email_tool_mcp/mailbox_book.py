@@ -121,7 +121,8 @@ class MailboxBook:
         return True
 
     def imap(self, mailbox: Mailbox) -> ImapSession:
-        """Return an unopened IMAP session for `mailbox`."""
+        """Return an unopened IMAP session for `mailbox`; refused first if FIPS is required and absent."""
+        self.policy.check_fips(mailbox.name)
         return self._session_factory(mailbox, self.password(mailbox))
 
     def approve(self, mailbox: Mailbox, message: EmailMessage) -> list[str]:
@@ -132,7 +133,8 @@ class MailboxBook:
         return recipients
 
     def smtp(self, mailbox: Mailbox) -> smtplib.SMTP:
-        """Return an unauthenticated SMTP connection for `mailbox`."""
+        """Return an unauthenticated SMTP connection for `mailbox`; refused first if FIPS is required and absent."""
+        self.policy.check_fips(mailbox.name)
         return self._smtp_factory(mailbox)
 
     def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:
@@ -141,7 +143,7 @@ class MailboxBook:
         if not recipients:
             raise ValueError("no recipients resolved from the 'to' and 'cc' arguments")
         password: str = self.password(mailbox)
-        with self._smtp_factory(mailbox) as smtp:
+        with self.smtp(mailbox) as smtp:
             smtp.login(mailbox.address, password)
             refused: dict[str, tuple[int, bytes]] = smtp.send_message(message, to_addrs=recipients)
         return refused

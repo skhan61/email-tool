@@ -27,7 +27,7 @@ from imapclient import IMAPClient, imap_utf7
 from imapclient.imapclient import _literal
 
 from email_tool_mcp.settings import Mailbox
-from email_tool_mcp.tls import client_context
+from email_tool_mcp.tls import client_context, socket_details
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
 
@@ -117,8 +117,7 @@ class ImapSession:
 
     def tls_details(self) -> str:
         """The negotiated protocol and cipher, e.g. "TLSv1.3 TLS_AES_256_GCM_SHA384"."""
-        sock: Any = self._live._imap.sock
-        return f"{sock.version()} {sock.cipher()[0]}"
+        return socket_details(self._live.socket())
 
     def supports_gmail_search(self) -> bool:
         """Return True when the server is Gmail (advertises X-GM-EXT-1)."""
