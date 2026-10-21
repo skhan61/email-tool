@@ -16,7 +16,9 @@ for CUI-marked mail the CUI recipient domains (3.1.3).
 
     require_approval = true        # send/delete/replace-draft ask the human first
 
-    [mailboxes.work]               # one mailbox, combined with [default]
+    allow_environment_mailbox = false   # ignore mailboxes set in an app's environment
+
+    [mailboxes."you@example.com"]  # by address (binding) or by name; combined with [default]
     allowed_tools = ["list_emails", "get_email", "create_draft"]
     cui_recipient_domains = ["example.com"]   # CUI-marked mail only to these
 
@@ -54,6 +56,7 @@ class Rules:
     """One policy table. None means "no limit from this table"."""
 
     read_only: bool = False
+    allow_environment_mailbox: bool = True
     require_approval: bool = False
     require_fips: bool = False
     allowed_tools: list[str] | None = None
@@ -86,6 +89,7 @@ def combine(rules: Iterable[Rules]) -> Rules:
         )
         combined = Rules(
             read_only=combined.read_only or rule.read_only,
+            allow_environment_mailbox=combined.allow_environment_mailbox and rule.allow_environment_mailbox,
             require_approval=combined.require_approval or rule.require_approval,
             require_fips=combined.require_fips or rule.require_fips,
             allowed_tools=narrower(combined.allowed_tools, rule.allowed_tools),
@@ -150,25 +154,32 @@ class Policy:
         self._cache[path] = (modified, tables)
         return tables
 
-    def rules_for(self, mailbox: str) -> Rules:
-        """The effective rules for `mailbox`."""
+    def rules_for(self, mailbox: str, address: str) -> Rules:
+        """The effective rules for the mailbox called `mailbox` with `address`.
+
+        A `[mailboxes.<key>]` table applies when its key is the mailbox's name or its
+        address, both compared case-insensitively; an administrator who keys by address
+        cannot be escaped by enrolling the same account under another name.
+        """
+        keys: set[str] = {mailbox.lower(), address.lower()} - {""}
         layers: list[Rules] = []
         for path in self._paths:
             default, mailboxes = self._tables(path)
             layers.append(default)
-            if mailbox in mailboxes:
-                layers.append(mailboxes[mailbox])
+            layers.extend(rules for key, rules in mailboxes.items() if key.lower() in keys)
         return combine(layers)
 
-    def check_fips(self, mailbox: str) -> None:
+    def check_fips(self, mailbox: str, address: str) -> None:
         """Raise PolicyRefusal before any connection when `require_fips` is set and OpenSSL is not in FIPS mode."""
-        if self.rules_for(mailbox).require_fips and not fips_enabled():
+        if self.rules_for(mailbox, address).require_fips and not fips_enabled():
             raise PolicyRefusal("policy: require_fips is set but Python's OpenSSL is not in FIPS mode")
 
-    def check_call(self, mailbox: str, tool: str, changes_mail: bool, known_tools: frozenset[str]) -> None:
+    def check_call(
+        self, mailbox: str, address: str, tool: str, changes_mail: bool, known_tools: frozenset[str]
+    ) -> None:
         """Raise PolicyRefusal when `tool` may not run on `mailbox`; SettingsError for an unknown tool name."""
-        rules: Rules = self.rules_for(mailbox)
-        self.check_fips(mailbox)
+        rules: Rules = self.rules_for(mailbox, address)
+        self.check_fips(mailbox, address)
         if rules.allowed_tools is not None:
             unknown: set[str] = set(rules.allowed_tools) - known_tools
             if unknown:
@@ -179,14 +190,19 @@ class Policy:
             raise PolicyRefusal(f"policy: mailbox {mailbox!r} is read_only, so {tool} is refused")
 
     def check_message(
-        self, mailbox: str, recipients: list[str], addressed: bool, find_markings: Callable[[], list[str]]
+        self,
+        mailbox: str,
+        address: str,
+        recipients: list[str],
+        addressed: bool,
+        find_markings: Callable[[], list[str]],
     ) -> None:
         """Check a message's real recipients (3.1.1) and, if it is CUI-marked, its CUI recipients (3.1.3).
 
         `recipients` must be the list the message is really delivered to; `addressed` is True
         when To/Cc held text. `find_markings` runs only when a CUI rule applies.
         """
-        rules: Rules = self.rules_for(mailbox)
+        rules: Rules = self.rules_for(mailbox, address)
         if addressed and not recipients and rules.allowed_recipient_domains is not None:
             raise PolicyRefusal("policy: the recipients could not be read, so the message is refused")
         outside: list[str] = outside_domains(recipients, rules.allowed_recipient_domains)
@@ -205,3 +221,17 @@ class Policy:
                 f"policy: the message carries CUI markings ({'; '.join(found)}) and "
                 f"{', '.join(cui_outside)} are outside cui_recipient_domains"
             )
+
+
+def show_rules(policy: Policy, settings_file: Path, mailbox: str, address: str) -> str:
+    """The effective rules for a mailbox, saying when address-keyed rules could not be included."""
+    from email_tool_mcp.settings import load_mailboxes
+
+    known_address: str = address or getattr(load_mailboxes(settings_file).get(mailbox), "address", "")
+    rules: Rules = policy.rules_for(mailbox, known_address)
+    if known_address:
+        return f"{mailbox} ({known_address}): {rules}"
+    return (
+        f"{mailbox}: {rules}\nNote: no address known for {mailbox!r}, so rules keyed by address are not "
+        "shown. Pass --address you@example.com (e.g. for a mailbox an app sets in its environment)."
+    )

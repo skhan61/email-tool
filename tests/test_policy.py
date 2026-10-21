@@ -33,22 +33,22 @@ def write_policy(tmp_path: Path, admin: str, user: str) -> Policy:
 
 def test_no_policy_files_allow_everything(tmp_path: Path) -> None:
     rules: Policy = Policy([tmp_path / "absent.toml"])
-    rules.check_call("work", "send_email", True, TOOLS)
-    rules.check_message("work", ["a@anywhere.com"], True, lambda: [])
+    rules.check_call("work", "me@example.com", "send_email", True, TOOLS)
+    rules.check_message("work", "me@example.com", ["a@anywhere.com"], True, lambda: [])
 
 
 def test_read_only_refuses_tools_that_change_mail(tmp_path: Path) -> None:
     rules: Policy = write_policy(tmp_path, "[mailboxes.work]\nread_only = true\n", "")
-    rules.check_call("work", "list_emails", False, TOOLS)
+    rules.check_call("work", "me@example.com", "list_emails", False, TOOLS)
     with pytest.raises(PolicyRefusal, match="read_only"):
-        rules.check_call("work", "delete_email", True, TOOLS)
-    rules.check_call("home", "delete_email", True, TOOLS)
+        rules.check_call("work", "me@example.com", "delete_email", True, TOOLS)
+    rules.check_call("home", "me@example.com", "delete_email", True, TOOLS)
 
 
 def test_a_user_cannot_loosen_the_administrator(tmp_path: Path) -> None:
     rules: Policy = write_policy(tmp_path, "[default]\nread_only = true\n", "[default]\nread_only = false\n")
     with pytest.raises(PolicyRefusal):
-        rules.check_call("work", "send_email", True, TOOLS)
+        rules.check_call("work", "me@example.com", "send_email", True, TOOLS)
 
 
 def test_allowed_tools_take_the_overlap(tmp_path: Path) -> None:
@@ -57,16 +57,16 @@ def test_allowed_tools_take_the_overlap(tmp_path: Path) -> None:
         '[default]\nallowed_tools = ["list_emails", "get_email", "send_email"]\n',
         '[mailboxes.work]\nallowed_tools = ["list_emails", "send_email", "delete_email"]\n',
     )
-    assert rules.rules_for("work") == Rules(allowed_tools=["list_emails", "send_email"])
+    assert rules.rules_for("work", "me@example.com") == Rules(allowed_tools=["list_emails", "send_email"])
     with pytest.raises(PolicyRefusal, match="delete_email is not in allowed_tools"):
-        rules.check_call("work", "delete_email", True, TOOLS)
-    rules.check_call("work", "list_mailboxes", False, TOOLS)
+        rules.check_call("work", "me@example.com", "delete_email", True, TOOLS)
+    rules.check_call("work", "me@example.com", "list_mailboxes", False, TOOLS)
 
 
 def test_a_misspelled_tool_name_is_reported(tmp_path: Path) -> None:
     rules: Policy = write_policy(tmp_path, '[default]\nallowed_tools = ["list_email"]\n', "")
     with pytest.raises(SettingsError, match="list_email"):
-        rules.check_call("work", "list_emails", False, TOOLS)
+        rules.check_call("work", "me@example.com", "list_emails", False, TOOLS)
 
 
 @pytest.mark.parametrize(
@@ -85,9 +85,9 @@ def test_recipients_outside_the_allowed_domains_are_refused(
     rules: Policy = write_policy(tmp_path, '[default]\nallowed_recipient_domains = ["Example.com"]\n', "")
     if refused:
         with pytest.raises(PolicyRefusal):
-            rules.check_message("work", recipients, True, lambda: [])
+            rules.check_message("work", "me@example.com", recipients, True, lambda: [])
     else:
-        rules.check_message("work", recipients, True, lambda: [])
+        rules.check_message("work", "me@example.com", recipients, True, lambda: [])
 
 
 @pytest.mark.parametrize(
@@ -96,7 +96,7 @@ def test_recipients_outside_the_allowed_domains_are_refused(
 )
 def test_a_malformed_policy_is_an_error_not_ignored(tmp_path: Path, text: str) -> None:
     with pytest.raises(SettingsError):
-        write_policy(tmp_path, text, "").rules_for("work")
+        write_policy(tmp_path, text, "").rules_for("work", "me@example.com")
 
 
 @pytest.mark.parametrize(

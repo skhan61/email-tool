@@ -44,9 +44,9 @@ def test_require_fips_refuses_without_fips_mode(
     rules: Policy = Policy([policy_file])
     if refused:
         with pytest.raises(PolicyRefusal, match="FIPS"):
-            rules.check_call("work", "list_emails", False, TOOLS)
+            rules.check_call("work", "me@example.com", "list_emails", False, TOOLS)
     else:
-        rules.check_call("work", "list_emails", False, TOOLS)
+        rules.check_call("work", "me@example.com", "list_emails", False, TOOLS)
 
 
 def test_check_reports_both_connections_and_fips(book: MailboxBook, audit: AuditLog) -> None:

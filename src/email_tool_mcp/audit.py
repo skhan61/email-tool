@@ -16,7 +16,7 @@ recipients, and the outcome. It never holds a subject, a body or a password.
 
 from __future__ import annotations
 
-import getpass
+import functools
 import hashlib
 import hmac
 import json
@@ -25,6 +25,7 @@ import logging.handlers
 import os
 import secrets
 import socket
+import sys
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -43,12 +44,36 @@ ENV_AUDIT_FILE: Final[str] = "EMAIL_TOOL_AUDIT_FILE"
 ENV_AUDIT_SYSLOG: Final[str] = "EMAIL_TOOL_AUDIT_SYSLOG"
 KEYRING_SERVICE: Final[str] = f"{APP_NAME}-audit"
 GENESIS: Final[str] = "0" * 64
+logger: Final[logging.Logger] = logging.getLogger(__name__)
 # Arguments safe to record. Subjects, bodies and HTML are deliberately absent.
 RECORDED_ARGUMENTS: Final[tuple[str, ...]] = ("folder", "uid", "to", "cc", "limit", "sender", "since")
 
 
 class AuditError(RuntimeError):
     """Raised when a record cannot be written; the caller must not act."""
+
+
+@functools.cache
+def os_account() -> str:
+    """The account this process runs as, from its credentials, not from USER/LOGNAME (3.3.2).
+
+    Computed once: the process account does not change. A POSIX uid with no passwd
+    entry (common in containers) is recorded as `uid:<n>`, still from the credentials.
+    """
+    if sys.platform == "win32":
+        import ctypes
+
+        size: ctypes.c_ulong = ctypes.c_ulong(257)
+        buffer: ctypes.Array[ctypes.c_wchar] = ctypes.create_unicode_buffer(size.value)
+        if ctypes.windll.advapi32.GetUserNameW(buffer, ctypes.byref(size)):  # type: ignore[attr-defined]
+            return str(buffer.value)
+        raise OSError("GetUserNameW failed")
+    import pwd
+
+    try:
+        return pwd.getpwuid(os.getuid()).pw_name
+    except KeyError:
+        return f"uid:{os.getuid()}"
 
 
 def default_audit_path() -> Path:
@@ -111,6 +136,8 @@ class VerifyResult:
 
     def render(self) -> str:
         """One line a person can read."""
+        if self.broken_at is None and self.reason:
+            return self.reason
         if self.broken_at is None:
             return f"OK: {self.records} record(s), chain intact and matches the keyring."
         return f"BROKEN at line {self.broken_at}: {self.reason}"
@@ -120,8 +147,9 @@ def verify(path: Path) -> VerifyResult:
     """Recompute every MAC and compare the newest one with the keyring anchor."""
     head: str = anchored_head(path)
     if not path.is_file():
-        broken: bool = head != GENESIS
-        return VerifyResult(0, 1 if broken else None, "the log file is missing" if broken else "")
+        if head != GENESIS:
+            return VerifyResult(0, 1, "the log file is missing")
+        return VerifyResult(0, None, f"No audit log at {path} yet: nothing has been recorded there.")
     key: bytes = audit_key(path)
     previous: str = GENESIS
     count: int = 0
@@ -142,8 +170,8 @@ def verify(path: Path) -> VerifyResult:
     return VerifyResult(count, None, "")
 
 
-def syslog_handler(address: str) -> logging.Handler:
-    """Build a SysLogHandler from `host:port`, `udp://host:port` or `tcp://host:port`."""
+def syslog_target(address: str) -> tuple[str, int, socket.SocketKind]:
+    """Parse `host:port`, `udp://host:port` or `tcp://host:port`; SettingsError when malformed."""
     target: SplitResult = urlsplit(address if "://" in address else f"udp://{address}")
     if target.scheme not in ("udp", "tcp") or not target.hostname:
         raise SettingsError(f"{ENV_AUDIT_SYSLOG}={address!r}: use host:port, udp://host:port or tcp://host:port")
@@ -152,23 +180,40 @@ def syslog_handler(address: str) -> logging.Handler:
     except ValueError as error:
         raise SettingsError(f"{ENV_AUDIT_SYSLOG}={address!r}: the port is not a number") from error
     transport: socket.SocketKind = socket.SOCK_STREAM if target.scheme == "tcp" else socket.SOCK_DGRAM
-    return logging.handlers.SysLogHandler(address=(target.hostname, port), socktype=transport)
+    return target.hostname, port, transport
+
+
+def syslog_handler(address: str) -> logging.Handler:
+    """Open a SysLogHandler to `address`; OSError when the target cannot be reached now."""
+    target: tuple[str, int, socket.SocketKind] = syslog_target(address)
+    return logging.handlers.SysLogHandler(address=(target[0], target[1]), socktype=target[2])
 
 
 class AuditLog:
     """Writes one MAC-chained record before and one after each tool call."""
 
-    def __init__(self, path: Path, syslog: logging.Handler | None = None) -> None:
+    def __init__(self, path: Path, syslog_address: str = "") -> None:
         self._path: Path = path
         self._lock: FileLock = FileLock(str(path) + ".lock")
-        self._syslog: logging.Handler | None = syslog
+        self._syslog_address: str = syslog_address
+        self._syslog: logging.Handler | None = None
+        if syslog_address:
+            syslog_target(syslog_address)  # a malformed address is a settings error at once
+            self._connect_syslog()
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str], with_syslog: bool) -> AuditLog:
         """Build from EMAIL_TOOL_AUDIT_FILE / EMAIL_TOOL_AUDIT_SYSLOG, defaulting to the user log folder."""
         path: Path = Path(environment.get(ENV_AUDIT_FILE, "") or default_audit_path())
-        address: str = environment.get(ENV_AUDIT_SYSLOG, "")
-        return cls(path, syslog_handler(address) if with_syslog and address else None)
+        return cls(path, environment.get(ENV_AUDIT_SYSLOG, "") if with_syslog else "")
+
+    def _connect_syslog(self) -> None:
+        """(Re)open the syslog copy; a target that is down is retried on the next record."""
+        try:
+            self._syslog = syslog_handler(self._syslog_address)
+        except OSError as error:
+            self._syslog = None
+            logger.warning("audit copy to %s unavailable, retrying on the next record: %s", self._syslog_address, error)
 
     @property
     def path(self) -> Path:
@@ -187,9 +232,13 @@ class AuditLog:
 
     def _append(self, fields: dict[str, Any]) -> None:
         arguments: Mapping[str, Any] = fields.pop("arguments", {})
+        try:
+            account: str = os_account()
+        except Exception as error:
+            raise AuditError(f"cannot tell which OS account is running: {error}") from error
         body: dict[str, Any] = {
             "time": datetime.now(UTC).isoformat(timespec="milliseconds"),
-            "user": getpass.getuser(),
+            "user": account,
             "host": socket.gethostname(),
             **fields,
         }
@@ -216,5 +265,7 @@ class AuditLog:
             raise
         except Exception as error:
             raise AuditError(f"cannot write the audit log {self._path}: {error}") from error
+        if self._syslog_address and self._syslog is None:
+            self._connect_syslog()
         if self._syslog is not None:
             self._syslog.handle(logging.makeLogRecord({"msg": line, "levelno": logging.INFO, "levelname": "INFO"}))

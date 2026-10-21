@@ -17,7 +17,7 @@ from email_tool_mcp.audit import AuditLog, verify
 from email_tool_mcp.diagnose import check_mailbox
 from email_tool_mcp.enrol import add_mailbox, describe_mailboxes, remove_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.policy import Policy, policy_paths
+from email_tool_mcp.policy import Policy, policy_paths, show_rules
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, settings_path
 
@@ -42,9 +42,9 @@ class PolicyCommands:
         paths: tuple[Path, Path] = policy_paths()
         return f"administrator: {paths[0]}\nuser:          {paths[1]}"
 
-    def show(self, mailbox: str) -> str:
-        """Print the effective rules for MAILBOX (most restrictive of both files)."""
-        return str(Policy(policy_paths()).rules_for(mailbox))
+    def show(self, mailbox: str, address: str = "") -> str:
+        """Print the effective rules for MAILBOX; its address is looked up unless given with --address."""
+        return show_rules(Policy(policy_paths()), settings_path(), mailbox, address)
 
 
 class Cli:
