@@ -141,6 +141,22 @@ workspace members, and stop the tunnel when you are done.
 Add a stdio server that runs
 `uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve`.
 
+## Audit log
+
+Every action an agent takes is appended to a hash-chained log: time, OS user,
+host, mailbox, tool, folder, message UIDs, recipients and the outcome. Subjects,
+bodies and passwords are never written. If the log cannot be written, the action
+is refused.
+
+```
+email-tool-mcp audit path      # where the log is
+email-tool-mcp audit verify    # detects an edited or removed record
+```
+
+`EMAIL_TOOL_AUDIT_FILE` moves the log; `EMAIL_TOOL_AUDIT_SYSLOG=host:port` also
+sends each record to syslog for a SIEM. Retention follows your organization's
+policy: the tool never deletes records.
+
 ## Security
 
 - The server reads passwords from the OS keyring, or from `EMAIL_TOOL_PASSWORD`
