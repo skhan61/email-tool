@@ -16,14 +16,18 @@ the two, the call is checked against the administrator's and user's policy
 from __future__ import annotations
 
 import functools
-from collections.abc import Callable
+import inspect
+import typing
+from collections.abc import Awaitable, Callable
 from importlib.metadata import version
-from typing import Any, Final, ParamSpec
+from typing import Annotated, Any, Final
 
-from mcp.server.mcpserver import MCPServer
+import anyio
+from mcp.server.mcpserver import ElicitationResult, MCPServer, Resolve
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 
+from email_tool_mcp.approval import Approval, approval_resolver, enforce
 from email_tool_mcp.audit import AuditError, AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.tools.drafts import DraftTools
@@ -39,34 +43,38 @@ _DESTRUCTIVE: Final[ToolAnnotations] = ToolAnnotations(
 )
 _SENDS: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True)
 
-Params = ParamSpec("Params")
-
-
-def mailbox_label(book: MailboxBook, arguments: dict[str, Any]) -> str:
-    """The mailbox a call acts on, as the audit log should name it."""
-    given: str = str(arguments.get("mailbox", ""))
-    try:
-        return book.resolve(given).name
-    except Exception:
-        return given
-
 
 def reported(
-    tool: Callable[Params, str], changes_mail: bool, known_tools: frozenset[str], audit: AuditLog, book: MailboxBook
-) -> Callable[Params, str]:
-    """Wrap `tool`: audit before and after, enforce policy, and surface every failure as a ToolError."""
+    tool: Callable[..., str],
+    hints: ToolAnnotations,
+    known_tools: frozenset[str],
+    audit: AuditLog,
+    book: MailboxBook,
+) -> Callable[..., Awaitable[str]]:
+    """Wrap `tool`: audit before and after, enforce policy and approval, surface failures as ToolError.
+
+    Destructive tools gain an `approval` parameter the SDK fills by running the approval
+    resolver (asking the human when policy requires it); it never appears in the schema.
+    The blocking mail work runs in a worker thread.
+    """
+    name: str = tool.__name__
+    changes_mail: bool = not hints.read_only_hint
+    signature: inspect.Signature = inspect.signature(tool, eval_str=True)
+    hints_of_tool: dict[str, Any] = typing.get_type_hints(tool, include_extras=True)
 
     @functools.wraps(tool)
-    def run(*args: Params.args, **kwargs: Params.kwargs) -> str:
-        name: str = tool.__name__
-        mailbox: str = mailbox_label(book, kwargs)
+    async def run(*args: Any, approval: ElicitationResult[Any] | None = None, **kwargs: Any) -> str:
+        mailbox: str = book.label(str(kwargs.get("mailbox", "")))
         try:
             call: str = audit.started(mailbox, name, kwargs)
         except AuditError as error:
             raise ToolError(f"Refused, nothing was done: {error}") from error
+        approved: bool = False
         try:
             book.policy.check_call(mailbox, name, changes_mail, known_tools)
-            result: str = tool(*args, **kwargs)
+            if approval is not None:
+                approved = enforce(name, approval)
+            result: str = await anyio.to_thread.run_sync(functools.partial(tool, *args, **kwargs))
         except Exception as error:
             message: str = f"{type(error).__name__}: {error}"
             try:
@@ -75,11 +83,21 @@ def reported(
                 message += f" (the outcome could not be recorded: {audit_error})"
             raise ToolError(message) from error
         try:
-            audit.finished(call, mailbox, name, "ok")
+            audit.finished(call, mailbox, name, "ok (approved by the user)" if approved else "ok")
         except AuditError as error:
             raise ToolError(f"Done, but the outcome could not be recorded ({error}). Do not repeat it.") from error
         return result
 
+    parameters: list[inspect.Parameter] = list(signature.parameters.values())
+    annotations: dict[str, Any] = dict(hints_of_tool)
+    if hints.destructive_hint:
+        question: Callable[..., Any] = approval_resolver(name, set(signature.parameters), book)
+        resolved: Any = Annotated[ElicitationResult[Approval], Resolve(question)]
+        parameters.append(inspect.Parameter("approval", inspect.Parameter.KEYWORD_ONLY, annotation=resolved))
+        annotations["approval"] = resolved
+    # The SDK reads parameters from the signature and resolver markers from the type hints.
+    run.__signature__ = signature.replace(parameters=parameters)  # type: ignore[attr-defined]
+    run.__annotations__ = annotations
     return run
 
 
@@ -112,7 +130,7 @@ def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
     known_tools: frozenset[str] = frozenset(tool.__name__ for tool, _ in tools)
     for tool, hints in tools:
         server.add_tool(
-            reported(tool, not hints.read_only_hint, known_tools, audit, book),
+            reported(tool, hints, known_tools, audit, book),
             name=tool.__name__,
             annotations=hints,
             structured_output=False,

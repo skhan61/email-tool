@@ -12,6 +12,8 @@ MailboxBook checks the recipients of every message it sends or saves as a draft
     read_only = false
     allowed_recipient_domains = ["example.com"]
 
+    require_approval = true        # send/delete/replace-draft ask the human first
+
     [mailboxes.work]               # one mailbox, combined with [default]
     allowed_tools = ["list_emails", "get_email", "create_draft"]
 
@@ -48,6 +50,7 @@ class Rules:
     """One policy table. None means "no limit from this table"."""
 
     read_only: bool = False
+    require_approval: bool = False
     allowed_tools: list[str] | None = None
     allowed_recipient_domains: list[str] | None = None
 
@@ -72,6 +75,7 @@ def combine(rules: Iterable[Rules]) -> Rules:
         )
         combined = Rules(
             read_only=combined.read_only or rule.read_only,
+            require_approval=combined.require_approval or rule.require_approval,
             allowed_tools=narrower(combined.allowed_tools, rule.allowed_tools),
             allowed_recipient_domains=narrower(combined.allowed_recipient_domains, domains),
         )
