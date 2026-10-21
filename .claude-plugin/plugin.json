@@ -4,7 +4,8 @@
   "description": "IMAP/SMTP email: read, search, draft and send mail. One MCP server for all your mailboxes; passwords in the OS keyring.",
   "author": {
     "name": "Sayem Khan",
-    "email": "s.khan@alchlight.com"
+    "email": "sayem.eee.kuet@gmail.com",
+    "url": "https://github.com/skhan61"
   },
   "keywords": [
     "email",
@@ -15,5 +16,6 @@
   ],
   "mcpServers": "./.mcp.json",
   "commands": "./commands",
-  "skills": "./skills"
+  "skills": "./skills",
+  "license": "MIT"
 }

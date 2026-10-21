@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
@@ -11,8 +13,6 @@ permissions:
 
 jobs:
   analyze:
-    # Code scanning on a private repository needs a paid plan.
-    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

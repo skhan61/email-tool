@@ -1,7 +1,8 @@
 {
   "name": "email-tool",
   "owner": {
-    "name": "Sayem Khan"
+    "name": "Sayem Khan",
+    "email": "sayem.eee.kuet@gmail.com"
   },
   "metadata": {
     "description": "Email for any MCP client: IMAP/SMTP mailbox access.",
@@ -11,7 +12,8 @@
     {
       "name": "email-tool",
       "source": "./",
-      "description": "IMAP/SMTP email: read, search, draft and send mail."
+      "description": "IMAP/SMTP email: read, search, draft and send mail.",
+      "license": "MIT"
     }
   ]
 }
