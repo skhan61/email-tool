@@ -17,7 +17,6 @@ from mcp_types import CallToolResult
 from email_tool_mcp.audit import AuditError, AuditLog, syslog_handler, verify
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.passwords import store_password
-from email_tool_mcp.policy import Policy
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import SettingsError
 from tests.fakes import FakeMailServer
@@ -42,14 +41,14 @@ def write_three(log: AuditLog) -> None:
         log.finished(call, "work", "delete_email", "ok")
 
 
-def test_records_chain_and_verify(audit: AuditLog, policy: Policy) -> None:
+def test_records_chain_and_verify(audit: AuditLog) -> None:
     write_three(audit)
     assert verify(audit.path).broken_at is None
     assert records(audit)[1]["previous"] == records(audit)[0]["mac"]
     assert [entry["phase"] for entry in records(audit)[:2]] == ["started", "finished"]
 
 
-def test_an_edited_record_is_detected(audit: AuditLog, policy: Policy) -> None:
+def test_an_edited_record_is_detected(audit: AuditLog) -> None:
     write_three(audit)
     lines: list[str] = lines_of(audit)
     lines[2] = lines[2].replace('"uid": 2', '"uid": 9')
@@ -58,26 +57,26 @@ def test_an_edited_record_is_detected(audit: AuditLog, policy: Policy) -> None:
     assert verify(audit.path).broken_at == 3
 
 
-def test_a_removed_record_is_detected(audit: AuditLog, policy: Policy) -> None:
+def test_a_removed_record_is_detected(audit: AuditLog) -> None:
     write_three(audit)
     lines: list[str] = lines_of(audit)
     rewrite(audit, lines[:2] + lines[3:])
     assert verify(audit.path).broken_at == 3
 
 
-def test_removing_the_newest_records_is_detected(audit: AuditLog, policy: Policy) -> None:
+def test_removing_the_newest_records_is_detected(audit: AuditLog) -> None:
     write_three(audit)
     rewrite(audit, lines_of(audit)[:-2])
     assert "newest" in verify(audit.path).reason
 
 
-def test_a_junk_line_is_reported_not_crashed_on(audit: AuditLog, policy: Policy) -> None:
+def test_a_junk_line_is_reported_not_crashed_on(audit: AuditLog) -> None:
     write_three(audit)
     rewrite(audit, lines_of(audit)[:1] + ["[]"] + lines_of(audit)[1:])
     assert verify(audit.path).reason == "not a valid audit record"
 
 
-def test_a_torn_last_line_refuses_new_records(audit: AuditLog, policy: Policy) -> None:
+def test_a_torn_last_line_refuses_new_records(audit: AuditLog) -> None:
     write_three(audit)
     with audit.path.open("a", encoding="utf-8") as handle:
         handle.write('{"call": "half')
@@ -85,7 +84,7 @@ def test_a_torn_last_line_refuses_new_records(audit: AuditLog, policy: Policy) -
         audit.started("work", "send_email", {"to": "a@x.com"})
 
 
-def test_subject_and_body_are_never_recorded(audit: AuditLog, policy: Policy) -> None:
+def test_subject_and_body_are_never_recorded(audit: AuditLog) -> None:
     audit.started("work", "send_email", {"to": "a@x.com", "subject": "CUI//SP-PROPIN", "body": "secret"})
     text: str = audit.path.read_text(encoding="utf-8")
     assert "a@x.com" in text
@@ -100,10 +99,10 @@ def test_a_bad_syslog_address_is_a_clear_settings_error(address: str) -> None:
 
 @pytest.mark.anyio
 async def test_every_server_call_is_recorded_before_and_after(
-    book: MailboxBook, audit: AuditLog, policy: Policy, mail_server: FakeMailServer
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
 ) -> None:
     store_password("work", "pw")
-    async with Client(build_server(book, audit, policy)) as client:
+    async with Client(build_server(book, audit)) as client:
         await client.call_tool("list_emails", {"mailbox": "work"})
         await client.call_tool("list_emails", {"mailbox": "home"})
     written: list[tuple[str, str, str]] = [
@@ -115,13 +114,13 @@ async def test_every_server_call_is_recorded_before_and_after(
 
 @pytest.mark.anyio
 async def test_an_unwritable_log_refuses_the_action(
-    book: MailboxBook, tmp_path: Path, policy: Policy, mail_server: FakeMailServer
+    book: MailboxBook, tmp_path: Path, mail_server: FakeMailServer
 ) -> None:
     store_password("work", "pw")
     blocked: Path = tmp_path / "blocked"
     blocked.mkdir()
     log: AuditLog = AuditLog(blocked)  # a directory, so it cannot be appended to
-    async with Client(build_server(book, log, policy)) as client:
+    async with Client(build_server(book, log)) as client:
         result: CallToolResult = await client.call_tool(
             "send_email", {"mailbox": "work", "to": "a@x.com", "subject": "s", "body": "b"}
         )

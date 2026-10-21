@@ -20,7 +20,9 @@ from typing import Final
 from keyring.errors import KeyringError
 
 from email_tool_mcp.imap_session import ImapSession
+from email_tool_mcp.message_compose import envelope_recipients
 from email_tool_mcp.passwords import MissingPassword, environment_password, read_password
+from email_tool_mcp.policy import Policy
 from email_tool_mcp.settings import (
     ENV_PASSWORD,
     SETUP_COMMAND,
@@ -55,11 +57,13 @@ class MailboxBook:
         environment: Mapping[str, str],
         session_factory: SessionFactory = ImapSession,
         smtp_factory: SmtpFactory = open_smtp,
+        policy: Policy | None = None,
     ) -> None:
         self._settings_file: Path = settings_file
         self._environment: Mapping[str, str] = environment
         self._session_factory: SessionFactory = session_factory
         self._smtp_factory: SmtpFactory = smtp_factory
+        self.policy: Policy = policy if policy is not None else Policy(())
         self.environment_problem: str = ""
 
     def _environment_mailbox(self) -> Mailbox | None:
@@ -113,8 +117,18 @@ class MailboxBook:
         """Return an unopened IMAP session for `mailbox`."""
         return self._session_factory(mailbox, self.password(mailbox))
 
-    def send(self, mailbox: Mailbox, message: EmailMessage, recipients: list[str]) -> dict[str, tuple[int, bytes]]:
-        """Send `message` from `mailbox`; return the refused recipients."""
+    def approve(self, mailbox: Mailbox, message: EmailMessage) -> list[str]:
+        """Check the message's real recipient list against policy and return it."""
+        recipients: list[str] = envelope_recipients(message)
+        addressed: bool = bool(str(message.get("To", "")).strip() or str(message.get("Cc", "")).strip())
+        self.policy.check_recipients(mailbox.name, recipients, addressed)
+        return recipients
+
+    def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:
+        """Send `message` from `mailbox` to its approved recipients; return the refused ones."""
+        recipients: list[str] = self.approve(mailbox, message)
+        if not recipients:
+            raise ValueError("no recipients resolved from the 'to' and 'cc' arguments")
         password: str = self.password(mailbox)
         with self._smtp_factory(mailbox) as smtp:
             smtp.login(mailbox.address, password)

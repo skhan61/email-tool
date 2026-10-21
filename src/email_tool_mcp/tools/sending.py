@@ -32,10 +32,7 @@ class SendingTools:
         """Send an email immediately from this mailbox. This is not reversible."""
         sender: Mailbox = self._book.resolve(mailbox)
         message: EmailMessage = compose(sender.address, to, subject, body, cc, html)
-        recipients: list[str] = envelope_recipients(message)
-        if not recipients:
-            raise ValueError("no recipients resolved from the 'to' and 'cc' arguments")
-        refused: dict[str, tuple[int, bytes]] = self._book.send(sender, message, recipients)
+        refused: dict[str, tuple[int, bytes]] = self._book.send(sender, message)
         if refused:
             return f"Sent, but {len(refused)} recipient(s) were refused: {sorted(refused)}"
-        return f"Sent to {', '.join(recipients)}."
+        return f"Sent to {', '.join(envelope_recipients(message))}."

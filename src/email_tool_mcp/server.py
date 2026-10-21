@@ -26,7 +26,6 @@ from mcp_types import ToolAnnotations
 
 from email_tool_mcp.audit import AuditError, AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.policy import Policy
 from email_tool_mcp.tools.drafts import DraftTools
 from email_tool_mcp.tools.reading import ReadingTools
 from email_tool_mcp.tools.sending import SendingTools
@@ -52,7 +51,9 @@ def mailbox_label(book: MailboxBook, arguments: dict[str, Any]) -> str:
         return given
 
 
-def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook, policy: Policy) -> Callable[Params, str]:
+def reported(
+    tool: Callable[Params, str], changes_mail: bool, known_tools: frozenset[str], audit: AuditLog, book: MailboxBook
+) -> Callable[Params, str]:
     """Wrap `tool`: audit before and after, enforce policy, and surface every failure as a ToolError."""
 
     @functools.wraps(tool)
@@ -64,7 +65,7 @@ def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook, po
         except AuditError as error:
             raise ToolError(f"Refused, nothing was done: {error}") from error
         try:
-            policy.check(mailbox, name, kwargs)
+            book.policy.check_call(mailbox, name, changes_mail, known_tools)
             result: str = tool(*args, **kwargs)
         except Exception as error:
             message: str = f"{type(error).__name__}: {error}"
@@ -82,7 +83,7 @@ def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook, po
     return run
 
 
-def build_server(book: MailboxBook, audit: AuditLog, policy: Policy) -> MCPServer:
+def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
     """Return a server exposing every mail tool over the mailboxes in `book`, audited to `audit`."""
     reading: ReadingTools = ReadingTools(book)
     drafts: DraftTools = DraftTools(book)
@@ -108,8 +109,12 @@ def build_server(book: MailboxBook, audit: AuditLog, policy: Policy) -> MCPServe
             "Never send or delete without the user's explicit confirmation of the exact message."
         ),
     )
+    known_tools: frozenset[str] = frozenset(tool.__name__ for tool, _ in tools)
     for tool, hints in tools:
         server.add_tool(
-            reported(tool, audit, book, policy), name=tool.__name__, annotations=hints, structured_output=False
+            reported(tool, not hints.read_only_hint, known_tools, audit, book),
+            name=tool.__name__,
+            annotations=hints,
+            structured_output=False,
         )
     return server

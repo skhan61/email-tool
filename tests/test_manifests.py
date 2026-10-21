@@ -17,7 +17,6 @@ from mcp_types import ListToolsResult
 
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.policy import Policy
 from email_tool_mcp.server import build_server
 from tests.launch import declared_tool_names
 
@@ -73,10 +72,8 @@ def test_manifest_version_matches_the_package(relative: str, path: tuple[str, ..
 
 
 @pytest.mark.anyio
-async def test_bundle_lists_exactly_the_tools_the_server_registers(
-    book: MailboxBook, audit: AuditLog, policy: Policy
-) -> None:
-    async with Client(build_server(book, audit, policy)) as client:
+async def test_bundle_lists_exactly_the_tools_the_server_registers(book: MailboxBook, audit: AuditLog) -> None:
+    async with Client(build_server(book, audit)) as client:
         listed: ListToolsResult = await client.list_tools()
     assert declared_tool_names() == {tool.name for tool in listed.tools}
 

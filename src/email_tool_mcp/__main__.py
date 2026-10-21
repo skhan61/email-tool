@@ -76,9 +76,9 @@ class Cli:
     def serve(self) -> None:
         """Run the MCP server on stdio (what an AI agent launches)."""
         logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-        book: MailboxBook = MailboxBook(settings_path(), os.environ)
+        book: MailboxBook = MailboxBook(settings_path(), os.environ, policy=Policy(policy_paths()))
         audit: AuditLog = AuditLog.from_environment(os.environ, with_syslog=True)
-        build_server(book, audit, Policy(policy_paths())).run("stdio")
+        build_server(book, audit).run("stdio")
 
 
 def main() -> None:

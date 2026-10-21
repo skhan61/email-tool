@@ -1,6 +1,6 @@
 """Policy: read-only, allowed tools, recipient domains; administrator rules cannot be loosened.
 
-Standard: pytest with policy files written to tmp_path.
+Standard: pytest with policy files written to tmp_path; the server is driven through the SDK's in-process client.
 Placement: tests/test_policy.py, beside the module it tests (pytest's tests/ layout).
 """
 
@@ -20,8 +20,10 @@ from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import SettingsError
 from tests.fakes import FakeMailServer
 
+TOOLS: frozenset[str] = frozenset({"list_emails", "get_email", "send_email", "delete_email", "list_mailboxes"})
 
-def policy(tmp_path: Path, admin: str, user: str) -> Policy:
+
+def write_policy(tmp_path: Path, admin: str, user: str) -> Policy:
     admin_file: Path = tmp_path / "admin.toml"
     user_file: Path = tmp_path / "user.toml"
     admin_file.write_text(admin, encoding="utf-8")
@@ -30,69 +32,104 @@ def policy(tmp_path: Path, admin: str, user: str) -> Policy:
 
 
 def test_no_policy_files_allow_everything(tmp_path: Path) -> None:
-    Policy([tmp_path / "absent.toml"]).check("work", "send_email", {"to": "a@anywhere.com"})
+    rules: Policy = Policy([tmp_path / "absent.toml"])
+    rules.check_call("work", "send_email", True, TOOLS)
+    rules.check_recipients("work", ["a@anywhere.com"], True)
 
 
-def test_read_only_refuses_writing_tools_only(tmp_path: Path) -> None:
-    rules: Policy = policy(tmp_path, "[mailboxes.work]\nread_only = true\n", "")
-    rules.check("work", "list_emails", {})
+def test_read_only_refuses_tools_that_change_mail(tmp_path: Path) -> None:
+    rules: Policy = write_policy(tmp_path, "[mailboxes.work]\nread_only = true\n", "")
+    rules.check_call("work", "list_emails", False, TOOLS)
     with pytest.raises(PolicyRefusal, match="read_only"):
-        rules.check("work", "delete_email", {"uid": 1})
-    rules.check("home", "delete_email", {"uid": 1})
+        rules.check_call("work", "delete_email", True, TOOLS)
+    rules.check_call("home", "delete_email", True, TOOLS)
 
 
 def test_a_user_cannot_loosen_the_administrator(tmp_path: Path) -> None:
-    rules: Policy = policy(tmp_path, "[default]\nread_only = true\n", "[default]\nread_only = false\n")
+    rules: Policy = write_policy(tmp_path, "[default]\nread_only = true\n", "[default]\nread_only = false\n")
     with pytest.raises(PolicyRefusal):
-        rules.check("work", "send_email", {"to": "a@x.com"})
+        rules.check_call("work", "send_email", True, TOOLS)
 
 
 def test_allowed_tools_take_the_overlap(tmp_path: Path) -> None:
-    rules: Policy = policy(
+    rules: Policy = write_policy(
         tmp_path,
         '[default]\nallowed_tools = ["list_emails", "get_email", "send_email"]\n',
         '[mailboxes.work]\nallowed_tools = ["list_emails", "send_email", "delete_email"]\n',
     )
     assert rules.rules_for("work") == Rules(allowed_tools=["list_emails", "send_email"])
     with pytest.raises(PolicyRefusal, match="delete_email is not in allowed_tools"):
-        rules.check("work", "delete_email", {})
-    rules.check("work", "list_mailboxes", {})
+        rules.check_call("work", "delete_email", True, TOOLS)
+    rules.check_call("work", "list_mailboxes", False, TOOLS)
+
+
+def test_a_misspelled_tool_name_is_reported(tmp_path: Path) -> None:
+    rules: Policy = write_policy(tmp_path, '[default]\nallowed_tools = ["list_email"]\n', "")
+    with pytest.raises(SettingsError, match="list_email"):
+        rules.check_call("work", "list_emails", False, TOOLS)
 
 
 @pytest.mark.parametrize(
-    ("to", "cc", "refused"),
+    ("recipients", "refused"),
     [
-        ("a@example.com", "", False),
-        ("A@Example.COM", "", False),
-        ('"Doe, Jane" <jane@example.com>', "", False),
-        ("a@example.com", "boss@gmail.com", True),
-        ("a@example.com.evil.net", "", True),
+        (["a@example.com"], False),
+        (["A@Example.COM"], False),
+        (["a@example.com", "boss@gmail.com"], True),
+        (["a@example.com.evil.net"], True),
+        ([], True),
     ],
 )
-def test_recipients_outside_the_allowed_domains_are_refused(tmp_path: Path, to: str, cc: str, refused: bool) -> None:
-    rules: Policy = policy(tmp_path, '[default]\nallowed_recipient_domains = ["Example.com"]\n', "")
+def test_recipients_outside_the_allowed_domains_are_refused(
+    tmp_path: Path, recipients: list[str], refused: bool
+) -> None:
+    rules: Policy = write_policy(tmp_path, '[default]\nallowed_recipient_domains = ["Example.com"]\n', "")
     if refused:
-        with pytest.raises(PolicyRefusal, match="outside allowed_recipient_domains"):
-            rules.check("work", "send_email", {"to": to, "cc": cc})
+        with pytest.raises(PolicyRefusal):
+            rules.check_recipients("work", recipients, True)
     else:
-        rules.check("work", "send_email", {"to": to, "cc": cc})
+        rules.check_recipients("work", recipients, True)
 
 
-@pytest.mark.parametrize("text", ["[defaults]\nread_only = true\n", '[default]\nread_only = "yes"\n'])
+@pytest.mark.parametrize(
+    "text",
+    ["[defaults]\nread_only = true\n", '[default]\nread_only = "yes"\n', "mailboxes = 5\n", "[mailboxes]\nwork = 1\n"],
+)
 def test_a_malformed_policy_is_an_error_not_ignored(tmp_path: Path, text: str) -> None:
     with pytest.raises(SettingsError):
-        policy(tmp_path, text, "").check("work", "list_emails", {})
+        write_policy(tmp_path, text, "").rules_for("work")
+
+
+@pytest.mark.parametrize(
+    "to", ["<evil@gmail.com", "a@example.com, <evil@gmail.com", "evil@gmail.com (x@example.com", "x <evil@gmail.com>> "]
+)
+@pytest.mark.parametrize("tool", ["send_email", "create_draft"])
+@pytest.mark.anyio
+async def test_malformed_addresses_cannot_slip_past_the_allow_list(
+    settings_file: Path, audit: AuditLog, tmp_path: Path, mail_server: FakeMailServer, to: str, tool: str
+) -> None:
+    store_password("work", "pw")
+    rules: Policy = write_policy(tmp_path, '[default]\nallowed_recipient_domains = ["example.com"]\n', "")
+    book: MailboxBook = MailboxBook(settings_file, {}, mail_server.open_imap, mail_server.open_smtp, policy=rules)
+    arguments: dict[str, object] = {"mailbox": "work", "to": to, "subject": "s", "body": "b"}
+    if tool == "create_draft":
+        arguments["folder"] = "Drafts"
+    async with Client(build_server(book, audit)) as client:
+        result: CallToolResult = await client.call_tool(tool, arguments)
+    assert result.is_error
+    assert mail_server.sent == []
+    assert mail_server.folders["Drafts"] == {}
 
 
 @pytest.mark.anyio
 async def test_the_server_refuses_by_policy_and_records_it(
-    book: MailboxBook, audit: AuditLog, tmp_path: Path, mail_server: FakeMailServer
+    settings_file: Path, audit: AuditLog, tmp_path: Path, mail_server: FakeMailServer
 ) -> None:
     store_password("work", "pw")
-    rules: Policy = policy(tmp_path, "[mailboxes.work]\nread_only = true\n", "")
-    async with Client(build_server(book, audit, rules)) as client:
+    rules: Policy = write_policy(tmp_path, "[mailboxes.work]\nread_only = true\n", "")
+    book: MailboxBook = MailboxBook(settings_file, {}, mail_server.open_imap, mail_server.open_smtp, policy=rules)
+    async with Client(build_server(book, audit)) as client:
         result: CallToolResult = await client.call_tool(
-            "send_email", {"mailbox": "work", "to": "a@x.com", "subject": "s", "body": "b"}
+            "send_email", {"mailbox": "work", "to": "a@example.com", "subject": "s", "body": "b"}
         )
     assert result.is_error
     assert mail_server.sent == []

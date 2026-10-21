@@ -163,9 +163,15 @@ read_only = true                             # no send, draft or delete
 allowed_tools = ["list_emails", "search_emails", "get_email", "create_draft"]
 ```
 
-Refusals name the rule and are recorded in the audit log. Put the administrator
-file where only administrators can write (`/etc/xdg/email-tool/policy.toml` on
-Linux; `email-tool-mcp policy paths` shows it on macOS and Windows).
+Refusals name the rule and are recorded in the audit log. Recipients are checked
+on the finished message, the same list the mail server receives. The
+administrator file is `/etc/email-tool/policy.toml` on Linux
+(`email-tool-mcp policy paths` shows it on macOS and Windows); an existing file
+that cannot be read stops every call rather than being skipped.
+
+The policy stops the agent and accidental loosening. A user with full control
+of their own machine could run other code, so where that matters, manage the
+installation centrally as well.
 
 ## Audit log
 
