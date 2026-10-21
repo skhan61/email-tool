@@ -1,9 +1,11 @@
-# OpenSSF Scorecard: supply-chain security checks (pinned actions, branch
-# protection, token permissions, dependency updates, ...). Results feed the
-# README badge and the Security tab.
+# OpenSSF Scorecard: supply-chain security checks (pinned actions, token
+# permissions, dependency updates, code review, ...). Results feed the README
+# badge and the Security tab. Branch protection is scored only partly: reading
+# classic protection needs an admin token, which this workflow does not hold.
 name: scorecard
 
 on:
+  branch_protection_rule:
   push:
     branches: [main]
   schedule:
@@ -17,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      contents: read
+      actions: read
       security-events: write
       id-token: write
     steps:

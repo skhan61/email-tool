@@ -1,18 +1,19 @@
 # email-tool
 
+<img src="assets/icon.png" alt="" width="96" align="right">
+
 [![ci](https://github.com/skhan61/email-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/skhan61/email-tool/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/skhan61/email-tool/actions/workflows/codeql.yml/badge.svg)](https://github.com/skhan61/email-tool/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/skhan61/email-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/skhan61/email-tool)
 [![release](https://img.shields.io/github/v/release/skhan61/email-tool)](https://github.com/skhan61/email-tool/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
-[![OS](https://img.shields.io/badge/os-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](.github/workflows/ci.yml)
+[![Python](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fskhan61%2Femail-tool%2Fmain%2Fpyproject.toml)](pyproject.toml)
+[![tested on](https://img.shields.io/badge/tested%20on-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](.github/workflows/ci.yml)
 
 [![MCP](https://img.shields.io/badge/MCP-server-black)](https://modelcontextprotocol.io)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-D97757)](#claude-code)
 [![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop%20%2F%20Cowork-.mcpb-D97757)](#claude-desktop-and-claude-cowork)
 [![ChatGPT](https://img.shields.io/badge/ChatGPT%20desktop%20%2F%20Codex-plugin-10A37F)](#chatgpt-desktop-and-codex)
-[![CMMC](https://img.shields.io/badge/built%20for-CMMC%20L2%20%2F%20NIST%20SP%20800--171-2B5797)](#audit-log)
 
 Email for any AI agent that speaks MCP (Claude Code, Claude Desktop, Claude
 Cowork, ChatGPT desktop, Codex and others): read, search, draft and send mail

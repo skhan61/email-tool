@@ -11,7 +11,9 @@
     "longDescription": "Runs on your machine. Add each mailbox once in a terminal with `email-tool-mcp add <name>`; passwords stay in the OS keyring and never leave your computer except to your mail server.",
     "developerName": "Sayem Khan",
     "category": "Productivity",
-    "websiteUrl": "https://github.com/skhan61/email-tool"
+    "websiteUrl": "https://github.com/skhan61/email-tool",
+    "logo": "./assets/icon.png",
+    "composerIcon": "./assets/icon.png"
   },
   "license": "MIT"
 }
