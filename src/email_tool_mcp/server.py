@@ -8,7 +8,9 @@ here is one the user can act on (no password, locked keyring, bad settings,
 login refused), so each is re-raised as a ToolError with its message intact.
 
 Every call is audit-logged (audit.py): a "started" record before the mailbox is
-touched, refused if it cannot be written, and a "finished" record after.
+touched, refused if it cannot be written, and a "finished" record after. Between
+the two, the call is checked against the administrator's and user's policy
+(policy.py); a refusal is recorded like any other outcome.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from mcp_types import ToolAnnotations
 
 from email_tool_mcp.audit import AuditError, AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
+from email_tool_mcp.policy import Policy
 from email_tool_mcp.tools.drafts import DraftTools
 from email_tool_mcp.tools.reading import ReadingTools
 from email_tool_mcp.tools.sending import SendingTools
@@ -49,8 +52,8 @@ def mailbox_label(book: MailboxBook, arguments: dict[str, Any]) -> str:
         return given
 
 
-def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook) -> Callable[Params, str]:
-    """Wrap `tool`: audit before and after, and surface every failure as a ToolError."""
+def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook, policy: Policy) -> Callable[Params, str]:
+    """Wrap `tool`: audit before and after, enforce policy, and surface every failure as a ToolError."""
 
     @functools.wraps(tool)
     def run(*args: Params.args, **kwargs: Params.kwargs) -> str:
@@ -61,6 +64,7 @@ def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook) ->
         except AuditError as error:
             raise ToolError(f"Refused, nothing was done: {error}") from error
         try:
+            policy.check(mailbox, name, kwargs)
             result: str = tool(*args, **kwargs)
         except Exception as error:
             message: str = f"{type(error).__name__}: {error}"
@@ -78,7 +82,7 @@ def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook) ->
     return run
 
 
-def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
+def build_server(book: MailboxBook, audit: AuditLog, policy: Policy) -> MCPServer:
     """Return a server exposing every mail tool over the mailboxes in `book`, audited to `audit`."""
     reading: ReadingTools = ReadingTools(book)
     drafts: DraftTools = DraftTools(book)
@@ -105,5 +109,7 @@ def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
         ),
     )
     for tool, hints in tools:
-        server.add_tool(reported(tool, audit, book), name=tool.__name__, annotations=hints, structured_output=False)
+        server.add_tool(
+            reported(tool, audit, book, policy), name=tool.__name__, annotations=hints, structured_output=False
+        )
     return server
