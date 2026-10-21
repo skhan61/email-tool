@@ -17,8 +17,8 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. `email-tool-mcp add work`
-        2. Ask the agent "list my inbox"
+        1. Ask the agent "list my inbox"
+        2. ...
     validations:
       required: true
   - type: textarea
@@ -38,8 +38,8 @@ body:
   - type: input
     id: environment
     attributes:
-      label: OS, Python and email-tool-mcp version
-      placeholder: macOS 15.6, Python 3.13.2, email-tool-mcp 4.0.0
+      label: OS, Python and email-tool version
+      placeholder: macOS 15.6, Python 3.13.2, email-tool 3.1.0
     validations:
       required: true
   - type: textarea

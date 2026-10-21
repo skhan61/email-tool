@@ -5,7 +5,7 @@
 3. Set up once:
    ```bash
    uv sync
-   .venv/bin/pre-commit install
+   uv run pre-commit install
    ```
 4. Every function and variable is fully typed (`mypy --strict` runs on every commit).
 5. Tests run offline: never against a real mailbox, never with a real password.

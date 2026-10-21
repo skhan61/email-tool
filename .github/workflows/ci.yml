@@ -26,7 +26,7 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       # no-commit-to-branch fires on a push to main, where CI commits nothing.
-      - run: SKIP=no-commit-to-branch .venv/bin/pre-commit run --all-files --show-diff-on-failure
+      - run: SKIP=no-commit-to-branch uv run --no-sync pre-commit run --all-files --show-diff-on-failure
 
   test:
     name: tests (${{ matrix.os }}, py${{ matrix.python }})
@@ -44,7 +44,6 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python }}
-      - run: uv sync --locked
       - run: uv run --locked pytest -q
 
   build:

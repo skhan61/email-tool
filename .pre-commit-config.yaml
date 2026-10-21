@@ -1,4 +1,4 @@
-# Install once per clone: `uv sync && .venv/bin/pre-commit install`.
+# Install once per clone: `uv sync` then `uv run pre-commit install`.
 # CI runs the same file with `pre-commit run --all-files`.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -17,19 +17,23 @@ repos:
       - id: debug-statements
       - id: detect-private-key
 
-  # rev must equal the ruff pin in pyproject.toml.
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.10
-    hooks:
-      - id: ruff-check
-      - id: ruff-format
-
+  # ruff and mypy come from uv.lock, so Dependabot bumps one pin, not two.
+  # `--no-sync`: a plain `uv run` would re-sync the environment mid-commit.
   - repo: local
     hooks:
-      # .venv/bin, not `uv run`: `uv run` re-syncs the environment mid-commit.
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --no-sync ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --no-sync ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
       - id: mypy
         name: mypy --strict
-        entry: .venv/bin/mypy
+        entry: uv run --no-sync mypy
         language: system
         types: [python]
         pass_filenames: false

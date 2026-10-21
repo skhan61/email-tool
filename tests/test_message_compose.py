@@ -22,4 +22,9 @@ def test_html_body_makes_multipart_alternative() -> None:
 
 def test_envelope_includes_cc() -> None:
     message: EmailMessage = compose("me@example.com", {"to": "a@example.com, b@example.com", "cc": "c@example.com"})
-    assert sorted(envelope_recipients(message)) == ["a@example.com", "b@example.com", "c@example.com"]
+    assert envelope_recipients(message) == ["a@example.com", "b@example.com", "c@example.com"]
+
+
+def test_envelope_keeps_a_quoted_comma_in_a_display_name() -> None:
+    message: EmailMessage = compose("me@example.com", {"to": '"Doe, Jane" <jane@example.com>'})
+    assert envelope_recipients(message) == ["jane@example.com"]
