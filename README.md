@@ -3,8 +3,7 @@
 <h1 align="center">email-tool</h1>
 
 <p align="center"><b>Email for any AI agent that speaks MCP: Claude Code, Claude Desktop, Cowork, ChatGPT desktop, Codex and others.</b><br>
-Read, search, draft and send mail over IMAP/SMTP.<br>
-Built for CMMC Level 2 environments: <a href="docs/cmmc.md">see the NIST SP 800-171 control mapping</a>.</p>
+Read, search, draft and send mail over IMAP/SMTP.</p>
 
 <p align="center">
   <b>Works with</b><br>
@@ -16,7 +15,7 @@ Built for CMMC Level 2 environments: <a href="docs/cmmc.md">see the NIST SP 800-
 
 <p align="center">
   <b>Compliance</b><br>
-  <a href="docs/cmmc.md"><img alt="Built for CMMC Level 2 / NIST SP 800-171" src="https://img.shields.io/badge/built%20for-CMMC%20L2%20%2F%20NIST%20SP%20800--171-2B5797"></a>
+  <a href="docs/cmmc.md"><img alt="CMMC Level 2 / NIST SP 800-171 control mapping" src="https://img.shields.io/badge/CMMC%20L2%20%2F%20NIST%20SP%20800--171-control%20mapping-2B5797"></a>
 </p>
 
 <p align="center">

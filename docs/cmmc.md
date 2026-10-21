@@ -20,15 +20,15 @@ CUI).
 
 | Requirement | What email-tool does | Evidence for the assessor | Still the organization's job |
 |---|---|---|---|
-| **3.1.1** Limit system access to authorized users and processes | Each mailbox is enrolled per user and machine (`email-tool-mcp add`, login checked); the agent can use only enrolled mailboxes | `email-tool-mcp list`; settings file per user | Account management on the mail server; who may install the tool |
-| **3.1.2** Limit access to permitted transactions and functions | Administrator policy: `read_only`, `allowed_tools`; `require_approval` makes the human approve every send, delete and draft replacement in the app's own prompt, after seeing the delivered recipients and the whole message (or the message being deleted); the model cannot approve for itself | `/etc/email-tool/policy.toml`; `email-tool-mcp policy show <mailbox>`; audit outcomes `ok (approved by the user)` | Writing the policy; deciding which roles get which mailboxes |
+| **3.1.1** Limit system access to authorized users and processes | Each mailbox is enrolled per user and machine (`email-tool-mcp add`, login checked); the agent uses only enrolled mailboxes, plus at most one mailbox an app (Claude Desktop) describes in its environment, which never replaces an enrolled one and which `allow_environment_mailbox = false` switches off | `email-tool-mcp list`; settings file per user; policy file | Account management on the mail server; who may install the tool; set `allow_environment_mailbox = false` |
+| **3.1.2** Limit access to permitted transactions and functions | Administrator policy: `read_only`, `allowed_tools`; `require_approval` makes the human approve every send, delete and draft replacement in the app's own prompt, after seeing the delivered recipients and the whole message, or for a delete the headers of the message removed; the model cannot approve for itself | `/etc/email-tool/policy.toml`; `email-tool-mcp policy show <mailbox>`; audit outcomes `ok (approved by the user)` | Writing the policy; deciding which roles get which mailboxes |
 | **3.1.3** Control the flow of CUI per approved authorizations | `cui_recipient_domains`: mail carrying a CUI marking (banner, portion mark or subject, per DoDI 5200.48) is refused unless every recipient is in an approved domain; `allowed_recipient_domains` limits all mail | Policy file; refusals in the audit log naming the marking | Marking CUI correctly; deciding the approved domains; unmarked CUI is not detected |
-| **3.1.5** Employ least privilege | Most-restrictive combination of administrator and user policy: a user can tighten, never loosen | `policy show` output | Least privilege on the mail accounts themselves |
-| **3.3.1** Create and retain audit records | Every agent action is recorded before it runs and with its outcome: time, OS user, host, mailbox, tool, folder, UIDs, recipients | `email-tool-mcp audit path`; the JSON Lines file | Retention period and storage; forwarding to your SIEM (`EMAIL_TOOL_AUDIT_SYSLOG`) |
-| **3.3.2** Trace actions to individual users | Each record carries the OS user and host; each mailbox is enrolled per user | Audit records | Unique OS accounts (no shared logins) |
+| **3.1.5** Employ least privilege | Most-restrictive combination of administrator and user policy: a user can tighten, never loosen. Rules keyed by mailbox address (`[mailboxes."you@company.com"]`) bind whatever name the account is enrolled under | `policy show` output | Keying administrator rules by address; least privilege on the mail accounts themselves |
+| **3.3.1** Create and retain audit records | Every agent action is recorded before it runs and with its outcome: time, OS account, host, mailbox, tool, folder, UIDs, recipients | `email-tool-mcp audit path` (run with the same `EMAIL_TOOL_AUDIT_FILE` as the agent, if set); the JSON Lines file | Retention period and storage; forwarding to your SIEM |
+| **3.3.2** Trace actions to individual users | Each record carries the OS account taken from the process credentials (not from `USER`/`LOGNAME`, which can be set freely) and the host | Audit records | Unique OS accounts (no shared logins) |
 | **3.3.4** Alert on audit logging failure | Fails closed: if the "started" record cannot be written, the action is refused and the agent is told why | Refusal message; test `test_an_unwritable_log_refuses_the_action` | Monitoring and alerting on those refusals |
-| **3.3.8** Protect audit information from modification and deletion | Records are HMAC-SHA256 chained with a key in the OS keyring, and the newest record is anchored there; `email-tool-mcp audit verify` detects edited, inserted, reordered or removed records | `audit verify` output | A copy off the machine (syslog to a SIEM) against someone in full control of the account |
-| **3.5.10** Store and transmit only cryptographically protected passwords | Mail passwords live only in the OS keyring (Keychain, Credential Manager, Secret Service); never in config files, arguments or logs; sent only inside TLS | `email-tool-mcp list` shows "password in keyring"; settings file holds no password | Keyring protection on the endpoint (disk encryption, screen lock) |
+| **3.3.8** Protect audit information from modification and deletion | Records are HMAC-SHA256 chained with a key in the OS keyring, and the newest record is anchored there; `email-tool-mcp audit verify` detects edited, inserted, reordered or removed records | `audit verify` output | A copy off the machine against someone in full control of the account: `EMAIL_TOOL_AUDIT_SYSLOG` sends plain syslog (UDP or TCP), so point it at a local relay (rsyslog, syslog-ng) that forwards to the SIEM over TLS. If the target is down, the tool warns and keeps the local log |
+| **3.5.10** Store and transmit only cryptographically protected passwords | Passwords of enrolled mailboxes live only in the OS keyring (Keychain, Credential Manager, Secret Service), never in this tool's files, arguments or logs, and are sent only inside TLS. A mailbox an app describes in its environment gets its password from that app (`EMAIL_TOOL_PASSWORD`) | `email-tool-mcp list` shows "password in keyring"; settings file holds no password | Set `allow_environment_mailbox = false` so no password comes from an app's config; keyring protection on the endpoint (disk encryption, screen lock) |
 | **3.13.8** Protect CUI in transit with cryptography | IMAP and SMTP always use TLS with certificate verification, TLS 1.2 minimum | `email-tool-mcp check <mailbox>` shows the negotiated version and cipher | TLS on the mail server; the AI service's own transport |
 | **3.13.11** Employ FIPS-validated cryptography for CUI | `require_fips = true` refuses every connection (agent calls, `add`, `check`) unless Python's OpenSSL runs in FIPS mode | `email-tool-mcp check` shows "FIPS mode: on" | Running the OS in FIPS mode (e.g. Ubuntu Pro FIPS, RHEL FIPS) |
 
@@ -51,10 +51,15 @@ paths` shows the macOS and Windows location), writable only by administrators:
 [default]
 require_approval = true
 require_fips = true
+allow_environment_mailbox = false
 allowed_recipient_domains = ["yourcompany.com", "prime-contractor.com"]
 cui_recipient_domains = ["yourcompany.com"]
+
+[mailboxes."shared-inbox@yourcompany.com"]   # keyed by address: binds under any name
+read_only = true
 ```
 
-Then set `EMAIL_TOOL_AUDIT_SYSLOG=tcp://siem.yourcompany.com:6514` for the agent
-process, and check each machine with `email-tool-mcp check <mailbox>` and
-`email-tool-mcp audit verify`.
+Then set `EMAIL_TOOL_AUDIT_SYSLOG=udp://127.0.0.1:514` for the agent process,
+with the local syslog daemon forwarding to your SIEM over TLS, and check each
+machine with `email-tool-mcp check <mailbox>` and `email-tool-mcp audit verify`
+(run in the same environment as the agent).
