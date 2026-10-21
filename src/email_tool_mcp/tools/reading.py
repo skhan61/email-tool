@@ -6,10 +6,11 @@ Placement: tools/reading.py, one module per tool group.
 
 from __future__ import annotations
 
+from datetime import datetime
 from email.message import Message
 from typing import Final
 
-from email_tool_mcp.imap_session import ImapSession
+from email_tool_mcp.imap_session import ImapSession, SearchItem, text
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_render import (
     MessageSummary,
@@ -26,13 +27,10 @@ _BODY_CHARACTER_LIMIT: Final[int] = 20_000
 
 
 def newest_summaries(session: ImapSession, uids: list[int], limit: int) -> list[MessageSummary]:
-    """Fetch header summaries for the `limit` highest UIDs, newest first."""
-    summaries: list[MessageSummary] = []
-    for uid in sorted(uids, reverse=True)[:limit]:
-        raw: bytes | None = session.fetch_header(uid)
-        if raw is not None:
-            summaries.append(summarize(uid, parse_message(raw)))
-    return summaries
+    """Fetch header summaries for the `limit` highest UIDs in one round trip, newest first."""
+    newest: list[int] = sorted(uids, reverse=True)[:limit]
+    headers: dict[int, bytes] = session.fetch_headers(newest)
+    return [summarize(uid, parse_message(headers[uid])) for uid in newest if uid in headers]
 
 
 def render_summaries(summaries: list[MessageSummary], total: int) -> str:
@@ -43,14 +41,17 @@ def render_summaries(summaries: list[MessageSummary], total: int) -> str:
     return f"{total} match(es), showing {len(summaries)} newest:\n\n" + "\n\n".join(blocks)
 
 
-def search_criteria(sender: str, subject: str, body: str, since: str) -> list[str]:
-    """Translate the search fields into IMAP SEARCH tokens."""
-    criteria: list[str] = []
+def search_criteria(sender: str, subject: str, body: str, since: str) -> list[SearchItem]:
+    """Translate the search fields into IMAP SEARCH criteria."""
+    criteria: list[SearchItem] = []
     for value, keyword in ((sender, "FROM"), (subject, "SUBJECT"), (body, "BODY")):
         if value:
-            criteria.extend([keyword, value])
+            criteria.extend([keyword, text(value)])
     if since:
-        criteria.extend(["SINCE", since])
+        try:
+            criteria.extend(["SINCE", datetime.strptime(since, "%d-%b-%Y").date()])
+        except ValueError as error:
+            raise ValueError(f"since must look like 01-Jan-2026, got {since!r}") from error
     return criteria
 
 
@@ -128,7 +129,7 @@ class ReadingTools:
         """
         with self._book.imap(self._book.resolve(mailbox)) as session:
             gmail_capable: bool = session.supports_gmail_search()
-            criteria: list[str] = search_criteria(sender, subject, body, since)
+            criteria: list[SearchItem] = search_criteria(sender, subject, body, since)
             use_gmail: bool = bool(gmail_query) and gmail_capable
             if not (use_gmail or criteria):
                 raise ValueError("supply at least one of sender, subject, body, since or gmail_query")

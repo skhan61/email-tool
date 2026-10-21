@@ -104,3 +104,13 @@ async def test_update_draft_replaces_the_original(book: MailboxBook, mail_server
     assert not created.is_error
     await call(book, "update_draft", {"mailbox": "work", "folder": "Drafts", "uid": 1, "to": "b@x.com"})
     assert list(mail_server.folders["Drafts"]) == [2]
+
+
+async def test_update_draft_with_a_wrong_uid_changes_nothing(book: MailboxBook, mail_server: FakeMailServer) -> None:
+    store_password("work", "secret")
+    await call(book, "create_draft", {"mailbox": "work", "folder": "Drafts", "to": "a@x.com"})
+    result: CallToolResult = await call(
+        book, "update_draft", {"mailbox": "work", "folder": "Drafts", "uid": 99, "to": "b@x.com"}
+    )
+    assert result.is_error
+    assert list(mail_server.folders["Drafts"]) == [1]

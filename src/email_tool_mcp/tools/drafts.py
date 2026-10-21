@@ -78,6 +78,8 @@ class DraftTools:
         message: EmailMessage = compose(sender.address, to, subject, body, cc, html)
         with self._book.imap(sender) as session:
             session.select(folder, readonly=False)
+            if not session.exists(uid):
+                raise LookupError(f"no draft with uid {uid} in folder {folder!r}; nothing was changed")
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
             expunged: bool = session.mark_deleted(uid)
         replaced: str = f"Draft uid {uid} in {folder!r} replaced."
