@@ -86,7 +86,7 @@ async def test_list_and_read_a_message(book: MailboxBook, audit: AuditLog, mail_
 async def test_send_uses_the_named_mailbox(book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer) -> None:
     store_password("home", "secret")
     result: CallToolResult = await call(
-        book, "send_email", {"mailbox": "home", "to": "a@example.com", "subject": "Hi", "body": "hello"}
+        book, audit, "send_email", {"mailbox": "home", "to": "a@example.com", "subject": "Hi", "body": "hello"}
     )
     assert not result.is_error
     sent, recipients = mail_server.sent[0]
@@ -112,7 +112,7 @@ async def test_update_draft_with_a_wrong_uid_changes_nothing(
     store_password("work", "secret")
     await call(book, audit, "create_draft", {"mailbox": "work", "folder": "Drafts", "to": "a@x.com"})
     result: CallToolResult = await call(
-        book, "update_draft", {"mailbox": "work", "folder": "Drafts", "uid": 99, "to": "b@x.com"}
+        book, audit, "update_draft", {"mailbox": "work", "folder": "Drafts", "uid": 99, "to": "b@x.com"}
     )
     assert result.is_error
     assert list(mail_server.folders["Drafts"]) == [1]

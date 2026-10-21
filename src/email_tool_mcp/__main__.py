@@ -24,11 +24,11 @@ class AuditCommands:
 
     def path(self) -> str:
         """Print where the audit log is written."""
-        return str(AuditLog.from_environment(os.environ).path)
+        return str(AuditLog.from_environment(os.environ, with_syslog=False).path)
 
     def verify(self) -> str:
         """Check the hash chain; report the first edited, inserted or removed record."""
-        return verify(AuditLog.from_environment(os.environ).path).render()
+        return verify(AuditLog.from_environment(os.environ, with_syslog=False).path).render()
 
 
 class Cli:
@@ -60,7 +60,9 @@ class Cli:
     def serve(self) -> None:
         """Run the MCP server on stdio (what an AI agent launches)."""
         logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-        build_server(MailboxBook(settings_path(), os.environ), AuditLog.from_environment(os.environ)).run("stdio")
+        build_server(
+            MailboxBook(settings_path(), os.environ), AuditLog.from_environment(os.environ, with_syslog=True)
+        ).run("stdio")
 
 
 def main() -> None:

@@ -7,8 +7,8 @@ mcp 2.x hides the text of any exception that is not a ToolError. Every failure
 here is one the user can act on (no password, locked keyring, bad settings,
 login refused), so each is re-raised as a ToolError with its message intact.
 
-Every call is audit-logged (audit.py). If the log cannot be written the call is
-refused before it touches the mailbox: no action without a record.
+Every call is audit-logged (audit.py): a "started" record before the mailbox is
+touched, refused if it cannot be written, and a "finished" record after.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 
-from email_tool_mcp.audit import AuditLog
+from email_tool_mcp.audit import AuditError, AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.tools.drafts import DraftTools
 from email_tool_mcp.tools.reading import ReadingTools
@@ -50,22 +50,29 @@ def mailbox_label(book: MailboxBook, arguments: dict[str, Any]) -> str:
 
 
 def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook) -> Callable[Params, str]:
-    """Wrap `tool`: refuse without a writable audit log, record the outcome, surface errors as ToolError."""
+    """Wrap `tool`: audit before and after, and surface every failure as a ToolError."""
 
     @functools.wraps(tool)
     def run(*args: Params.args, **kwargs: Params.kwargs) -> str:
         name: str = tool.__name__
         mailbox: str = mailbox_label(book, kwargs)
         try:
-            audit.ensure_writable()
-        except OSError as error:
-            raise ToolError(f"Refused: the audit log {audit.path} cannot be written ({error}).") from error
+            call: str = audit.started(mailbox, name, kwargs)
+        except AuditError as error:
+            raise ToolError(f"Refused, nothing was done: {error}") from error
         try:
             result: str = tool(*args, **kwargs)
         except Exception as error:
-            audit.record(mailbox, name, kwargs, f"{type(error).__name__}: {error}")
-            raise ToolError(f"{type(error).__name__}: {error}") from error
-        audit.record(mailbox, name, kwargs, "ok")
+            message: str = f"{type(error).__name__}: {error}"
+            try:
+                audit.finished(call, mailbox, name, message)
+            except AuditError as audit_error:
+                message += f" (the outcome could not be recorded: {audit_error})"
+            raise ToolError(message) from error
+        try:
+            audit.finished(call, mailbox, name, "ok")
+        except AuditError as error:
+            raise ToolError(f"Done, but the outcome could not be recorded ({error}). Do not repeat it.") from error
         return result
 
     return run
