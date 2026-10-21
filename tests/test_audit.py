@@ -51,7 +51,8 @@ def test_records_chain_and_verify(audit: AuditLog) -> None:
 def test_an_edited_record_is_detected(audit: AuditLog) -> None:
     write_three(audit)
     lines: list[str] = lines_of(audit)
-    lines[2] = lines[2].replace('"uid":2', '"uid":9')
+    lines[2] = lines[2].replace('"uid": 2', '"uid": 9')
+    assert lines[2] != lines_of(audit)[2], "the test must actually change the record"
     rewrite(audit, lines)
     assert verify(audit.path).broken_at == 3
 
