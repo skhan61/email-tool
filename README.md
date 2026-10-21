@@ -175,12 +175,19 @@ email-tool-mcp policy show work      # the effective rules for one mailbox
 [default]                                    # every mailbox
 allowed_recipient_domains = ["example.com"]  # send/draft only to these domains
 
+require_approval = true                      # send, delete and replace-draft ask you first
+
 [mailboxes.archive]
 read_only = true                             # no send, draft or delete
 
 [mailboxes.work]
 allowed_tools = ["list_emails", "search_emails", "get_email", "create_draft"]
 ```
+
+With `require_approval`, your app shows you the exact recipients, subject and the
+start of the body and waits for your yes before anything irreversible runs; the
+AI cannot answer for you. Apps that cannot show such a prompt are refused. Turn it
+on in the administrator file to make it binding.
 
 Refusals name the rule and are recorded in the audit log. Recipients are checked
 on the finished message, the same list the mail server receives. The

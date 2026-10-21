@@ -99,6 +99,13 @@ class MailboxBook:
             problem = f"No mailbox called {name!r}. Configured: {', '.join(sorted(known))}."
         raise UnknownMailbox(f"{problem} {self.environment_problem}".strip())
 
+    def label(self, name: str) -> str:
+        """The mailbox a call acts on, as audit records and policy name it; `name` if it cannot resolve."""
+        try:
+            return self.resolve(name).name
+        except Exception:
+            return name
+
     def password(self, mailbox: Mailbox) -> str:
         """Return EMAIL_TOOL_PASSWORD for the environment's own mailbox when set, else the keyring."""
         if self._environment.get(ENV_PASSWORD) and self._environment_mailbox() == mailbox:

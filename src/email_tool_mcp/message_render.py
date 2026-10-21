@@ -132,6 +132,20 @@ def extract_body(message: Message) -> str:
     return ""
 
 
+def every_text(message: Message) -> str:
+    """All readable text: every plain part and every HTML part converted, attachments included."""
+    chunks: list[str] = []
+    for part in message.walk():
+        content_type: str = part.get_content_type()
+        if content_type == "text/plain":
+            chunks.append(_decode_part(part))
+        elif content_type == "text/html":
+            extractor: _HtmlTextExtractor = _HtmlTextExtractor()
+            extractor.feed(_decode_part(part))
+            chunks.append(extractor.text())
+    return "\n".join(chunks)
+
+
 def attachment_names(message: Message) -> list[str]:
     """Return the filenames of every attached part."""
     names: list[str] = []

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import socket
 from email.message import EmailMessage
+
+import pytest
 
 from email_tool_mcp.message_compose import compose, envelope_recipients
 
@@ -29,3 +32,12 @@ def test_envelope_includes_cc() -> None:
 def test_envelope_keeps_a_quoted_comma_in_a_display_name() -> None:
     message: EmailMessage = compose("me@example.com", '"Doe, Jane" <jane@example.com>', "", "", "", "")
     assert envelope_recipients(message) == ["jane@example.com"]
+
+
+def test_message_id_uses_the_sender_domain_and_never_looks_up_this_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_lookup(name: str = "") -> str:
+        raise AssertionError("compose must not resolve this machine's network name")
+
+    monkeypatch.setattr(socket, "getfqdn", no_lookup)
+    message: EmailMessage = compose("me@example.com", "a@example.com", "Hi", "hello", "", "")
+    assert str(message["Message-ID"]).endswith("@example.com>")
