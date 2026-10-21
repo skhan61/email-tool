@@ -1,26 +1,46 @@
-# email-tool
+<p align="center"><img src="assets/icon.png" alt="email-tool icon" width="112"></p>
 
-<img src="assets/icon.png" alt="" width="96" align="right">
+<h1 align="center">email-tool</h1>
 
-[![ci](https://github.com/skhan61/email-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/skhan61/email-tool/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/skhan61/email-tool/actions/workflows/codeql.yml/badge.svg)](https://github.com/skhan61/email-tool/actions/workflows/codeql.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/skhan61/email-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/skhan61/email-tool)
-[![release](https://img.shields.io/github/v/release/skhan61/email-tool)](https://github.com/skhan61/email-tool/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fskhan61%2Femail-tool%2Fmain%2Fpyproject.toml)](pyproject.toml)
-[![tested on](https://img.shields.io/badge/tested%20on-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](.github/workflows/ci.yml)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![types: mypy strict](https://img.shields.io/badge/types-mypy%20strict-blue)](pyproject.toml)
-[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](.pre-commit-config.yaml)
-[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot)](.github/dependabot.yml)
-[![Security policy](https://img.shields.io/badge/security-policy-red)](SECURITY.md)
-[![Contributing](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
+<p align="center"><b>Email for AI agents, built for CMMC Level 2 environments.</b><br>
+Read, search, draft and send mail from Claude or ChatGPT, with passwords in your OS keyring,
+an audit log of every action, and policies your administrator controls.</p>
 
-[![MCP](https://img.shields.io/badge/MCP-server-black)](https://modelcontextprotocol.io)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-D97757)](#claude-code)
-[![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop%20%2F%20Cowork-.mcpb-D97757)](#claude-desktop-and-claude-cowork)
-[![ChatGPT](https://img.shields.io/badge/ChatGPT%20desktop%20%2F%20Codex-plugin-10A37F)](#chatgpt-desktop-and-codex)
+<p align="center">
+  <b>Works with</b><br>
+  <a href="#claude-code"><img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-D97757?logo=claude&logoColor=white"></a>
+  <a href="#claude-desktop-and-claude-cowork"><img alt="Claude Desktop and Cowork" src="https://img.shields.io/badge/Claude%20Desktop%20%2F%20Cowork-.mcpb-D97757?logo=claude&logoColor=white"></a>
+  <a href="#chatgpt-desktop-and-codex"><img alt="ChatGPT desktop and Codex" src="https://img.shields.io/badge/ChatGPT%20%2F%20Codex-plugin-10A37F"></a>
+  <a href="https://modelcontextprotocol.io"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-1F2A44"></a>
+</p>
+
+<p align="center">
+  <b>Build and security</b><br>
+  <a href="https://github.com/skhan61/email-tool/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/skhan61/email-tool/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white"></a>
+  <a href="https://github.com/skhan61/email-tool/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://img.shields.io/github/actions/workflow/status/skhan61/email-tool/codeql.yml?branch=main&label=CodeQL&logo=github"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/skhan61/email-tool"><img alt="OpenSSF Scorecard" src="https://img.shields.io/ossf-scorecard/github.com/skhan61/email-tool?label=OpenSSF%20Scorecard"></a>
+  <a href="https://github.com/skhan61/email-tool/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/skhan61/email-tool?label=release&logo=github"></a>
+</p>
+
+<p align="center">
+  <b>Code quality</b><br>
+  <a href="pyproject.toml"><img alt="Python version" src="https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fskhan61%2Femail-tool%2Fmain%2Fpyproject.toml&logo=python&logoColor=white"></a>
+  <a href=".github/workflows/ci.yml"><img alt="Tested on Linux, macOS and Windows" src="https://img.shields.io/badge/tested%20on-Linux%20%7C%20macOS%20%7C%20Windows-555"></a>
+  <a href="https://github.com/astral-sh/ruff"><img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json"></a>
+  <a href="pyproject.toml"><img alt="mypy strict" src="https://img.shields.io/badge/types-mypy%20strict-2A6DB2"></a>
+  <a href="https://github.com/astral-sh/uv"><img alt="uv" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json"></a>
+  <a href=".pre-commit-config.yaml"><img alt="pre-commit" src="https://img.shields.io/badge/pre--commit-enabled-FAB040?logo=pre-commit&logoColor=white"></a>
+  <a href=".github/dependabot.yml"><img alt="Dependabot" src="https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <b>Project</b><br>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/skhan61/email-tool"></a>
+  <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-C0392B"></a>
+  <a href="CONTRIBUTING.md"><img alt="Contributing" src="https://img.shields.io/badge/PRs-welcome-2EA44F"></a>
+</p>
+
+---
 
 Email for any AI agent that speaks MCP (Claude Code, Claude Desktop, Claude
 Cowork, ChatGPT desktop, Codex and others): read, search, draft and send mail
