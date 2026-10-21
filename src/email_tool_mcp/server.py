@@ -54,16 +54,16 @@ def reported(
     """Wrap `tool`: audit before and after, enforce policy and approval, surface failures as ToolError.
 
     Destructive tools gain an `approval` parameter the SDK fills by running the approval
-    resolver (asking the human when policy requires it); it never appears in the schema.
-    The blocking mail work runs in a worker thread.
+    resolver; it never appears in the schema. Everything that blocks (audit lock, keyring,
+    policy files, IMAP/SMTP) runs in a worker thread, so a slow lock or keyring prompt
+    never stalls the server's event loop.
     """
     name: str = tool.__name__
     changes_mail: bool = not hints.read_only_hint
+    destructive: bool = bool(hints.destructive_hint)
     signature: inspect.Signature = inspect.signature(tool, eval_str=True)
-    hints_of_tool: dict[str, Any] = typing.get_type_hints(tool, include_extras=True)
 
-    @functools.wraps(tool)
-    async def run(*args: Any, approval: ElicitationResult[Any] | None = None, **kwargs: Any) -> str:
+    def execute(args: tuple[Any, ...], kwargs: dict[str, Any], approval: ElicitationResult[Any] | None) -> str:
         mailbox: str = book.label(str(kwargs.get("mailbox", "")))
         try:
             call: str = audit.started(mailbox, name, kwargs)
@@ -72,9 +72,9 @@ def reported(
         approved: bool = False
         try:
             book.policy.check_call(mailbox, name, changes_mail, known_tools)
-            if approval is not None:
+            if destructive:
                 approved = enforce(name, approval)
-            result: str = await anyio.to_thread.run_sync(functools.partial(tool, *args, **kwargs))
+            result: str = tool(*args, **kwargs)
         except Exception as error:
             message: str = f"{type(error).__name__}: {error}"
             try:
@@ -88,10 +88,15 @@ def reported(
             raise ToolError(f"Done, but the outcome could not be recorded ({error}). Do not repeat it.") from error
         return result
 
+    @functools.wraps(tool)
+    async def run(*args: Any, approval: ElicitationResult[Any] | None = None, **kwargs: Any) -> str:
+        outcome: str = await anyio.to_thread.run_sync(functools.partial(execute, args, kwargs, approval))
+        return outcome
+
     parameters: list[inspect.Parameter] = list(signature.parameters.values())
-    annotations: dict[str, Any] = dict(hints_of_tool)
-    if hints.destructive_hint:
-        question: Callable[..., Any] = approval_resolver(name, set(signature.parameters), book)
+    annotations: dict[str, Any] = typing.get_type_hints(tool, include_extras=True)
+    if destructive:
+        question: Callable[..., Any] = approval_resolver(name, set(signature.parameters), known_tools, book)
         resolved: Any = Annotated[ElicitationResult[Approval], Resolve(question)]
         parameters.append(inspect.Parameter("approval", inspect.Parameter.KEYWORD_ONLY, annotation=resolved))
         annotations["approval"] = resolved

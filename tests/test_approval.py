@@ -14,11 +14,12 @@ from mcp import Client
 from mcp.client.context import ClientRequestContext
 from mcp_types import CallToolResult, ElicitRequestParams, ElicitResult, ListToolsResult
 
-from email_tool_mcp.approval import describe
+from email_tool_mcp.approval import enforce
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
+from email_tool_mcp.message_compose import compose
 from email_tool_mcp.passwords import store_password
-from email_tool_mcp.policy import Policy
+from email_tool_mcp.policy import Policy, PolicyRefusal
 from email_tool_mcp.server import build_server
 from tests.fakes import FakeMailServer
 
@@ -114,9 +115,61 @@ async def test_the_approval_is_never_an_argument_the_model_can_fill(book: Mailbo
     assert all("approval" not in tool.input_schema.get("properties", {}) for tool in listed.tools)
 
 
-def test_the_prompt_truncates_a_long_body() -> None:
-    text: str = describe("send_email", "work", {"to": "a@x.com", "body": "x" * 5000})
-    assert text.endswith("[...]") and len(text) < 1000
+@pytest.mark.anyio
+async def test_the_prompt_shows_html_the_whole_body_and_the_delivered_address(
+    approving_book: MailboxBook, audit: AuditLog
+) -> None:
+    person: Person = Person("decline", False)
+    sneaky: dict[str, Any] = {
+        **SEND,
+        "to": '"ceo@example.com" <attacker@example.com>',
+        "body": "Hi, see you Tuesday. " + "x" * 2000 + " WIRE THE MONEY",
+        "html": "<p>Wire $50k to account 1234</p>",
+    }
+    async with Client(build_server(approving_book, audit), elicitation_callback=person) as client:
+        await client.call_tool("send_email", sneaky)
+    shown: str = person.shown[0]
+    assert "Delivered to: attacker@example.com" in shown
+    assert "WIRE THE MONEY" in shown
+    assert "Wire $50k to account 1234" in shown
+
+
+@pytest.mark.anyio
+async def test_a_delete_prompt_names_the_message_it_removes(
+    approving_book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    uid: int = mail_server.add(
+        "INBOX", compose("boss@example.com", "me@example.com", "Signed contract", "x", "", "").as_bytes()
+    )
+    person: Person = Person("decline", False)
+    async with Client(build_server(approving_book, audit), elicitation_callback=person) as client:
+        await client.call_tool("delete_email", {"mailbox": "work", "folder": "INBOX", "uid": uid})
+    assert "Signed contract" in person.shown[0] and "boss@example.com" in person.shown[0]
+    assert uid in mail_server.folders["INBOX"]
+
+
+@pytest.mark.anyio
+async def test_a_send_policy_refuses_is_never_put_to_the_user(
+    settings_file: Path, audit: AuditLog, tmp_path: Path, mail_server: FakeMailServer
+) -> None:
+    store_password("work", "pw")
+    policy_file: Path = tmp_path / "admin.toml"
+    policy_file.write_text(
+        '[default]\nrequire_approval = true\nallowed_recipient_domains = ["example.com"]\n', encoding="utf-8"
+    )
+    book: MailboxBook = MailboxBook(
+        settings_file, {}, mail_server.open_imap, mail_server.open_smtp, policy=Policy([policy_file])
+    )
+    person: Person = Person("accept", True)
+    async with Client(build_server(book, audit), elicitation_callback=person) as client:
+        result: CallToolResult = await client.call_tool("send_email", {**SEND, "to": "bob@evil.com"})
+    assert result.is_error and person.shown == []
+    assert mail_server.sent == []
+
+
+def test_a_missing_approval_step_fails_closed() -> None:
+    with pytest.raises(PolicyRefusal, match="did not run"):
+        enforce("send_email", None)
 
 
 @pytest.mark.anyio
