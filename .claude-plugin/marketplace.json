@@ -1,18 +1,17 @@
 {
   "name": "email-tool",
   "owner": {
-    "name": "Sayem Khan",
-    "email": "s.khan@alchlight.com"
+    "name": "Sayem Khan"
   },
   "metadata": {
-    "description": "Email for Claude Code: IMAP/SMTP mailbox access.",
-    "version": "3.1.0"
+    "description": "Email for any MCP client: IMAP/SMTP mailbox access.",
+    "version": "4.0.0"
   },
   "plugins": [
     {
       "name": "email-tool",
       "source": "./",
-      "description": "IMAP/SMTP email for Claude Code: read, search, draft, and send mail."
+      "description": "IMAP/SMTP email: read, search, draft and send mail."
     }
   ]
 }

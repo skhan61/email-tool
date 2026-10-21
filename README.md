@@ -1,97 +1,75 @@
 # email-tool
 
-A Claude Code **plugin** that gives Claude access to your email mailbox over
-IMAP/SMTP, read, search, draft, and send mail from inside a session.
+Email for any AI agent that speaks MCP (Claude Code, Claude Desktop, Claude
+Cowork, ChatGPT desktop, Codex and others): read, search, draft and send mail
+over IMAP/SMTP.
 
-It ships its own dependency-free MCP server (`mailbox_mcp/`, Python standard
-library only) and adds reusable email workflows (a skill) and slash commands.
+- **One server for all your mailboxes.** Work and personal mail side by side;
+  every tool takes a `mailbox` argument.
+- **Passwords stay in your OS keyring** (Keychain, Credential Manager, GNOME
+  Keyring), never in an agent's config file, so an agent update or login
+  refresh cannot erase them.
+- **Runs on your machine over stdio.** It never opens a network port, and
+  TLS certificates are always verified.
 
-> **Each person uses their own mailbox.** This plugin ships *no credentials*.
-> You supply your own IMAP/SMTP login via a machine-local secrets file.
+## Tools
 
----
-
-## What you get
-
-| Type | Name | What it does |
-|------|------|--------------|
-| MCP server | `alchlight` | IMAP/SMTP tools for the Alchlight work mailbox |
-| MCP server | `gmail` | IMAP/SMTP tools for the personal Gmail mailbox |
-| Skill | `email-tool` | Email triage / reply / compose workflows with safety rules |
-| Command | `/inbox` | Summarize recent inbox messages |
-| Command | `/email-search` | Search the mailbox |
-| Command | `/email-send` | Draft + send (with confirmation) |
-
----
+| Tool | What it does |
+|---|---|
+| `list_mailboxes` | Mailboxes on this machine, and whether each has a password |
+| `list_folders` | Folders in a mailbox |
+| `list_emails` | Newest messages in a folder |
+| `search_emails` | Search by sender, subject, body, date, or Gmail query |
+| `get_email` | One message in full (does not mark it read) |
+| `create_draft` / `list_drafts` / `get_draft` / `update_draft` | Drafts |
+| `send_email` | Send now (irreversible) |
+| `delete_email` | Delete permanently |
 
 ## Install
 
-### 1. Prerequisites
-- **Python 3.10+** on PATH. There are no third-party packages to install.
-- Your mailbox **IMAP/SMTP credentials** (for HostGator-hosted Alchlight mail,
-  that's your full email address + mailbox password).
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
-### 2. Install it
+### 1. Add each mailbox once per machine
+
+```bash
+uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp add work
 ```
-/plugin marketplace add <git-url-or-path-to-this-repo>
+
+It asks for the address, the IMAP and SMTP servers (filled in for Gmail) and
+the password (hidden), checks that both logins work, then saves the servers
+to your user settings and the password to the OS keyring. Repeat for each
+mailbox (`add home`, ...). Gmail needs an
+[App Password](https://myaccount.google.com/apppasswords), not your account
+password.
+
+Other commands: `email-tool-mcp list`, `email-tool-mcp remove <name>`.
+
+### 2. Connect your agent
+
+**Claude Code** (plugin, adds `/inbox`, `/email-search`, `/email-send`):
+
+```
+/plugin marketplace add skhan61/email-tool
 /plugin install email-tool@email-tool
 ```
 
-Claude Code then **asks you for each mailbox's address and password**. Password
-fields are masked as you type and stored in secure storage (the macOS Keychain,
-or `~/.claude/.credentials.json`), never in `settings.json` and never in this
-repository.
+**Any other MCP client**: add a stdio server that runs
 
-**Leave a mailbox blank to keep it off this machine.** That server logs one line
-and exits quietly. This is how one machine runs Alchlight only while another
-runs both, with no per-machine config file and nothing to sync.
+```
+uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve
+```
 
-To change or add credentials later, run `/plugin` and edit the plugin's
-configuration.
+## Security
 
-Gmail needs a Google App Password, not your account password.
-
-### 3. Verify
-Restart Claude Code (or reload plugins). Check the servers connect with
-`/mcp`, you should see `email-tool` listed.
-
----
-
-## Usage
-
-- `/inbox`, recent mail at a glance
-- `/email-search from:jane invoice`, find messages
-- `/email-send reply to the last message from Jane confirming the meeting`
-- Or just ask naturally: *"check my inbox", "find the email about the contract",
-  "draft a reply to Bob"*. The skill activates automatically.
-
-The skill **always drafts and asks before sending or deleting**, nothing leaves
-your mailbox without your explicit confirmation.
-
----
-
-## Security notes
-
-- Credentials are entered once at install, masked, and held by Claude Code in
-  secure storage. They are never in this repo, never in `.mcp.json`, never in
-  `settings.json`, and never passed as command-line arguments, so they cannot
-  appear in a process listing.
-- TLS certificates are **always** verified, and there is no option to disable
-  verification. The server sends SNI, which is required by Gmail and by any
-  other host that serves more than one domain.
-- The MCP server talks directly to your mail host over TLS; mail contents are
-  visible to Claude during a session, treat them as you would any data you
-  share with an assistant.
-- Use a dedicated mailbox password / app password where your provider supports
-  it, rather than your primary account password.
-
----
+- The server only ever reads passwords from the OS keyring (or, for a host
+  that stores secrets itself, from `EMAIL_TOOL_PASSWORD`). They are never
+  command-line arguments, so they cannot appear in a process listing.
+- Mail contents are visible to the AI agent during a session; treat them as
+  any data you share with an assistant.
+- Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 
 ## Troubleshooting
 
-- **A mailbox is missing from `/mcp`** - its fields were left blank at install.
-  Run `/plugin`, edit the plugin config, fill them in, restart.
-- **Auth errors** → verify host/port match your provider (Alchlight is HostGator
-  `gator3272.hostgator.com`, IMAP 993 / SMTP 465, both TLS).
-- **`self-signed certificate` on Gmail** → that was the old `imap-email-mcp`
-  engine, which sent no TLS SNI. It is gone; see `mailbox_mcp/imap_session.py`.
+- **"No password for mailbox"**: run `email-tool-mcp add <name>` again.
+- **Login refused**: check the servers with `email-tool-mcp list`; ports are
+  implicit TLS (IMAP 993, SMTP 465).
