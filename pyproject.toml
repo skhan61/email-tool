@@ -49,7 +49,7 @@ files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
 # Neither ships type information.
-module = ["fire", "imapclient"]
+module = ["fire", "imapclient", "imapclient.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

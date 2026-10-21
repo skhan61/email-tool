@@ -55,7 +55,8 @@ SearchItem = str | bytes | int | date
 
 def text(value: str) -> bytes:
     """Wrap a search value so imapclient sends it as a literal or a quoted string, never as bare syntax."""
-    return _literal(checked(value).encode("utf-8"))
+    wrapped: bytes = _literal(checked(value).encode("utf-8"))
+    return wrapped
 
 
 def decode_folder_name(raw: bytes | str) -> str:
