@@ -79,3 +79,9 @@ def test_environment_mailbox_falls_back_to_the_keyring(settings_file: Path, mail
 def test_malformed_environment_mailbox_leaves_the_others_working(settings_file: Path) -> None:
     broken: dict[str, str] = {"EMAIL_TOOL_ADDRESS": "x@example.com", "EMAIL_TOOL_IMAP_HOST": "imap.x"}
     assert set(MailboxBook(settings_file, broken).mailboxes()) == {"home", "work"}
+
+
+def test_malformed_environment_mailbox_is_explained_when_nothing_resolves(tmp_path: Path) -> None:
+    broken: dict[str, str] = {"EMAIL_TOOL_ADDRESS": "x@example.com", "EMAIL_TOOL_IMAP_HOST": "imap.x"}
+    with pytest.raises(UnknownMailbox, match="app's settings was ignored.*EMAIL_TOOL_SMTP_HOST"):
+        MailboxBook(tmp_path / "absent.toml", broken).resolve("")

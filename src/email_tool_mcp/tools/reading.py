@@ -93,12 +93,14 @@ class ReadingTools:
     def list_mailboxes(self) -> str:
         """List the mailboxes configured on this machine and whether each has a password."""
         known: dict[str, Mailbox] = self._book.mailboxes()
+        lines: list[str] = [
+            f"{name}: {mailbox.address} ({'ready' if self._book.has_password(mailbox) else 'no password'})"
+            for name, mailbox in sorted(known.items())
+        ]
         if not known:
-            return f"No mailbox is configured. Run `{SETUP_COMMAND} <name>` in a terminal."
-        lines: list[str] = []
-        for name, mailbox in sorted(known.items()):
-            state: str = "ready" if self._book.has_password(mailbox) else "no password"
-            lines.append(f"{name}: {mailbox.address} ({state})")
+            lines.append(f"No mailbox is configured. Run `{SETUP_COMMAND} <name>` in a terminal.")
+        if self._book.environment_problem:
+            lines.append(self._book.environment_problem)
         return "\n".join(lines)
 
     # no-library: scikit-learn: list_folders lists IMAP mail folders, it is not a data split.
