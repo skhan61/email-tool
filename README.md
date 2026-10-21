@@ -90,23 +90,36 @@ servers Claude Desktop runs, so nothing else is needed.
 
 #### ChatGPT desktop and Codex
 
-Settings > Plugins > Add > Add MCP server, type **STDIO**, command `uvx`,
-arguments `--from git+https://github.com/skhan61/email-tool email-tool-mcp serve`.
-Or add to `~/.codex/config.toml` (shared by the ChatGPT desktop app, the Codex
-CLI and the IDE extension):
+Install the plugin, which also adds the email skill. In the ChatGPT desktop app:
+Plugins > Add Marketplace > `skhan61/email-tool`, then install **email-tool**.
+Or in a terminal (Codex CLI):
 
-```toml
-[mcp_servers.email]
-command = "uvx"
-args = ["--from", "git+https://github.com/skhan61/email-tool", "email-tool-mcp", "serve"]
+```
+codex plugin marketplace add skhan61/email-tool
+codex plugin add email-tool@email-tool
 ```
 
-On macOS, use the full path to `uvx` (`which uvx`).
+Known ChatGPT issue: local tools work in **Work / Codex** mode but do not reach
+normal **Chat** yet ([openai/codex#38162](https://github.com/openai/codex/issues/38162)).
+Nothing changes on this side when OpenAI fixes it.
 
-Known ChatGPT issue: local tools show in the Codex tab but may not reach normal
-chats yet ([openai/codex#38162](https://github.com/openai/codex/issues/38162)).
-ChatGPT on the web accepts only internet-hosted servers, which this tool
-deliberately is not.
+#### ChatGPT Business / Enterprise: normal Chat and the web
+
+OpenAI's [Secure MCP Tunnel](https://github.com/openai/tunnel-client) carries
+ChatGPT's tool calls to the server on your machine over an outbound connection;
+nothing is exposed to the internet and the password stays in your keyring.
+
+1. Create a tunnel at platform.openai.com > Settings > Tunnels, scoped to your
+   ChatGPT workspace (needs the Tunnels Manage role).
+2. Run it on your machine:
+   ```
+   tunnel-client init --sample sample_mcp_stdio_local --profile email \
+     --tunnel-id <tunnel_id> \
+     --mcp-command "uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve"
+   tunnel-client run --profile email
+   ```
+3. In ChatGPT: Settings > Connectors > add, **Connection: Tunnel**, pick the tunnel.
+   Keep `tunnel-client run` going while you use it.
 
 #### Any other MCP client
 

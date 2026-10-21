@@ -37,6 +37,7 @@ def package_version() -> str:
     [
         ("manifest.json", ("version",)),
         (".claude-plugin/plugin.json", ("version",)),
+        (".codex-plugin/plugin.json", ("version",)),
         (".claude-plugin/marketplace.json", ("metadata", "version")),
     ],
 )
