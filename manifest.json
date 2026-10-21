@@ -158,5 +158,6 @@
     "smtp",
     "gmail"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "icon": "assets/icon.png"
 }

@@ -6,11 +6,12 @@ One line. `Fixes #N`
 ## Root cause
 One line. (Skip for a feature or chore.)
 
-## Done when: every condition from the issue
+## Done when
+<!-- One row per "Done when" item in the issue, by number. Do not copy the wording: the issue link already shows it. -->
 
-| # | condition (verbatim from the issue) | met | how verified |
-|---|---|---|---|
-| 1 |  | ☐ |  |
+| issue item | met | how verified |
+|---|---|---|
+| 1 | ☐ |  |
 
 ## Not changed
 One line: what a reviewer might fear this touches, and does not.

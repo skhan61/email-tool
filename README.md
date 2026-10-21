@@ -1,7 +1,26 @@
 # email-tool
 
+<img src="assets/icon.png" alt="" width="96" align="right">
+
 [![ci](https://github.com/skhan61/email-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/skhan61/email-tool/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/skhan61/email-tool/actions/workflows/codeql.yml/badge.svg)](https://github.com/skhan61/email-tool/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/skhan61/email-tool/badge)](https://scorecard.dev/viewer/?uri=github.com/skhan61/email-tool)
+[![release](https://img.shields.io/github/v/release/skhan61/email-tool)](https://github.com/skhan61/email-tool/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fskhan61%2Femail-tool%2Fmain%2Fpyproject.toml)](pyproject.toml)
+[![tested on](https://img.shields.io/badge/tested%20on-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](.github/workflows/ci.yml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![types: mypy strict](https://img.shields.io/badge/types-mypy%20strict-blue)](pyproject.toml)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](.pre-commit-config.yaml)
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot)](.github/dependabot.yml)
+[![Security policy](https://img.shields.io/badge/security-policy-red)](SECURITY.md)
+[![Contributing](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
+
+[![MCP](https://img.shields.io/badge/MCP-server-black)](https://modelcontextprotocol.io)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-D97757)](#claude-code)
+[![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop%20%2F%20Cowork-.mcpb-D97757)](#claude-desktop-and-claude-cowork)
+[![ChatGPT](https://img.shields.io/badge/ChatGPT%20desktop%20%2F%20Codex-plugin-10A37F)](#chatgpt-desktop-and-codex)
 
 Email for any AI agent that speaks MCP (Claude Code, Claude Desktop, Claude
 Cowork, ChatGPT desktop, Codex and others): read, search, draft and send mail
