@@ -23,7 +23,9 @@ def compose(sender: str, to: str, subject: str, body: str, cc: str, html: str) -
         message["Cc"] = cc
     message["Subject"] = subject
     message["Date"] = formatdate(localtime=True)
-    message["Message-ID"] = make_msgid()
+    # The sender's own domain: the default looks up this machine's network name (a
+    # reverse DNS call that can hang) and would leak the internal hostname to recipients.
+    message["Message-ID"] = make_msgid(domain=sender.rpartition("@")[2] or "localhost")
     message.set_content(body)
     if html:
         message.add_alternative(html, subtype="html")
