@@ -60,14 +60,18 @@ class MailboxBook:
         self._environment: Mapping[str, str] = environment
         self._session_factory: SessionFactory = session_factory
         self._smtp_factory: SmtpFactory = smtp_factory
+        self.environment_problem: str = ""
 
     def _environment_mailbox(self) -> Mailbox | None:
-        """The EMAIL_TOOL_* mailbox; a malformed one is logged and skipped, never fatal."""
+        """The EMAIL_TOOL_* mailbox; a malformed one is skipped and kept in `environment_problem`."""
         try:
-            return environment_mailbox(self._environment)
+            found: Mailbox | None = environment_mailbox(self._environment)
         except SettingsError as error:
             logger.warning("ignoring the EMAIL_TOOL_* mailbox: %s", error)
+            self.environment_problem = f"The mailbox from the app's settings was ignored: {error}."
             return None
+        self.environment_problem = ""
+        return found
 
     def mailboxes(self) -> dict[str, Mailbox]:
         """Return every configured mailbox; the environment one wins a name clash."""
@@ -80,15 +84,16 @@ class MailboxBook:
     def resolve(self, name: str) -> Mailbox:
         """Return the mailbox called `name`; a blank name means the only one."""
         known: dict[str, Mailbox] = self.mailboxes()
+        if name in known or (not name and len(known) == 1):
+            return known[name] if name else next(iter(known.values()))
+        problem: str = ""
         if not known:
-            raise UnknownMailbox(f"No mailbox is configured. Run `{SETUP_COMMAND} <name>` in a terminal.")
-        if not name:
-            if len(known) == 1:
-                return next(iter(known.values()))
-            raise UnknownMailbox(f"Several mailboxes are configured; name one of: {', '.join(sorted(known))}.")
-        if name not in known:
-            raise UnknownMailbox(f"No mailbox called {name!r}. Configured: {', '.join(sorted(known))}.")
-        return known[name]
+            problem = f"No mailbox is configured. Run `{SETUP_COMMAND} <name>` in a terminal."
+        elif not name:
+            problem = f"Several mailboxes are configured; name one of: {', '.join(sorted(known))}."
+        else:
+            problem = f"No mailbox called {name!r}. Configured: {', '.join(sorted(known))}."
+        raise UnknownMailbox(f"{problem} {self.environment_problem}".strip())
 
     def password(self, mailbox: Mailbox) -> str:
         """Return EMAIL_TOOL_PASSWORD for the environment's own mailbox when set, else the keyring."""

@@ -42,8 +42,8 @@
     "name": {
       "type": "string",
       "title": "Mailbox name",
-      "description": "A short name the assistant uses for this mailbox, for example work.",
-      "default": "default",
+      "description": "A short name the assistant uses for this mailbox. Pick one not used by a mailbox added in a terminal.",
+      "default": "desktop",
       "required": false
     },
     "address": {
@@ -65,7 +65,9 @@
       "title": "IMAP port (TLS)",
       "default": 993,
       "required": false,
-      "description": "Implicit TLS, normally 993."
+      "description": "Implicit TLS, normally 993.",
+      "min": 1,
+      "max": 65535
     },
     "smtp_host": {
       "type": "string",
@@ -79,14 +81,17 @@
       "title": "SMTP port (TLS)",
       "default": 465,
       "required": false,
-      "description": "Implicit TLS, normally 465."
+      "description": "Implicit TLS, normally 465.",
+      "min": 1,
+      "max": 65535
     },
     "password": {
       "type": "string",
       "title": "Password",
-      "description": "For Gmail, an App Password. Stored by Claude Desktop in the OS keychain.",
+      "description": "For Gmail, an App Password. Claude Desktop keeps it in the OS keychain and hands it to the server as an environment variable.",
       "sensitive": true,
-      "required": false
+      "required": false,
+      "default": ""
     }
   },
   "tools": [

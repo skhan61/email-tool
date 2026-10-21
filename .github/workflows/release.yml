@@ -9,18 +9,26 @@ on:
 permissions:
   contents: read
 
+env:
+  MCPB: "@anthropic-ai/mcpb@2.1.2"
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      # main only takes merged PRs that passed the full CI matrix.
+      - name: Tag is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Tag matches the package version
         run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
       - run: uv run --locked pytest -q
       - run: uv build
-      - run: npx -y @anthropic-ai/mcpb@2.1.2 pack . "dist/email-tool-${GITHUB_REF_NAME#v}.mcpb"
+      - run: npx -y "$MCPB" pack . "dist/email-tool-${GITHUB_REF_NAME#v}.mcpb"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist

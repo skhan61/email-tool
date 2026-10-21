@@ -12,6 +12,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  MCPB: "@anthropic-ai/mcpb@2.1.2"
+
 # GitHub-hosted runners only. A self-hosted runner on a public repository runs
 # any stranger's pull request on your machine.
 jobs:
@@ -65,5 +68,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: npx -y @anthropic-ai/mcpb@2.1.2 validate manifest.json
-      - run: npx -y @anthropic-ai/mcpb@2.1.2 pack . email-tool.mcpb
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: npx -y "$MCPB" validate manifest.json
+      - run: npx -y "$MCPB" pack . "$RUNNER_TEMP/email-tool.mcpb"
+      - run: unzip -q "$RUNNER_TEMP/email-tool.mcpb" -d "$RUNNER_TEMP/bundle"
+      - name: Launch the unpacked bundle with the manifest's own command
+        run: EMAIL_TOOL_BUNDLE_DIR="$RUNNER_TEMP/bundle" uv run --locked pytest -q tests/test_bundle.py

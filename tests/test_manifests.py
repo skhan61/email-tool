@@ -1,7 +1,7 @@
-"""Every manifest carries the package version, so a release cannot ship mismatched numbers.
+"""Every manifest carries the package version and the server's real tool list.
 
 Standard: one source of truth (pyproject.toml) checked by a test, as PyPA's single-sourcing guide suggests.
-Placement: tests/test_versions.py, run by CI with the rest of the suite.
+Placement: tests/test_manifests.py, run by CI with the rest of the suite.
 """
 
 from __future__ import annotations
@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from mcp import Client
+from mcp_types import ListToolsResult
+
+from email_tool_mcp.mailbox_book import MailboxBook
+from email_tool_mcp.server import build_server
 
 ROOT: Path = Path(__file__).resolve().parent.parent
 
@@ -40,3 +45,16 @@ def test_manifest_version_matches_the_package(relative: str, path: tuple[str, ..
     for key in path:
         value = value[key]
     assert value == package_version()
+
+
+@pytest.mark.anyio
+async def test_bundle_lists_exactly_the_tools_the_server_registers(book: MailboxBook) -> None:
+    async with Client(build_server(book)) as client:
+        listed: ListToolsResult = await client.list_tools()
+    declared: set[str] = {tool["name"] for tool in read_json("manifest.json")["tools"]}
+    assert declared == {tool.name for tool in listed.tools}
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"

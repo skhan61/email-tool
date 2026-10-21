@@ -52,8 +52,8 @@ Every agent runs the same command:
 uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve
 ```
 
-Desktop apps on macOS do not see your shell's `PATH`; if the agent cannot find
-`uvx`, use its full path (`which uvx`, usually `~/.local/bin/uvx`).
+Desktop apps on macOS do not see your shell's `PATH`, so they need the full
+path to `uvx` (`which uvx`, usually `~/.local/bin/uvx`).
 
 #### Claude Code
 
@@ -69,7 +69,8 @@ Adds the `/inbox`, `/email-search` and `/email-send` commands too.
 Either install the bundle: download `email-tool-<version>.mcpb` from the
 [latest release](https://github.com/skhan61/email-tool/releases/latest) and
 open it. Claude Desktop asks for one mailbox (leave it blank to use only the
-mailboxes added in step 1) and keeps that password in the OS keychain.
+mailboxes added in step 1). It keeps that password in the OS keychain and hands
+it to the server as an environment variable when it starts it.
 
 Or add it to `claude_desktop_config.json` (Settings > Developer > Edit Config):
 
@@ -84,7 +85,8 @@ Or add it to `claude_desktop_config.json` (Settings > Developer > Edit Config):
 }
 ```
 
-Cowork uses the servers Claude Desktop runs, so nothing else is needed.
+On macOS, replace `uvx` with its full path (`which uvx`). Cowork uses the
+servers Claude Desktop runs, so nothing else is needed.
 
 #### ChatGPT desktop and Codex
 
@@ -99,6 +101,8 @@ command = "uvx"
 args = ["--from", "git+https://github.com/skhan61/email-tool", "email-tool-mcp", "serve"]
 ```
 
+On macOS, use the full path to `uvx` (`which uvx`).
+
 Known ChatGPT issue: local tools show in the Codex tab but may not reach normal
 chats yet ([openai/codex#38162](https://github.com/openai/codex/issues/38162)).
 ChatGPT on the web accepts only internet-hosted servers, which this tool
@@ -110,8 +114,9 @@ Add a stdio server with the command above.
 
 ## Security
 
-- The server only ever reads passwords from the OS keyring (or, for a host
-  that stores secrets itself, from `EMAIL_TOOL_PASSWORD`). They are never
+- The server reads passwords from the OS keyring, or from `EMAIL_TOOL_PASSWORD`
+  when a host such as Claude Desktop keeps the secret itself and passes it in
+  the server's environment. They are never
   command-line arguments, so they cannot appear in a process listing.
 - Mail contents are visible to the AI agent during a session; treat them as
   any data you share with an assistant.
