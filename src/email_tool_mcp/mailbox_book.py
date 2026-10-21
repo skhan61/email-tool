@@ -129,8 +129,7 @@ class MailboxBook:
         """Check the message's real recipient list against policy and return it."""
         recipients: list[str] = envelope_recipients(message)
         addressed: bool = bool(str(message.get("To", "")).strip() or str(message.get("Cc", "")).strip())
-        self.policy.check_recipients(mailbox.name, recipients, addressed)
-        self.policy.check_cui(mailbox.name, recipients, message_markings(message))
+        self.policy.check_message(mailbox.name, recipients, addressed, lambda: message_markings(message))
         return recipients
 
     def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:

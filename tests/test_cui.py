@@ -34,13 +34,33 @@ from tests.fakes import FakeMailServer
         "Text\n\nCUI",
         "(CUI) The tolerance is 5 um.",
         "(CUI//SP-PROPIN) Pricing follows.",
+        "CUI//SP-CTI/SP-EXPT\nText",
+        "CUI//SP-PRVCY/SP-PROPIN//NOFORN\nText",
+        "(CUI//SP-CTI/SP-EXPT) Text",
+        "CUI // SP-PROPIN\nText",
+        "CUI\xa0\nText",
+        "\ufeffCUI\nText",
+        "CUI\u200b//SP-PROPIN\nText",
+        "**CUI**\nText",
     ],
 )
 def test_markings_in_the_body_are_found(body: str) -> None:
     assert markings("", body)
 
 
-@pytest.mark.parametrize("subject", ["CUI", "CUI//SP-PROPIN Quote", "CUI: drawings", "CONTROLLED - test data"])
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "CUI",
+        "CUI//SP-PROPIN Quote",
+        "CUI: drawings",
+        "CONTROLLED - test data",
+        "Re: CUI//SP-PROPIN Quote",
+        "Fwd: CUI",
+        "RE: FW: CUI//SP-CTI/SP-EXPT drawings",
+        "(CUI) drawings",
+    ],
+)
 def test_markings_in_the_subject_are_found(subject: str) -> None:
     assert markings(subject, "")
 
@@ -54,10 +74,21 @@ def test_markings_in_the_subject_are_found(subject: str) -> None:
         ("Notes", "cui\nlowercase is not a marking"),
         ("Notes", "Uncontrolled release, CONTROLLED by the vendor"),
         ("Notes", "the value (cui) in lowercase"),
+        ("CUI training next week", ""),
+        ("CUI-related question", ""),
+        ("CONTROLLED substances list", ""),
     ],
 )
 def test_mentions_and_look_alikes_are_not_markings(subject: str, body: str) -> None:
     assert markings(subject, body) == []
+
+
+@pytest.mark.parametrize(
+    "html", ["<p>CUI</p><p>x</p>", "<h4>CUI</h4>Text", "<header>CUI</header><main>x</main>", "<span>CUI</span>x"]
+)
+def test_a_banner_only_in_the_html_is_found_whatever_the_tag(html: str) -> None:
+    message: EmailMessage = compose("me@x.com", "a@x.com", "Hello", "plain text, nothing here", "", html)
+    assert "banner: CUI" in message_markings(message)
 
 
 def test_a_banner_only_in_the_html_part_is_found() -> None:
@@ -106,3 +137,14 @@ async def test_cui_marked_mail_stays_inside_the_allowed_domains(
     assert went_out is not refused
     if refused:
         assert "CUI markings" in audit.path.read_text(encoding="utf-8")
+
+
+@pytest.mark.anyio
+async def test_an_unaddressed_cui_draft_can_be_saved(
+    cui_book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    arguments: dict[str, object] = {"mailbox": "work", "folder": "Drafts", "to": "", "subject": "CUI//SP-PROPIN Quote"}
+    async with Client(build_server(cui_book, audit)) as client:
+        result: CallToolResult = await client.call_tool("create_draft", arguments)
+    assert not result.is_error
+    assert len(mail_server.folders["Drafts"]) == 1

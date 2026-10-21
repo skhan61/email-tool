@@ -5,8 +5,9 @@ file only administrators can write, and the user's own in the user config folder
 (platformdirs). The most restrictive combination applies, so a user can tighten
 the administrator's policy but never loosen it.
 Placement: policy.py in the src layout. The server checks each call (`check_call`);
-MailboxBook checks the recipients of every message it sends or saves as a draft
-(`check_recipients`), using the same parsed list SMTP receives.
+MailboxBook.approve checks every message it sends or saves as a draft
+(`check_message`): its recipients, using the same parsed list SMTP receives, and
+for CUI-marked mail the CUI recipient domains (3.1.3).
 
     [default]                      # every mailbox
     read_only = false
@@ -27,7 +28,7 @@ from __future__ import annotations
 
 import sys
 import tomllib
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, Final
 
@@ -116,6 +117,13 @@ def parse_tables(path: Path, text: str) -> tuple[Rules, dict[str, Rules]]:
         raise SettingsError(f"{path} is malformed: {error}") from error
 
 
+def outside_domains(recipients: list[str], allowed: list[str] | None) -> list[str]:
+    """The recipients whose domain is not in `allowed`; none when there is no list."""
+    if allowed is None:
+        return []
+    return sorted(address for address in recipients if address.rpartition("@")[2].lower() not in allowed)
+
+
 class Policy:
     """The combined administrator and user policy; a file edit takes effect on the next call."""
 
@@ -160,33 +168,30 @@ class Policy:
         if rules.read_only and changes_mail:
             raise PolicyRefusal(f"policy: mailbox {mailbox!r} is read_only, so {tool} is refused")
 
-    def check_cui(self, mailbox: str, recipients: list[str], found: list[str]) -> None:
-        """Raise PolicyRefusal when a CUI-marked message goes outside `cui_recipient_domains` (3.1.3)."""
-        allowed: list[str] | None = self.rules_for(mailbox).cui_recipient_domains
-        if allowed is None or not found:
-            return
-        outside: list[str] = sorted(
-            address for address in recipients if address.rpartition("@")[2].lower() not in allowed
-        )
-        if outside or not recipients:
-            raise PolicyRefusal(
-                f"policy: the message carries CUI markings ({'; '.join(found)}) and "
-                f"{', '.join(outside) or 'its recipients'} are outside cui_recipient_domains"
-            )
+    def check_message(
+        self, mailbox: str, recipients: list[str], addressed: bool, find_markings: Callable[[], list[str]]
+    ) -> None:
+        """Check a message's real recipients (3.1.1) and, if it is CUI-marked, its CUI recipients (3.1.3).
 
-    def check_recipients(self, mailbox: str, recipients: list[str], addressed: bool) -> None:
-        """Raise PolicyRefusal unless every recipient is in an allowed domain.
-
-        `recipients` must be the list the message is really delivered to. `addressed`
-        is True when To/Cc held text: if that text yields no address, it is refused.
+        `recipients` must be the list the message is really delivered to; `addressed` is True
+        when To/Cc held text. `find_markings` runs only when a CUI rule applies.
         """
-        allowed: list[str] | None = self.rules_for(mailbox).allowed_recipient_domains
-        if allowed is None:
-            return
-        if addressed and not recipients:
+        rules: Rules = self.rules_for(mailbox)
+        if addressed and not recipients and rules.allowed_recipient_domains is not None:
             raise PolicyRefusal("policy: the recipients could not be read, so the message is refused")
-        outside: list[str] = sorted(
-            address for address in recipients if address.rpartition("@")[2].lower() not in allowed
-        )
+        outside: list[str] = outside_domains(recipients, rules.allowed_recipient_domains)
         if outside:
             raise PolicyRefusal(f"policy: {', '.join(outside)} outside allowed_recipient_domains for {mailbox!r}")
+        if rules.cui_recipient_domains is None:
+            return
+        found: list[str] = find_markings()
+        if not found:
+            return
+        if addressed and not recipients:
+            raise PolicyRefusal("policy: a CUI-marked message whose recipients could not be read is refused")
+        cui_outside: list[str] = outside_domains(recipients, rules.cui_recipient_domains)
+        if cui_outside:
+            raise PolicyRefusal(
+                f"policy: the message carries CUI markings ({'; '.join(found)}) and "
+                f"{', '.join(cui_outside)} are outside cui_recipient_domains"
+            )
