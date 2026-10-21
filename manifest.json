@@ -6,7 +6,9 @@
   "description": "Read, search, draft and send email over IMAP/SMTP.",
   "long_description": "One server for all your mailboxes. Fill in one mailbox below, or leave everything blank and add mailboxes in a terminal (see the README); their passwords stay in the OS keyring.",
   "author": {
-    "name": "Sayem Khan"
+    "name": "Sayem Khan",
+    "email": "sayem.eee.kuet@gmail.com",
+    "url": "https://github.com/skhan61"
   },
   "repository": {
     "type": "git",

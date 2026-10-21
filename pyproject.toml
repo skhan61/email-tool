@@ -5,7 +5,8 @@ description = "IMAP/SMTP email for any MCP client: read, search, draft and send 
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{ name = "Sayem Khan" }]
+authors = [{ name = "Sayem Khan", email = "sayem.eee.kuet@gmail.com" }]
+maintainers = [{ name = "Sayem Khan", email = "s.khan@alchlight.com" }]
 dependencies = [
     "fire==0.7.1",
     "imapclient==4.1.0",
