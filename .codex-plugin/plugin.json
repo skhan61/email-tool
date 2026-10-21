@@ -2,7 +2,13 @@
   "name": "email-tool",
   "version": "4.0.0",
   "description": "IMAP/SMTP email: read, search, draft and send mail. One MCP server for all your mailboxes; passwords in the OS keyring.",
-  "keywords": ["email", "imap", "smtp", "gmail", "mcp"],
+  "keywords": [
+    "email",
+    "imap",
+    "smtp",
+    "gmail",
+    "mcp"
+  ],
   "skills": "./skills/",
   "mcpServers": "./.codex-mcp.json",
   "interface": {
@@ -12,5 +18,6 @@
     "developerName": "Sayem Khan",
     "category": "Productivity",
     "websiteUrl": "https://github.com/skhan61/email-tool"
-  }
+  },
+  "license": "MIT"
 }

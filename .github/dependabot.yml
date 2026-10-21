@@ -1,13 +1,22 @@
 version: 2
+# One grouped PR per ecosystem per week, and nothing younger than 14 days:
+# a fresh release gets two weeks for regressions and yanks to surface first.
 updates:
   - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
     groups:
-      dev:
-        dependency-type: development
+      python:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      actions:
+        patterns: ["*"]

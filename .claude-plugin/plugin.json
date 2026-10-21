@@ -15,5 +15,6 @@
   ],
   "mcpServers": "./.mcp.json",
   "commands": "./commands",
-  "skills": "./skills"
+  "skills": "./skills",
+  "license": "MIT"
 }

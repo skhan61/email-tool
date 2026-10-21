@@ -1,5 +1,8 @@
 # email-tool
 
+[![ci](https://github.com/skhan61/email-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/skhan61/email-tool/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Email for any AI agent that speaks MCP (Claude Code, Claude Desktop, Claude
 Cowork, ChatGPT desktop, Codex and others): read, search, draft and send mail
 over IMAP/SMTP.
@@ -153,3 +156,7 @@ Add a stdio server that runs
 - **"No password for mailbox"**: run `email-tool-mcp add <name>` again.
 - **Login refused**: check the servers with `email-tool-mcp list`; ports are
   implicit TLS (IMAP 993, SMTP 465).
+
+## License
+
+[MIT](LICENSE)
