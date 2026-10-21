@@ -58,3 +58,12 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  bundle:
+    name: Claude Desktop bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: npx -y @anthropic-ai/mcpb@2.1.2 validate manifest.json
+      - run: npx -y @anthropic-ai/mcpb@2.1.2 pack . email-tool.mcpb

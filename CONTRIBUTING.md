@@ -13,3 +13,10 @@
    uv run pytest
    ```
 6. Open a PR with the template filled in, `Fixes #N` in the body. CI must be green.
+
+## Releasing
+
+1. Bump the version in `pyproject.toml`, `manifest.json`, `.claude-plugin/plugin.json` and
+   `.claude-plugin/marketplace.json` (`tests/test_versions.py` fails if they differ), then `uv lock`.
+2. Merge, then tag `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The release workflow tests, builds the wheel, sdist and `.mcpb` bundle, and publishes a GitHub release.

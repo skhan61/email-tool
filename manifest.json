@@ -1,0 +1,154 @@
+{
+  "manifest_version": "0.4",
+  "name": "email-tool",
+  "display_name": "Email (IMAP/SMTP)",
+  "version": "4.0.0",
+  "description": "Read, search, draft and send email over IMAP/SMTP.",
+  "long_description": "One server for all your mailboxes. Fill in one mailbox below, or leave everything blank and add mailboxes in a terminal (see the README); their passwords stay in the OS keyring.",
+  "author": {
+    "name": "Sayem Khan"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skhan61/email-tool"
+  },
+  "homepage": "https://github.com/skhan61/email-tool",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/email_tool_mcp/__main__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--frozen",
+        "--no-dev",
+        "--directory",
+        "${__dirname}",
+        "email-tool-mcp",
+        "serve"
+      ],
+      "env": {
+        "EMAIL_TOOL_NAME": "${user_config.name}",
+        "EMAIL_TOOL_ADDRESS": "${user_config.address}",
+        "EMAIL_TOOL_IMAP_HOST": "${user_config.imap_host}",
+        "EMAIL_TOOL_IMAP_PORT": "${user_config.imap_port}",
+        "EMAIL_TOOL_SMTP_HOST": "${user_config.smtp_host}",
+        "EMAIL_TOOL_SMTP_PORT": "${user_config.smtp_port}",
+        "EMAIL_TOOL_PASSWORD": "${user_config.password}"
+      }
+    }
+  },
+  "user_config": {
+    "name": {
+      "type": "string",
+      "title": "Mailbox name",
+      "description": "A short name the assistant uses for this mailbox, for example work.",
+      "default": "default",
+      "required": false
+    },
+    "address": {
+      "type": "string",
+      "title": "Email address",
+      "description": "Leave blank to use only mailboxes added in a terminal.",
+      "required": false,
+      "default": ""
+    },
+    "imap_host": {
+      "type": "string",
+      "title": "IMAP server",
+      "description": "For Gmail: imap.gmail.com",
+      "required": false,
+      "default": ""
+    },
+    "imap_port": {
+      "type": "number",
+      "title": "IMAP port (TLS)",
+      "default": 993,
+      "required": false,
+      "description": "Implicit TLS, normally 993."
+    },
+    "smtp_host": {
+      "type": "string",
+      "title": "SMTP server",
+      "description": "For Gmail: smtp.gmail.com",
+      "required": false,
+      "default": ""
+    },
+    "smtp_port": {
+      "type": "number",
+      "title": "SMTP port (TLS)",
+      "default": 465,
+      "required": false,
+      "description": "Implicit TLS, normally 465."
+    },
+    "password": {
+      "type": "string",
+      "title": "Password",
+      "description": "For Gmail, an App Password. Stored by Claude Desktop in the OS keychain.",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "tools": [
+    {
+      "name": "list_mailboxes",
+      "description": "Mailboxes on this machine and whether each has a password"
+    },
+    {
+      "name": "list_folders",
+      "description": "Folders in a mailbox"
+    },
+    {
+      "name": "list_emails",
+      "description": "Newest messages in a folder"
+    },
+    {
+      "name": "search_emails",
+      "description": "Search by sender, subject, body, date or Gmail query"
+    },
+    {
+      "name": "get_email",
+      "description": "One message in full, without marking it read"
+    },
+    {
+      "name": "delete_email",
+      "description": "Delete a message permanently"
+    },
+    {
+      "name": "create_draft",
+      "description": "Save a new draft"
+    },
+    {
+      "name": "list_drafts",
+      "description": "Newest drafts"
+    },
+    {
+      "name": "get_draft",
+      "description": "One draft in full"
+    },
+    {
+      "name": "update_draft",
+      "description": "Replace a draft"
+    },
+    {
+      "name": "send_email",
+      "description": "Send a message now"
+    }
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  },
+  "keywords": [
+    "email",
+    "imap",
+    "smtp",
+    "gmail"
+  ]
+}
