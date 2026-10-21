@@ -3,7 +3,8 @@
 <h1 align="center">email-tool</h1>
 
 <p align="center"><b>Email for any AI agent that speaks MCP: Claude Code, Claude Desktop, Cowork, ChatGPT desktop, Codex and others.</b><br>
-Read, search, draft and send mail over IMAP/SMTP.</p>
+Read, search, draft and send mail over IMAP/SMTP.<br>
+Built for CMMC Level 2 environments: <a href="docs/cmmc.md">see the NIST SP 800-171 control mapping</a>.</p>
 
 <p align="center">
   <b>Works with</b><br>
@@ -11,6 +12,11 @@ Read, search, draft and send mail over IMAP/SMTP.</p>
   <a href="#claude-desktop-and-claude-cowork"><img alt="Claude Desktop and Cowork" src="https://img.shields.io/badge/Claude%20Desktop%20%2F%20Cowork-.mcpb-D97757?logo=claude&logoColor=white"></a>
   <a href="#chatgpt-desktop-and-codex"><img alt="ChatGPT desktop and Codex" src="https://img.shields.io/badge/ChatGPT%20desktop%20%2F%20Codex-plugin-10A37F"></a>
   <a href="https://modelcontextprotocol.io"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-1F2A44"></a>
+</p>
+
+<p align="center">
+  <b>Compliance</b><br>
+  <a href="docs/cmmc.md"><img alt="Built for CMMC Level 2 / NIST SP 800-171" src="https://img.shields.io/badge/built%20for-CMMC%20L2%20%2F%20NIST%20SP%20800--171-2B5797"></a>
 </p>
 
 <p align="center">
@@ -260,6 +266,12 @@ work (you@example.com)
 runs in FIPS mode (a FIPS 140 validated module, as CMMC requires for CUI). FIPS
 mode is an operating-system setting, for example Ubuntu Pro FIPS or RHEL in FIPS
 mode; this tool only reports and enforces it.
+
+## CMMC Level 2
+
+[docs/cmmc.md](docs/cmmc.md) maps each feature to the NIST SP 800-171 Rev. 2
+requirement it supports, the evidence an assessor can check, and what your
+organization must still do. Software is not CMMC certified; organizations are.
 
 ## Security
 
