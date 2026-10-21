@@ -34,7 +34,7 @@ def write_policy(tmp_path: Path, admin: str, user: str) -> Policy:
 def test_no_policy_files_allow_everything(tmp_path: Path) -> None:
     rules: Policy = Policy([tmp_path / "absent.toml"])
     rules.check_call("work", "send_email", True, TOOLS)
-    rules.check_recipients("work", ["a@anywhere.com"], True)
+    rules.check_message("work", ["a@anywhere.com"], True, lambda: [])
 
 
 def test_read_only_refuses_tools_that_change_mail(tmp_path: Path) -> None:
@@ -85,9 +85,9 @@ def test_recipients_outside_the_allowed_domains_are_refused(
     rules: Policy = write_policy(tmp_path, '[default]\nallowed_recipient_domains = ["Example.com"]\n', "")
     if refused:
         with pytest.raises(PolicyRefusal):
-            rules.check_recipients("work", recipients, True)
+            rules.check_message("work", recipients, True, lambda: [])
     else:
-        rules.check_recipients("work", recipients, True)
+        rules.check_message("work", recipients, True, lambda: [])
 
 
 @pytest.mark.parametrize(
