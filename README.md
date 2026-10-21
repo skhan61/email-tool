@@ -14,6 +14,11 @@ Read, search, draft and send mail over IMAP/SMTP.</p>
 </p>
 
 <p align="center">
+  <b>Compliance</b><br>
+  <a href="docs/cmmc.md"><img alt="CMMC Level 2 / NIST SP 800-171 control mapping" src="https://img.shields.io/badge/CMMC%20L2%20%2F%20NIST%20SP%20800--171-control%20mapping-2B5797"></a>
+</p>
+
+<p align="center">
   <b>Build and security</b><br>
   <a href="https://github.com/skhan61/email-tool/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/skhan61/email-tool/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/skhan61/email-tool/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/skhan61/email-tool/actions/workflows/codeql.yml/badge.svg?branch=main"></a>
@@ -260,6 +265,12 @@ work (you@example.com)
 runs in FIPS mode (a FIPS 140 validated module, as CMMC requires for CUI). FIPS
 mode is an operating-system setting, for example Ubuntu Pro FIPS or RHEL in FIPS
 mode; this tool only reports and enforces it.
+
+## CMMC Level 2
+
+[docs/cmmc.md](docs/cmmc.md) maps each feature to the NIST SP 800-171 Rev. 2
+requirement it supports, the evidence an assessor can check, and what your
+organization must still do. Software is not CMMC certified; organizations are.
 
 ## Security
 
