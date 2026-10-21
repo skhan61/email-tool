@@ -227,6 +227,25 @@ account could; send a copy off the machine for that:
 `EMAIL_TOOL_AUDIT_FILE` moves the log. Retention follows your organization's
 policy: the tool never deletes records.
 
+## Encryption in transit
+
+IMAP and SMTP always use TLS with certificate verification, never older than
+TLS 1.2 (NIST SP 800-52). See what a mailbox actually negotiates:
+
+```
+$ email-tool-mcp check work
+work (you@example.com)
+  IMAP imap.example.com:993  TLSv1.3 TLS_AES_256_GCM_SHA384  (login ok)
+  SMTP smtp.example.com:465  TLSv1.3 TLS_AES_256_GCM_SHA384  (login ok)
+  minimum accepted: TLS 1.2   certificate verification: on   OpenSSL: ...
+  FIPS mode: off
+```
+
+`require_fips = true` in the policy refuses every call unless Python's OpenSSL
+runs in FIPS mode (a FIPS 140 validated module, as CMMC requires for CUI). FIPS
+mode is an operating-system setting, for example Ubuntu Pro FIPS or RHEL in FIPS
+mode; this tool only reports and enforces it.
+
 ## Security
 
 - The server reads passwords from the OS keyring, or from `EMAIL_TOOL_PASSWORD`

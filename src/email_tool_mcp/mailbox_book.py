@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import smtplib
-import ssl
 from collections.abc import Callable, Mapping
 from email.message import EmailMessage
 from pathlib import Path
@@ -32,6 +31,7 @@ from email_tool_mcp.settings import (
     environment_mailbox,
     load_mailboxes,
 )
+from email_tool_mcp.tls import client_context
 
 SessionFactory = Callable[[Mailbox, str], ImapSession]
 SmtpFactory = Callable[[Mailbox], smtplib.SMTP]
@@ -44,9 +44,8 @@ class UnknownMailbox(LookupError):
 
 
 def open_smtp(mailbox: Mailbox) -> smtplib.SMTP:
-    """Open an implicit-TLS SMTP connection with certificate verification on."""
-    context: ssl.SSLContext = ssl.create_default_context()
-    return smtplib.SMTP_SSL(host=mailbox.smtp_host, port=mailbox.smtp_port, context=context)
+    """Open an implicit-TLS SMTP connection: verified, TLS 1.2 minimum (tls.py)."""
+    return smtplib.SMTP_SSL(host=mailbox.smtp_host, port=mailbox.smtp_port, context=client_context())
 
 
 class MailboxBook:
@@ -122,7 +121,8 @@ class MailboxBook:
         return True
 
     def imap(self, mailbox: Mailbox) -> ImapSession:
-        """Return an unopened IMAP session for `mailbox`."""
+        """Return an unopened IMAP session for `mailbox`; refused first if FIPS is required and absent."""
+        self.policy.check_fips(mailbox.name)
         return self._session_factory(mailbox, self.password(mailbox))
 
     def approve(self, mailbox: Mailbox, message: EmailMessage) -> list[str]:
@@ -132,13 +132,18 @@ class MailboxBook:
         self.policy.check_message(mailbox.name, recipients, addressed, lambda: message_markings(message))
         return recipients
 
+    def smtp(self, mailbox: Mailbox) -> smtplib.SMTP:
+        """Return an unauthenticated SMTP connection for `mailbox`; refused first if FIPS is required and absent."""
+        self.policy.check_fips(mailbox.name)
+        return self._smtp_factory(mailbox)
+
     def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:
         """Send `message` from `mailbox` to its approved recipients; return the refused ones."""
         recipients: list[str] = self.approve(mailbox, message)
         if not recipients:
             raise ValueError("no recipients resolved from the 'to' and 'cc' arguments")
         password: str = self.password(mailbox)
-        with self._smtp_factory(mailbox) as smtp:
+        with self.smtp(mailbox) as smtp:
             smtp.login(mailbox.address, password)
             refused: dict[str, tuple[int, bytes]] = smtp.send_message(message, to_addrs=recipients)
         return refused

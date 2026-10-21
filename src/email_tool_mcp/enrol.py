@@ -17,6 +17,7 @@ from typing import Final
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import open_smtp
 from email_tool_mcp.passwords import delete_password, has_password, normalize_password, store_password
+from email_tool_mcp.policy import Policy, policy_paths
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
     DEFAULT_SMTP_PORT,
@@ -61,6 +62,7 @@ def add_mailbox(
     ask: Ask = input,
     ask_secret: Ask = getpass.getpass,
     login_check: LoginCheck = check_login,
+    policy: Policy | None = None,
 ) -> str:
     """Ask for anything missing, check the login, then save the mailbox and its password."""
     address = address or ask_with_default(ask, "Email address", "")
@@ -76,6 +78,7 @@ def add_mailbox(
     password: str = normalize_password(ask_secret(f"Password for {address}{note}: "))
     if not password:
         raise ValueError("no password entered")
+    (policy if policy is not None else Policy(policy_paths())).check_fips(name)
     login_check(mailbox, password)
 
     # Password first: a keyring that refuses it must not leave a mailbox saved without one.
