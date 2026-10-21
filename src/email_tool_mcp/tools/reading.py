@@ -22,22 +22,14 @@ from email_tool_mcp.message_render import (
 from email_tool_mcp.settings import SETUP_COMMAND, Mailbox
 from email_tool_mcp.tools.params import Folder, Limit, MailboxName, Uid
 
-_HEADERS_PART: Final[str] = "(BODY.PEEK[HEADER])"
-_FULL_PART: Final[str] = "(BODY.PEEK[])"
 _BODY_CHARACTER_LIMIT: Final[int] = 20_000
-
-
-def quote_criterion(value: str) -> str:
-    """Return `value` as a quoted IMAP string literal."""
-    escaped: str = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
 
 
 def newest_summaries(session: ImapSession, uids: list[int], limit: int) -> list[MessageSummary]:
     """Fetch header summaries for the `limit` highest UIDs, newest first."""
     summaries: list[MessageSummary] = []
     for uid in sorted(uids, reverse=True)[:limit]:
-        raw: bytes | None = session.fetch(uid, _HEADERS_PART)
+        raw: bytes | None = session.fetch_header(uid)
         if raw is not None:
             summaries.append(summarize(uid, parse_message(raw)))
     return summaries
@@ -56,7 +48,7 @@ def search_criteria(sender: str, subject: str, body: str, since: str) -> list[st
     criteria: list[str] = []
     for value, keyword in ((sender, "FROM"), (subject, "SUBJECT"), (body, "BODY")):
         if value:
-            criteria.extend([keyword, quote_criterion(value)])
+            criteria.extend([keyword, value])
     if since:
         criteria.extend(["SINCE", since])
     return criteria
@@ -136,15 +128,12 @@ class ReadingTools:
         """
         with self._book.imap(self._book.resolve(mailbox)) as session:
             gmail_capable: bool = session.supports_gmail_search()
-            criteria: list[str] = (
-                ["X-GM-RAW", quote_criterion(gmail_query)]
-                if gmail_query and gmail_capable
-                else search_criteria(sender, subject, body, since)
-            )
-            if not criteria:
+            criteria: list[str] = search_criteria(sender, subject, body, since)
+            use_gmail: bool = bool(gmail_query) and gmail_capable
+            if not (use_gmail or criteria):
                 raise ValueError("supply at least one of sender, subject, body, since or gmail_query")
             session.select(folder, readonly=True)
-            uids: list[int] = session.search(criteria)
+            uids: list[int] = session.gmail_search(gmail_query) if use_gmail else session.search(criteria)
             summaries: list[MessageSummary] = newest_summaries(session, uids, limit)
         note: str = "Note: this server is not Gmail, so gmail_query was ignored.\n\n"
         return (note if gmail_query and not gmail_capable else "") + render_summaries(summaries, len(uids))
@@ -153,7 +142,7 @@ class ReadingTools:
         """Read one message in full by UID. Does not mark it as read."""
         with self._book.imap(self._book.resolve(mailbox)) as session:
             session.select(folder, readonly=True)
-            raw: bytes | None = session.fetch(uid, _FULL_PART)
+            raw: bytes | None = session.fetch_message(uid)
         if raw is None:
             return f"No message with uid {uid} in folder {folder!r}."
         return render_message(parse_message(raw))

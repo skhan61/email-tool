@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Sayem Khan" }]
 dependencies = [
     "fire==0.7.1",
+    "imapclient==4.1.0",
     "keyring==25.7.0",
     "mcp==2.3.0",
     "mcp-types==2.3.0",
@@ -47,8 +48,8 @@ python_version = "3.11"
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-# fire ships no type information.
-module = ["fire"]
+# Neither ships type information.
+module = ["fire", "imapclient"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

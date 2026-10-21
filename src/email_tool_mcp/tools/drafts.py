@@ -16,8 +16,7 @@ from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import Body, Cc, DraftsFolder, Html, Limit, MailboxName, Subject, To, Uid
 from email_tool_mcp.tools.reading import newest_summaries, pending_deletion, render_message, render_summaries
 
-_DRAFT_FLAGS: Final[str] = r"(\Draft)"
-_FULL_PART: Final[str] = "(BODY.PEEK[])"
+_DRAFT_FLAGS: Final[tuple[str, ...]] = ("\\Draft",)
 
 
 class DraftTools:
@@ -55,7 +54,7 @@ class DraftTools:
         """Read one draft in full by UID."""
         with self._book.imap(self._book.resolve(mailbox)) as session:
             session.select(folder, readonly=True)
-            raw: bytes | None = session.fetch(uid, _FULL_PART)
+            raw: bytes | None = session.fetch_message(uid)
         if raw is None:
             return f"No draft with uid {uid} in folder {folder!r}."
         return render_message(parse_message(raw))
