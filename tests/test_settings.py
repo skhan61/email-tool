@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from email_tool_mcp.settings import Mailbox, environment_mailbox, load_mailboxes, save_mailboxes
+from email_tool_mcp.settings import Mailbox, SettingsError, environment_mailbox, load_mailboxes, save_mailboxes
 from tests.conftest import HOME, WORK
 
 
@@ -40,5 +40,21 @@ def test_environment_mailbox_absent_without_address() -> None:
 
 
 def test_environment_mailbox_needs_both_hosts() -> None:
-    with pytest.raises(ValueError, match="EMAIL_TOOL_SMTP_HOST"):
+    with pytest.raises(SettingsError, match="EMAIL_TOOL_SMTP_HOST"):
         environment_mailbox({"EMAIL_TOOL_ADDRESS": "me@example.com", "EMAIL_TOOL_IMAP_HOST": "imap.x"})
+
+
+@pytest.mark.parametrize(
+    "table",
+    [
+        'address = "a@x.com"\nimap_host = "i"\nimap_port = 993\nsmtp_host = "s"',
+        'address = "a@x.com"\nimap_host = "i"\nimap_port = "993"\nsmtp_host = "s"\nsmtp_port = 465',
+        'address = "a@x.com"\nimap_host = "i"\nimap_port = 993\nsmtp_host = "s"\nsmtp_port = 465\nstarttls = true',
+    ],
+    ids=["missing key", "port as text", "unknown key"],
+)
+def test_malformed_settings_name_the_file(tmp_path: Path, table: str) -> None:
+    path: Path = tmp_path / "mailboxes.toml"
+    path.write_text(f"[mailboxes.work]\n{table}\n", encoding="utf-8")
+    with pytest.raises(SettingsError, match="mailboxes.toml is malformed"):
+        load_mailboxes(path)

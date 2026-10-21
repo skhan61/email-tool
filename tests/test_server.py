@@ -18,7 +18,7 @@ from email_tool_mcp.passwords import store_password
 from email_tool_mcp.server import build_server
 from tests.fakes import FakeMailServer
 
-pytestmark = pytest.mark.anyio
+pytestmark: pytest.MarkDecorator = pytest.mark.anyio
 
 TOOL_NAMES: set[str] = {
     "list_mailboxes",
@@ -71,6 +71,7 @@ async def test_missing_password_reaches_the_model_with_the_fix(book: MailboxBook
     result: CallToolResult = await call(book, "list_emails", {"mailbox": "work"})
     assert result.is_error
     assert "email-tool-mcp add work" in text_of(result)
+    assert "uvx --from" in text_of(result)
 
 
 async def test_list_and_read_a_message(book: MailboxBook, mail_server: FakeMailServer) -> None:

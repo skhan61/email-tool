@@ -156,11 +156,19 @@ class ImapSession:
         if typ != "OK":
             raise ImapError(f"APPEND to {folder!r} failed")
 
-    def mark_deleted(self, uid: int) -> None:
-        """Flag `uid` as deleted in the selected folder and expunge it."""
+    def mark_deleted(self, uid: int) -> bool:
+        """Flag `uid` as deleted; expunge only when no other message is flagged.
+
+        EXPUNGE removes every \\Deleted message in the folder, and imaplib has no
+        UID EXPUNGE, so a folder holding someone else's pending deletions keeps
+        `uid` flagged rather than purge theirs. Returns True when expunged.
+        """
         typ, _ = self._live.uid("STORE", str(uid), "+FLAGS", r"(\Deleted)")
         if typ != "OK":
             raise ImapError(f"STORE \\Deleted failed for uid {uid}")
-        expunged: tuple[str, list[bytes | None]] = self._live.expunge()
-        if expunged[0] != "OK":
+        if self.search(["DELETED"]) != [uid]:
+            return False
+        expunge_status: str = self._live.expunge()[0]
+        if expunge_status != "OK":
             raise ImapError(f"EXPUNGE failed after deleting uid {uid}")
+        return True

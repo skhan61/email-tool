@@ -9,6 +9,7 @@ effect without restarting the agent.
 
 from __future__ import annotations
 
+import logging
 import smtplib
 import ssl
 from collections.abc import Callable, Mapping
@@ -16,14 +17,23 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Final
 
+from keyring.errors import KeyringError
+
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.passwords import MissingPassword, environment_password, read_password
-from email_tool_mcp.settings import Mailbox, environment_mailbox, load_mailboxes
+from email_tool_mcp.settings import (
+    ENV_PASSWORD,
+    SETUP_COMMAND,
+    Mailbox,
+    SettingsError,
+    environment_mailbox,
+    load_mailboxes,
+)
 
 SessionFactory = Callable[[Mailbox, str], ImapSession]
 SmtpFactory = Callable[[Mailbox], smtplib.SMTP]
 
-_SETUP_HINT: Final[str] = "Run `email-tool-mcp add <name>` in a terminal to add one."
+logger: Final[logging.Logger] = logging.getLogger(__name__)
 
 
 class UnknownMailbox(LookupError):
@@ -51,10 +61,18 @@ class MailboxBook:
         self._session_factory: SessionFactory = session_factory
         self._smtp_factory: SmtpFactory = smtp_factory
 
+    def _environment_mailbox(self) -> Mailbox | None:
+        """The EMAIL_TOOL_* mailbox; a malformed one is logged and skipped, never fatal."""
+        try:
+            return environment_mailbox(self._environment)
+        except SettingsError as error:
+            logger.warning("ignoring the EMAIL_TOOL_* mailbox: %s", error)
+            return None
+
     def mailboxes(self) -> dict[str, Mailbox]:
         """Return every configured mailbox; the environment one wins a name clash."""
         known: dict[str, Mailbox] = load_mailboxes(self._settings_file)
-        from_environment: Mailbox | None = environment_mailbox(self._environment)
+        from_environment: Mailbox | None = self._environment_mailbox()
         if from_environment is not None:
             known[from_environment.name] = from_environment
         return known
@@ -63,7 +81,7 @@ class MailboxBook:
         """Return the mailbox called `name`; a blank name means the only one."""
         known: dict[str, Mailbox] = self.mailboxes()
         if not known:
-            raise UnknownMailbox(f"No mailbox is configured on this machine. {_SETUP_HINT}")
+            raise UnknownMailbox(f"No mailbox is configured. Run `{SETUP_COMMAND} <name>` in a terminal.")
         if not name:
             if len(known) == 1:
                 return next(iter(known.values()))
@@ -73,8 +91,8 @@ class MailboxBook:
         return known[name]
 
     def password(self, mailbox: Mailbox) -> str:
-        """Return the password: from the environment for its own mailbox, else the keyring."""
-        if environment_mailbox(self._environment) == mailbox:
+        """Return EMAIL_TOOL_PASSWORD for the environment's own mailbox when set, else the keyring."""
+        if self._environment.get(ENV_PASSWORD) and self._environment_mailbox() == mailbox:
             return environment_password(mailbox.name, self._environment)
         return read_password(mailbox.name)
 
@@ -82,18 +100,16 @@ class MailboxBook:
         """Return True when `password(mailbox)` would succeed."""
         try:
             self.password(mailbox)
-        except MissingPassword:
+        except (MissingPassword, KeyringError):
             return False
         return True
 
-    def imap(self, name: str) -> ImapSession:
-        """Return an unopened IMAP session for the mailbox called `name`."""
-        mailbox: Mailbox = self.resolve(name)
+    def imap(self, mailbox: Mailbox) -> ImapSession:
+        """Return an unopened IMAP session for `mailbox`."""
         return self._session_factory(mailbox, self.password(mailbox))
 
-    def send(self, name: str, message: EmailMessage, recipients: list[str]) -> dict[str, tuple[int, bytes]]:
-        """Send `message` from the mailbox called `name`; return refused recipients."""
-        mailbox: Mailbox = self.resolve(name)
+    def send(self, mailbox: Mailbox, message: EmailMessage, recipients: list[str]) -> dict[str, tuple[int, bytes]]:
+        """Send `message` from `mailbox`; return the refused recipients."""
         password: str = self.password(mailbox)
         with self._smtp_factory(mailbox) as smtp:
             smtp.login(mailbox.address, password)

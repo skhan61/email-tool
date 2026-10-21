@@ -2,8 +2,8 @@
   "mcpServers": {
     "email": {
       "type": "stdio",
-      "command": "uvx",
-      "args": ["--from", "${CLAUDE_PLUGIN_ROOT}", "email-tool-mcp", "serve"]
+      "command": "uv",
+      "args": ["run", "--frozen", "--no-dev", "--project", "${CLAUDE_PLUGIN_ROOT}", "email-tool-mcp", "serve"]
     }
   }
 }

@@ -14,7 +14,7 @@ from typing import Final
 
 import keyring
 
-from email_tool_mcp.settings import ENV_PASSWORD
+from email_tool_mcp.settings import ENV_PASSWORD, SETUP_COMMAND
 
 KEYRING_SERVICE: Final[str] = "email-tool"
 
@@ -25,7 +25,7 @@ class MissingPassword(LookupError):
     def __init__(self, mailbox_name: str) -> None:
         super().__init__(
             f"No password for mailbox {mailbox_name!r} on this machine. "
-            f"Run `email-tool-mcp add {mailbox_name}` in a terminal, then try again."
+            f"Run `{SETUP_COMMAND} {mailbox_name}` in a terminal, then try again."
         )
 
 
@@ -39,9 +39,14 @@ def environment_password(mailbox_name: str, environment: Mapping[str, str]) -> s
     return clean_password(mailbox_name, environment.get(ENV_PASSWORD))
 
 
+def normalize_password(raw: str | None) -> str:
+    """Drop spaces: Google shows app passwords in groups of four."""
+    return (raw or "").strip().replace(" ", "")
+
+
 def clean_password(mailbox_name: str, stored: str | None) -> str:
-    """Strip spaces (Google shows app passwords in groups of four); raise when empty."""
-    password: str = (stored or "").strip().replace(" ", "")
+    """Return the normalized password; raise MissingPassword when empty."""
+    password: str = normalize_password(stored)
     if not password:
         raise MissingPassword(mailbox_name)
     return password

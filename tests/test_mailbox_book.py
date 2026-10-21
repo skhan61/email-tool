@@ -48,12 +48,12 @@ def test_no_mailboxes_points_at_the_add_command(tmp_path: Path) -> None:
 
 def test_missing_password_names_the_fix(book: MailboxBook) -> None:
     with pytest.raises(MissingPassword, match="email-tool-mcp add work"):
-        book.imap("work")
+        book.imap(book.resolve("work"))
 
 
 def test_keyring_password_reaches_the_login(book: MailboxBook, mail_server: FakeMailServer) -> None:
     store_password("work", "abcd efgh ijkl mnop")
-    book.imap("work")
+    book.imap(book.resolve("work"))
     assert mail_server.logins == [("me@example.com", "abcdefghijklmnop")]
 
 
@@ -61,7 +61,21 @@ def test_environment_password_only_serves_the_environment_mailbox(
     settings_file: Path, mail_server: FakeMailServer
 ) -> None:
     book: MailboxBook = MailboxBook(settings_file, ENVIRONMENT, mail_server.open_imap)
-    book.imap("desktop")
+    book.imap(book.resolve("desktop"))
     assert mail_server.logins == [("desk@example.com", "fromenv")]
     with pytest.raises(MissingPassword):
-        book.imap("work")
+        book.imap(book.resolve("work"))
+
+
+def test_environment_mailbox_falls_back_to_the_keyring(settings_file: Path, mail_server: FakeMailServer) -> None:
+    without_password: dict[str, str] = dict(ENVIRONMENT)
+    del without_password["EMAIL_TOOL_PASSWORD"]
+    store_password("desktop", "from keyring")
+    book: MailboxBook = MailboxBook(settings_file, without_password, mail_server.open_imap)
+    book.imap(book.resolve("desktop"))
+    assert mail_server.logins == [("desk@example.com", "fromkeyring")]
+
+
+def test_malformed_environment_mailbox_leaves_the_others_working(settings_file: Path) -> None:
+    broken: dict[str, str] = {"EMAIL_TOOL_ADDRESS": "x@example.com", "EMAIL_TOOL_IMAP_HOST": "imap.x"}
+    assert set(MailboxBook(settings_file, broken).mailboxes()) == {"home", "work"}

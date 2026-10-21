@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import tomllib
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Final
 
 import tomli_w
 from platformdirs import user_config_path
+from pydantic import ConfigDict, ValidationError
+from pydantic.dataclasses import dataclass
 
 APP_NAME: Final[str] = "email-tool"
 SETTINGS_FILE: Final[str] = "mailboxes.toml"
@@ -30,11 +32,18 @@ ENV_SMTP_HOST: Final[str] = "EMAIL_TOOL_SMTP_HOST"
 ENV_SMTP_PORT: Final[str] = "EMAIL_TOOL_SMTP_PORT"
 ENV_PASSWORD: Final[str] = "EMAIL_TOOL_PASSWORD"
 
+# Where a missing-password or no-mailbox message sends the user.
+SETUP_COMMAND: Final[str] = "uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp add"
+
 DEFAULT_IMAP_PORT: Final[int] = 993
 DEFAULT_SMTP_PORT: Final[int] = 465
 
 
-@dataclass(frozen=True)
+class SettingsError(ValueError):
+    """Raised when the settings file or the EMAIL_TOOL_* variables are malformed."""
+
+
+@dataclass(frozen=True, config=ConfigDict(extra="forbid", strict=True))
 class Mailbox:
     """One mailbox: its address and its implicit-TLS IMAP and SMTP servers."""
 
@@ -55,9 +64,12 @@ def load_mailboxes(path: Path) -> dict[str, Mailbox]:
     """Return every mailbox in `path`, keyed by name; empty when the file is absent."""
     if not path.is_file():
         return {}
-    document: dict[str, Any] = tomllib.loads(path.read_text(encoding="utf-8"))
-    tables: dict[str, dict[str, Any]] = document.get("mailboxes", {})
-    return {name: Mailbox(name=name, **fields) for name, fields in tables.items()}
+    try:
+        document: dict[str, Any] = tomllib.loads(path.read_text(encoding="utf-8"))
+        tables: dict[str, dict[str, Any]] = document.get("mailboxes", {})
+        return {name: Mailbox(name=name, **fields) for name, fields in tables.items()}
+    except (tomllib.TOMLDecodeError, ValidationError, TypeError) as error:
+        raise SettingsError(f"{path} is malformed: {error}") from error
 
 
 def save_mailboxes(path: Path, mailboxes: Mapping[str, Mailbox]) -> None:
@@ -78,12 +90,15 @@ def environment_mailbox(environment: Mapping[str, str]) -> Mailbox | None:
         return None
     missing: list[str] = [key for key in (ENV_IMAP_HOST, ENV_SMTP_HOST) if not environment.get(key, "").strip()]
     if missing:
-        raise ValueError(f"{ENV_ADDRESS} is set but {', '.join(missing)} is not")
-    return Mailbox(
-        name=environment.get(ENV_NAME, "").strip() or "default",
-        address=address,
-        imap_host=environment[ENV_IMAP_HOST].strip(),
-        imap_port=int(environment.get(ENV_IMAP_PORT) or DEFAULT_IMAP_PORT),
-        smtp_host=environment[ENV_SMTP_HOST].strip(),
-        smtp_port=int(environment.get(ENV_SMTP_PORT) or DEFAULT_SMTP_PORT),
-    )
+        raise SettingsError(f"{ENV_ADDRESS} is set but {', '.join(missing)} is not")
+    try:
+        return Mailbox(
+            name=environment.get(ENV_NAME, "").strip() or "default",
+            address=address,
+            imap_host=environment[ENV_IMAP_HOST].strip(),
+            imap_port=int(environment.get(ENV_IMAP_PORT, "").strip() or DEFAULT_IMAP_PORT),
+            smtp_host=environment[ENV_SMTP_HOST].strip(),
+            smtp_port=int(environment.get(ENV_SMTP_PORT, "").strip() or DEFAULT_SMTP_PORT),
+        )
+    except ValueError as error:
+        raise SettingsError(f"EMAIL_TOOL_* variables are invalid: {error}") from error

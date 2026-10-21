@@ -3,16 +3,14 @@
 Standard: the official MCP Python SDK's MCPServer over stdio.
 Placement: server.py in the src layout, beside the tool modules it registers.
 
-mcp 2.x hides the text of any exception that is not a ToolError, so the
-failures a user can fix (no password, unknown mailbox, login refused) are
-re-raised as ToolError with their message intact.
+mcp 2.x hides the text of any exception that is not a ToolError. Every failure
+here is one the user can act on (no password, locked keyring, bad settings,
+login refused), so each is re-raised as a ToolError with its message intact.
 """
 
 from __future__ import annotations
 
 import functools
-import imaplib
-import smtplib
 from collections.abc import Callable
 from importlib.metadata import version
 from typing import Final, ParamSpec
@@ -21,24 +19,12 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 
-from email_tool_mcp.imap_session import ImapError
-from email_tool_mcp.mailbox_book import MailboxBook, UnknownMailbox
-from email_tool_mcp.passwords import MissingPassword
+from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.tools.drafts import DraftTools
 from email_tool_mcp.tools.reading import ReadingTools
 from email_tool_mcp.tools.sending import SendingTools
 
 DISTRIBUTION: Final[str] = "email-tool-mcp"
-
-_EXPECTED_FAILURES: Final[tuple[type[Exception], ...]] = (
-    MissingPassword,
-    UnknownMailbox,
-    ImapError,
-    imaplib.IMAP4.error,
-    smtplib.SMTPException,
-    OSError,
-    ValueError,
-)
 
 _READ_ONLY: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 _WRITES: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
@@ -51,13 +37,13 @@ Params = ParamSpec("Params")
 
 
 def reported(tool: Callable[Params, str]) -> Callable[Params, str]:
-    """Wrap `tool` so an expected failure reaches the model as a ToolError."""
+    """Wrap `tool` so any failure reaches the model as a ToolError with its message."""
 
     @functools.wraps(tool)
     def run(*args: Params.args, **kwargs: Params.kwargs) -> str:
         try:
             return tool(*args, **kwargs)
-        except _EXPECTED_FAILURES as error:
+        except Exception as error:
             raise ToolError(f"{type(error).__name__}: {error}") from error
 
     return run

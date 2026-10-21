@@ -24,7 +24,7 @@ HOME: Mailbox = Mailbox("home", "me@gmail.com", "imap.gmail.com", 993, "smtp.gma
 class MemoryKeyring(KeyringBackend):
     """A keyring that forgets everything when the test ends."""
 
-    priority = 1.0
+    priority: float = 1.0
 
     def __init__(self) -> None:
         super().__init__()  # type: ignore[no-untyped-call]

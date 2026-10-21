@@ -14,7 +14,7 @@ from email_tool_mcp.message_compose import compose
 from email_tool_mcp.message_render import MessageSummary, parse_message
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import Body, Cc, DraftsFolder, Html, Limit, MailboxName, Subject, To, Uid
-from email_tool_mcp.tools.reading import newest_summaries, render_message, render_summaries
+from email_tool_mcp.tools.reading import newest_summaries, pending_deletion, render_message, render_summaries
 
 _DRAFT_FLAGS: Final[str] = r"(\Draft)"
 _FULL_PART: Final[str] = "(BODY.PEEK[])"
@@ -39,13 +39,13 @@ class DraftTools:
         """Save a new draft into the drafts folder. Does not send it."""
         sender: Mailbox = self._book.resolve(mailbox)
         message: EmailMessage = compose(sender.address, to, subject, body, cc, html)
-        with self._book.imap(mailbox) as session:
+        with self._book.imap(sender) as session:
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
         return f"Draft saved to {folder!r} for {to}."
 
     def list_drafts(self, folder: DraftsFolder, mailbox: MailboxName = "", limit: Limit = 20) -> str:
         """List the newest drafts, newest first."""
-        with self._book.imap(mailbox) as session:
+        with self._book.imap(self._book.resolve(mailbox)) as session:
             session.select(folder, readonly=True)
             uids: list[int] = session.search(["ALL"])
             summaries: list[MessageSummary] = newest_summaries(session, uids, limit)
@@ -53,7 +53,7 @@ class DraftTools:
 
     def get_draft(self, folder: DraftsFolder, uid: Uid, mailbox: MailboxName = "") -> str:
         """Read one draft in full by UID."""
-        with self._book.imap(mailbox) as session:
+        with self._book.imap(self._book.resolve(mailbox)) as session:
             session.select(folder, readonly=True)
             raw: bytes | None = session.fetch(uid, _FULL_PART)
         if raw is None:
@@ -77,8 +77,9 @@ class DraftTools:
         """
         sender: Mailbox = self._book.resolve(mailbox)
         message: EmailMessage = compose(sender.address, to, subject, body, cc, html)
-        with self._book.imap(mailbox) as session:
+        with self._book.imap(sender) as session:
             session.select(folder, readonly=False)
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
-            session.mark_deleted(uid)
-        return f"Draft uid {uid} in {folder!r} replaced."
+            expunged: bool = session.mark_deleted(uid)
+        replaced: str = f"Draft uid {uid} in {folder!r} replaced."
+        return replaced if expunged else f"{replaced} {pending_deletion(uid, folder)}"

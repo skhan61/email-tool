@@ -81,8 +81,9 @@ class FakeSession:
     def append(self, folder: str, flags: str, raw_message: bytes) -> None:
         self._server.add(folder, raw_message)
 
-    def mark_deleted(self, uid: int) -> None:
+    def mark_deleted(self, uid: int) -> bool:
         del self._server.folders[self._folder][uid]
+        return True
 
 
 class FakeSmtp:

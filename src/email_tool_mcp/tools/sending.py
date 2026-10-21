@@ -35,7 +35,7 @@ class SendingTools:
         recipients: list[str] = envelope_recipients(message)
         if not recipients:
             raise ValueError("no recipients resolved from the 'to' and 'cc' arguments")
-        refused: dict[str, tuple[int, bytes]] = self._book.send(sender.name, message, recipients)
+        refused: dict[str, tuple[int, bytes]] = self._book.send(sender, message, recipients)
         if refused:
             return f"Sent, but {len(refused)} recipient(s) were refused: {sorted(refused)}"
         return f"Sent to {', '.join(recipients)}."

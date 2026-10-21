@@ -16,10 +16,11 @@ from typing import Final
 
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import open_smtp
-from email_tool_mcp.passwords import delete_password, has_password, store_password
+from email_tool_mcp.passwords import delete_password, has_password, normalize_password, store_password
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
     DEFAULT_SMTP_PORT,
+    SETUP_COMMAND,
     Mailbox,
     load_mailboxes,
     save_mailboxes,
@@ -64,23 +65,24 @@ def add_mailbox(
     """Ask for anything missing, check the login, then save the mailbox and its password."""
     address = address or ask_with_default(ask, "Email address", "")
     domain: str = address.rpartition("@")[2].lower()
-    known_imap, known_smtp = KNOWN_HOSTS.get(domain, ("", ""))
-    imap_host = imap_host or ask_with_default(ask, "IMAP server", known_imap)
-    smtp_host = smtp_host or ask_with_default(ask, "SMTP server", known_smtp)
+    known: tuple[str, str] = KNOWN_HOSTS.get(domain, ("", ""))
+    imap_host = imap_host or ask_with_default(ask, "IMAP server", known[0])
+    smtp_host = smtp_host or ask_with_default(ask, "SMTP server", known[1])
     if not (address and imap_host and smtp_host):
         raise ValueError("an address, an IMAP server and an SMTP server are all required")
     mailbox: Mailbox = Mailbox(name, address, imap_host, imap_port, smtp_host, smtp_port)
 
-    note: str = f" ({_GMAIL_NOTE})" if known_imap == "imap.gmail.com" else ""
-    password: str = ask_secret(f"Password for {address}{note}: ").strip().replace(" ", "")
+    note: str = f" ({_GMAIL_NOTE})" if known[0] == "imap.gmail.com" else ""
+    password: str = normalize_password(ask_secret(f"Password for {address}{note}: "))
     if not password:
         raise ValueError("no password entered")
     login_check(mailbox, password)
 
+    # Password first: a keyring that refuses it must not leave a mailbox saved without one.
+    store_password(name, password)
     mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
     mailboxes[name] = mailbox
     save_mailboxes(settings_file, mailboxes)
-    store_password(name, password)
     return f"Mailbox {name!r} ({address}) added. Login checked over IMAP and SMTP; password is in the OS keyring."
 
 
@@ -98,7 +100,7 @@ def describe_mailboxes(settings_file: Path) -> str:
     """Return one line per mailbox: name, address, servers, password state."""
     mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
     if not mailboxes:
-        return f"No mailboxes yet ({settings_file}). Add one with `email-tool-mcp add <name>`."
+        return f"No mailboxes yet ({settings_file}). Add one with `{SETUP_COMMAND} <name>`."
     lines: list[str] = [f"Settings: {settings_file}"]
     for name, mailbox in sorted(mailboxes.items()):
         state: str = "password in keyring" if has_password(name) else "NO PASSWORD"
