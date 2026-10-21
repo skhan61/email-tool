@@ -1,0 +1,36 @@
+"""Build outbound MIME messages.
+
+Shared by the draft tools and the send tool so a draft and a sent message are
+composed by exactly one piece of code.
+"""
+
+from __future__ import annotations
+
+from email.message import EmailMessage
+from email.utils import formatdate, getaddresses, make_msgid
+
+
+def compose(sender: str, to: str, subject: str, body: str, cc: str, html: str) -> EmailMessage:
+    """Build a message from `sender`; with `html` it becomes multipart/alternative.
+
+    multipart/alternative makes mail clients show the HTML part and open a saved
+    draft in rich-text mode, with `body` as the plain-text fallback.
+    """
+    message: EmailMessage = EmailMessage()
+    message["From"] = sender
+    message["To"] = to
+    if cc:
+        message["Cc"] = cc
+    message["Subject"] = subject
+    message["Date"] = formatdate(localtime=True)
+    message["Message-ID"] = make_msgid()
+    message.set_content(body)
+    if html:
+        message.add_alternative(html, subtype="html")
+    return message
+
+
+def envelope_recipients(message: EmailMessage) -> list[str]:
+    """Return every address the message must actually be delivered to."""
+    pairs: list[tuple[str, str]] = getaddresses(message.get_all("To", []) + message.get_all("Cc", []))
+    return [address for _, address in pairs if address]

@@ -2,9 +2,7 @@
 description: Search a mailbox for messages matching a query.
 ---
 
-Search using the `search_emails` tool of the mailbox the user means:
-`mcp__alchlight__search_emails` or `mcp__gmail__search_emails`. If both servers
-are available and $ARGUMENTS does not say which, ask first.
+Search with `search_emails`. Pick the mailbox with the `mailbox` argument (`list_mailboxes` shows them). If more than one exists and the request does not say which, ask first.
 
 Search for: $ARGUMENTS
 

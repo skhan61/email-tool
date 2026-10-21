@@ -1,7 +1,7 @@
 {
   "name": "email-tool",
-  "version": "3.1.0",
-  "description": "IMAP/SMTP email for Claude Code: read, search, draft, and send mail. Dependency-free Python MCP server, one per mailbox, credentials prompted on install and held in secure storage.",
+  "version": "4.0.0",
+  "description": "IMAP/SMTP email: read, search, draft and send mail. One MCP server for all your mailboxes; passwords in the OS keyring.",
   "author": {
     "name": "Sayem Khan",
     "email": "s.khan@alchlight.com"
@@ -15,29 +15,5 @@
   ],
   "mcpServers": "./.mcp.json",
   "commands": "./commands",
-  "skills": "./skills",
-  "userConfig": {
-    "alchlight_address": {
-      "type": "string",
-      "title": "Alchlight address",
-      "description": "Your @alchlight.com address. Leave blank to keep this mailbox off this machine."
-    },
-    "alchlight_password": {
-      "type": "string",
-      "title": "Alchlight mailbox password",
-      "description": "Password for the Alchlight mailbox. Leave blank to keep it off this machine.",
-      "sensitive": true
-    },
-    "gmail_address": {
-      "type": "string",
-      "title": "Gmail address",
-      "description": "Your Gmail address. Leave blank to keep this mailbox off this machine."
-    },
-    "gmail_password": {
-      "type": "string",
-      "title": "Gmail app password",
-      "description": "A Google App Password, not your account password. Leave blank to keep it off.",
-      "sensitive": true
-    }
-  }
+  "skills": "./skills"
 }

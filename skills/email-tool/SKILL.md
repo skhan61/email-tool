@@ -5,24 +5,22 @@ description: Read, search, triage, draft, and send email from the connected IMAP
 
 # Email Tool
 
-This skill drives the IMAP/SMTP mailbox servers shipped by the `email-tool`
+This skill drives the IMAP/SMTP mail server shipped by the `email-tool`
 plugin, acting on the user's real mail.
 
 ## Mailboxes
 
-This plugin exposes one MCP server per mailbox. A machine enables only the
-mailboxes it needs, so the set present varies:
+One MCP server (`email`) serves every mailbox configured on this machine.
+Each tool takes a `mailbox` argument; `list_mailboxes` names them and says
+whether each has a password. If more than one exists and the request is
+ambiguous, ask which mailbox before acting.
 
-- `mcp__alchlight__*`, the Alchlight work mailbox (HostGator)
-- `mcp__gmail__*`, the personal Gmail mailbox
-
-Pick the server that matches the mailbox the user means. If both are present
-and the request is ambiguous, ask which mailbox before acting.
+A tool error saying there is no password means the user must run
+`email-tool-mcp add <name>` in a terminal. Never ask for the password in chat.
 
 ## Available tools
 
-Each mailbox server exposes the same ten tools, prefixed by its own name.
-
+- `list_mailboxes`, the mailboxes on this machine.
 - `list_folders`, list mailbox folders (INBOX, Sent, Drafts, ...).
 - `list_emails`, list messages in a folder (most recent first).
 - `search_emails`, search by sender, subject, date range, or text.
@@ -65,6 +63,6 @@ mode in the mail client.
   recipient, subject, and body, then wait for a clear "send it" / "yes".
 - Treat email addresses and message contents as private, don't echo full
   bodies to external tools or include them in web searches.
-- If both mailbox servers are enabled, confirm which mailbox before acting.
+- If several mailboxes exist, confirm which one before acting.
 - Never move mail between mailboxes without being asked.
 - Quote message-IDs or subjects when referring to mail so the user can verify.

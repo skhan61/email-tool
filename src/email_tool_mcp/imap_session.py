@@ -21,8 +21,8 @@ from collections.abc import Sequence
 from types import TracebackType
 from typing import Final
 
-import imap_utf7
-from config import MailboxConfig
+from email_tool_mcp import imap_utf7
+from email_tool_mcp.settings import Mailbox
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
 
@@ -39,8 +39,9 @@ class ImapError(RuntimeError):
 class ImapSession:
     """Context manager wrapping one authenticated IMAP connection."""
 
-    def __init__(self, config: MailboxConfig) -> None:
-        self._config: MailboxConfig = config
+    def __init__(self, mailbox: Mailbox, password: str) -> None:
+        self._mailbox: Mailbox = mailbox
+        self._password: str = password
         self._connection: imaplib.IMAP4_SSL | None = None
         self._selected_folder: str | None = None
 
@@ -49,15 +50,15 @@ class ImapSession:
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED
         connection: imaplib.IMAP4_SSL = imaplib.IMAP4_SSL(
-            host=self._config.imap_host,
-            port=self._config.imap_port,
+            host=self._mailbox.imap_host,
+            port=self._mailbox.imap_port,
             ssl_context=context,
         )
-        typ, _ = connection.login(self._config.imap_user, self._config.password)
+        typ, _ = connection.login(self._mailbox.address, self._password)
         if typ != "OK":
-            raise ImapError(f"login failed for {self._config.imap_user}")
+            raise ImapError(f"login failed for {self._mailbox.address}")
         self._connection = connection
-        logger.info("connected to %s as %s", self._config.imap_host, self._config.imap_user)
+        logger.info("connected to %s as %s", self._mailbox.imap_host, self._mailbox.address)
         return self
 
     def __exit__(
@@ -155,11 +156,19 @@ class ImapSession:
         if typ != "OK":
             raise ImapError(f"APPEND to {folder!r} failed")
 
-    def mark_deleted(self, uid: int) -> None:
-        """Flag `uid` as deleted in the selected folder and expunge it."""
+    def mark_deleted(self, uid: int) -> bool:
+        """Flag `uid` as deleted; expunge only when no other message is flagged.
+
+        EXPUNGE removes every \\Deleted message in the folder, and imaplib has no
+        UID EXPUNGE, so a folder holding someone else's pending deletions keeps
+        `uid` flagged rather than purge theirs. Returns True when expunged.
+        """
         typ, _ = self._live.uid("STORE", str(uid), "+FLAGS", r"(\Deleted)")
         if typ != "OK":
             raise ImapError(f"STORE \\Deleted failed for uid {uid}")
-        expunged: tuple[str, list[bytes | None]] = self._live.expunge()
-        if expunged[0] != "OK":
+        if self.search(["DELETED"]) != [uid]:
+            return False
+        expunge_status: str = self._live.expunge()[0]
+        if expunge_status != "OK":
             raise ImapError(f"EXPUNGE failed after deleting uid {uid}")
+        return True
