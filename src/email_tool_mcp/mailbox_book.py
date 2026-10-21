@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import smtplib
-import ssl
 from collections.abc import Callable, Mapping
 from email.message import EmailMessage
 from pathlib import Path
@@ -32,6 +31,7 @@ from email_tool_mcp.settings import (
     environment_mailbox,
     load_mailboxes,
 )
+from email_tool_mcp.tls import client_context
 
 SessionFactory = Callable[[Mailbox, str], ImapSession]
 SmtpFactory = Callable[[Mailbox], smtplib.SMTP]
@@ -44,9 +44,8 @@ class UnknownMailbox(LookupError):
 
 
 def open_smtp(mailbox: Mailbox) -> smtplib.SMTP:
-    """Open an implicit-TLS SMTP connection with certificate verification on."""
-    context: ssl.SSLContext = ssl.create_default_context()
-    return smtplib.SMTP_SSL(host=mailbox.smtp_host, port=mailbox.smtp_port, context=context)
+    """Open an implicit-TLS SMTP connection: verified, TLS 1.2 minimum (tls.py)."""
+    return smtplib.SMTP_SSL(host=mailbox.smtp_host, port=mailbox.smtp_port, context=client_context())
 
 
 class MailboxBook:
@@ -131,6 +130,10 @@ class MailboxBook:
         addressed: bool = bool(str(message.get("To", "")).strip() or str(message.get("Cc", "")).strip())
         self.policy.check_message(mailbox.name, recipients, addressed, lambda: message_markings(message))
         return recipients
+
+    def smtp(self, mailbox: Mailbox) -> smtplib.SMTP:
+        """Return an unauthenticated SMTP connection for `mailbox`."""
+        return self._smtp_factory(mailbox)
 
     def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:
         """Send `message` from `mailbox` to its approved recipients; return the refused ones."""

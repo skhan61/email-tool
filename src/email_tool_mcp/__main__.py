@@ -14,6 +14,7 @@ from pathlib import Path
 import fire
 
 from email_tool_mcp.audit import AuditLog, verify
+from email_tool_mcp.diagnose import check_mailbox
 from email_tool_mcp.enrol import add_mailbox, describe_mailboxes, remove_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.policy import Policy, policy_paths
@@ -68,6 +69,10 @@ class Cli:
     def remove(self, name: str) -> str:
         """Forget mailbox NAME and delete its password."""
         return remove_mailbox(name, settings_path())
+
+    def check(self, name: str) -> str:
+        """Log in to mailbox NAME and report the TLS version, cipher and FIPS state actually in use."""
+        return check_mailbox(MailboxBook(settings_path(), os.environ), name)
 
     def list(self) -> str:
         """Show every mailbox on this machine."""

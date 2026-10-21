@@ -65,6 +65,9 @@ class FakeSession:
     def supports_gmail_search(self) -> bool:
         return self._server.gmail
 
+    def tls_details(self) -> str:
+        return "TLSv1.3 TLS_AES_256_GCM_SHA384"
+
     def list_folders(self) -> list[str]:
         return list(self._server.folders)
 
@@ -100,11 +103,22 @@ class FakeSession:
         return True
 
 
+class FakeTlsSocket:
+    """What `smtp.sock` reports after a TLS handshake."""
+
+    def version(self) -> str:
+        return "TLSv1.3"
+
+    def cipher(self) -> tuple[str, str, int]:
+        return ("TLS_AES_256_GCM_SHA384", "TLSv1.3", 256)
+
+
 class FakeSmtp:
     """The subset of smtplib.SMTP that MailboxBook.send calls."""
 
     def __init__(self, server: FakeMailServer) -> None:
         self._server: FakeMailServer = server
+        self.sock: FakeTlsSocket = FakeTlsSocket()
 
     def __enter__(self) -> FakeSmtp:
         return self

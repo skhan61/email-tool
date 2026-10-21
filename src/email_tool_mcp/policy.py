@@ -11,6 +11,7 @@ for CUI-marked mail the CUI recipient domains (3.1.3).
 
     [default]                      # every mailbox
     read_only = false
+    require_fips = true            # refuse every call unless OpenSSL runs in FIPS mode
     allowed_recipient_domains = ["example.com"]
 
     require_approval = true        # send/delete/replace-draft ask the human first
@@ -37,6 +38,7 @@ from pydantic import ConfigDict, ValidationError
 from pydantic.dataclasses import dataclass
 
 from email_tool_mcp.settings import APP_NAME, SettingsError
+from email_tool_mcp.tls import fips_enabled
 
 POLICY_FILE: Final[str] = "policy.toml"
 # Fixed, not $XDG_CONFIG_DIRS: whoever launches the server must not choose the administrator's file.
@@ -53,6 +55,7 @@ class Rules:
 
     read_only: bool = False
     require_approval: bool = False
+    require_fips: bool = False
     allowed_tools: list[str] | None = None
     allowed_recipient_domains: list[str] | None = None
     cui_recipient_domains: list[str] | None = None
@@ -84,6 +87,7 @@ def combine(rules: Iterable[Rules]) -> Rules:
         combined = Rules(
             read_only=combined.read_only or rule.read_only,
             require_approval=combined.require_approval or rule.require_approval,
+            require_fips=combined.require_fips or rule.require_fips,
             allowed_tools=narrower(combined.allowed_tools, rule.allowed_tools),
             allowed_recipient_domains=narrower(combined.allowed_recipient_domains, domains),
             cui_recipient_domains=narrower(combined.cui_recipient_domains, cui_domains),
@@ -159,6 +163,8 @@ class Policy:
     def check_call(self, mailbox: str, tool: str, changes_mail: bool, known_tools: frozenset[str]) -> None:
         """Raise PolicyRefusal when `tool` may not run on `mailbox`; SettingsError for an unknown tool name."""
         rules: Rules = self.rules_for(mailbox)
+        if rules.require_fips and not fips_enabled():
+            raise PolicyRefusal("policy: require_fips is set but Python's OpenSSL is not in FIPS mode")
         if rules.allowed_tools is not None:
             unknown: set[str] = set(rules.allowed_tools) - known_tools
             if unknown:

@@ -4,9 +4,9 @@ Standard: imapclient, which parses IMAP responses, quotes or literal-encodes
 search values and encodes folder names (modified UTF-7) itself.
 Placement: imap_session.py, the one module that talks IMAP.
 
-TLS goes through `ssl.create_default_context()`, so the certificate is always
-verified and SNI is always sent (Gmail rejects an SNI-less handshake). There is
-no option to turn verification off.
+TLS comes from tls.client_context(): certificate always verified, SNI always
+sent (Gmail rejects an SNI-less handshake), TLS 1.2 minimum. There is no option
+to turn verification off.
 
 Every value a tool passes in comes from the model, which may be steered by the
 text of an email, so line breaks are refused before anything reaches the wire.
@@ -15,7 +15,6 @@ text of an email, so line breaks are refused before anything reaches the wire.
 from __future__ import annotations
 
 import logging
-import ssl
 from datetime import date
 from types import TracebackType
 from typing import Any, Final
@@ -28,6 +27,7 @@ from imapclient import IMAPClient, imap_utf7
 from imapclient.imapclient import _literal
 
 from email_tool_mcp.settings import Mailbox
+from email_tool_mcp.tls import client_context
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class ImapSession:
             self._mailbox.imap_host,
             port=self._mailbox.imap_port,
             ssl=True,
-            ssl_context=ssl.create_default_context(),
+            ssl_context=client_context(),
             timeout=_TIMEOUT_SECONDS,
         )
         try:
@@ -114,6 +114,11 @@ class ImapSession:
         if self._client is None:
             raise RuntimeError("IMAP session is not open; use it inside `with`")
         return self._client
+
+    def tls_details(self) -> str:
+        """The negotiated protocol and cipher, e.g. "TLSv1.3 TLS_AES_256_GCM_SHA384"."""
+        sock: Any = self._live._imap.sock
+        return f"{sock.version()} {sock.cipher()[0]}"
 
     def supports_gmail_search(self) -> bool:
         """Return True when the server is Gmail (advertises X-GM-EXT-1)."""
