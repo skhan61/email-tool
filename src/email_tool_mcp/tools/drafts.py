@@ -38,6 +38,7 @@ class DraftTools:
         """Save a new draft into the drafts folder. Does not send it."""
         sender: Mailbox = self._book.resolve(mailbox)
         message: EmailMessage = compose(sender.address, to, subject, body, cc, html)
+        self._book.approve(sender, message)
         with self._book.imap(sender) as session:
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
         return f"Draft saved to {folder!r} for {to}."
@@ -76,6 +77,7 @@ class DraftTools:
         """
         sender: Mailbox = self._book.resolve(mailbox)
         message: EmailMessage = compose(sender.address, to, subject, body, cc, html)
+        self._book.approve(sender, message)
         with self._book.imap(sender) as session:
             session.select(folder, readonly=False)
             if not session.exists(uid):

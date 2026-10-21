@@ -141,6 +141,38 @@ workspace members, and stop the tunnel when you are done.
 Add a stdio server that runs
 `uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve`.
 
+## Policy
+
+Limit what agents may do, per mailbox or for all of them. Two files, same format;
+the most restrictive combination applies, so a user can tighten the
+administrator's policy but never loosen it:
+
+```
+email-tool-mcp policy paths          # administrator file (system-wide) and user file
+email-tool-mcp policy show work      # the effective rules for one mailbox
+```
+
+```toml
+[default]                                    # every mailbox
+allowed_recipient_domains = ["example.com"]  # send/draft only to these domains
+
+[mailboxes.archive]
+read_only = true                             # no send, draft or delete
+
+[mailboxes.work]
+allowed_tools = ["list_emails", "search_emails", "get_email", "create_draft"]
+```
+
+Refusals name the rule and are recorded in the audit log. Recipients are checked
+on the finished message, the same list the mail server receives. The
+administrator file is `/etc/email-tool/policy.toml` on Linux
+(`email-tool-mcp policy paths` shows it on macOS and Windows); an existing file
+that cannot be read stops every call rather than being skipped.
+
+The policy stops the agent and accidental loosening. A user with full control
+of their own machine could run other code, so where that matters, manage the
+installation centrally as well.
+
 ## Audit log
 
 Every action an agent takes is recorded twice: once before it runs and once with

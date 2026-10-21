@@ -9,12 +9,14 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from pathlib import Path
 
 import fire
 
 from email_tool_mcp.audit import AuditLog, verify
 from email_tool_mcp.enrol import add_mailbox, describe_mailboxes, remove_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
+from email_tool_mcp.policy import Policy, policy_paths
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, settings_path
 
@@ -31,11 +33,25 @@ class AuditCommands:
         return verify(AuditLog.from_environment(os.environ, with_syslog=False).path).render()
 
 
+class PolicyCommands:
+    """Inspect the policy that limits what agents may do."""
+
+    def paths(self) -> str:
+        """Print the administrator's and the user's policy file locations."""
+        paths: tuple[Path, Path] = policy_paths()
+        return f"administrator: {paths[0]}\nuser:          {paths[1]}"
+
+    def show(self, mailbox: str) -> str:
+        """Print the effective rules for MAILBOX (most restrictive of both files)."""
+        return str(Policy(policy_paths()).rules_for(mailbox))
+
+
 class Cli:
     """Email for any MCP client. Passwords live in the OS keyring."""
 
     def __init__(self) -> None:
         self.audit: AuditCommands = AuditCommands()
+        self.policy: PolicyCommands = PolicyCommands()
 
     def add(
         self,
@@ -60,9 +76,9 @@ class Cli:
     def serve(self) -> None:
         """Run the MCP server on stdio (what an AI agent launches)."""
         logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-        build_server(
-            MailboxBook(settings_path(), os.environ), AuditLog.from_environment(os.environ, with_syslog=True)
-        ).run("stdio")
+        book: MailboxBook = MailboxBook(settings_path(), os.environ, policy=Policy(policy_paths()))
+        audit: AuditLog = AuditLog.from_environment(os.environ, with_syslog=True)
+        build_server(book, audit).run("stdio")
 
 
 def main() -> None:

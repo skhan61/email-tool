@@ -8,7 +8,9 @@ here is one the user can act on (no password, locked keyring, bad settings,
 login refused), so each is re-raised as a ToolError with its message intact.
 
 Every call is audit-logged (audit.py): a "started" record before the mailbox is
-touched, refused if it cannot be written, and a "finished" record after.
+touched, refused if it cannot be written, and a "finished" record after. Between
+the two, the call is checked against the administrator's and user's policy
+(policy.py); a refusal is recorded like any other outcome.
 """
 
 from __future__ import annotations
@@ -49,8 +51,10 @@ def mailbox_label(book: MailboxBook, arguments: dict[str, Any]) -> str:
         return given
 
 
-def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook) -> Callable[Params, str]:
-    """Wrap `tool`: audit before and after, and surface every failure as a ToolError."""
+def reported(
+    tool: Callable[Params, str], changes_mail: bool, known_tools: frozenset[str], audit: AuditLog, book: MailboxBook
+) -> Callable[Params, str]:
+    """Wrap `tool`: audit before and after, enforce policy, and surface every failure as a ToolError."""
 
     @functools.wraps(tool)
     def run(*args: Params.args, **kwargs: Params.kwargs) -> str:
@@ -61,6 +65,7 @@ def reported(tool: Callable[Params, str], audit: AuditLog, book: MailboxBook) ->
         except AuditError as error:
             raise ToolError(f"Refused, nothing was done: {error}") from error
         try:
+            book.policy.check_call(mailbox, name, changes_mail, known_tools)
             result: str = tool(*args, **kwargs)
         except Exception as error:
             message: str = f"{type(error).__name__}: {error}"
@@ -104,6 +109,12 @@ def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
             "Never send or delete without the user's explicit confirmation of the exact message."
         ),
     )
+    known_tools: frozenset[str] = frozenset(tool.__name__ for tool, _ in tools)
     for tool, hints in tools:
-        server.add_tool(reported(tool, audit, book), name=tool.__name__, annotations=hints, structured_output=False)
+        server.add_tool(
+            reported(tool, not hints.read_only_hint, known_tools, audit, book),
+            name=tool.__name__,
+            annotations=hints,
+            structured_output=False,
+        )
     return server
