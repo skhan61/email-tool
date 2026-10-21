@@ -1,39 +1,72 @@
 """A short-lived, verified IMAP connection.
 
-`imaplib.IMAP4_SSL` builds its TLS socket through `ssl.SSLContext.wrap_socket`
-with `server_hostname` set to the target host, so the SNI extension is always
-sent. That is the whole reason this module exists: the previous Node client
-(imap 0.8.19, abandoned 2022) handed `tls.connect` a pre-connected socket,
-which makes Node drop SNI, and Gmail answers an SNI-less handshake with a
-default certificate that fails verification.
+Standard: imapclient, which parses IMAP responses, quotes or literal-encodes
+search values and encodes folder names (modified UTF-7) itself.
+Placement: imap_session.py, the one module that talks IMAP.
 
-Certificate verification is never disabled here, and there is no option to
-disable it.
+TLS goes through `ssl.create_default_context()`, so the certificate is always
+verified and SNI is always sent (Gmail rejects an SNI-less handshake). There is
+no option to turn verification off.
+
+Every value a tool passes in comes from the model, which may be steered by the
+text of an email, so line breaks are refused before anything reaches the wire.
 """
 
 from __future__ import annotations
 
-import imaplib
 import logging
-import re
 import ssl
-from collections.abc import Sequence
+from datetime import date
 from types import TracebackType
-from typing import Final
+from typing import Any, Final
 
-from email_tool_mcp import imap_utf7
+from imapclient import IMAPClient, imap_utf7
+
+# imapclient sends a `_literal` as an IMAP literal ({n} + bytes), so a value
+# such as `{12}` or `(urgent)` is never read as syntax. Its public API quotes a
+# value only when it holds a space, quote or backslash.
+from imapclient.imapclient import _literal
+
 from email_tool_mcp.settings import Mailbox
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
 
+_TIMEOUT_SECONDS: Final[float] = 60.0
 _GMAIL_EXTENSION: Final[str] = "X-GM-EXT-1"
-_LIST_RESPONSE: Final[re.Pattern[str]] = re.compile(
-    r'^\((?P<flags>[^)]*)\)\s+(?P<delimiter>"[^"]*"|NIL)\s+(?P<name>.+)$'
-)
+_UID_EXPUNGE: Final[str] = "UIDPLUS"
+_HEADER_REQUEST: Final[str] = "BODY.PEEK[HEADER]"
+_HEADER_KEY: Final[bytes] = b"BODY[HEADER]"
+_MESSAGE_REQUEST: Final[str] = "BODY.PEEK[]"
+_MESSAGE_KEY: Final[bytes] = b"BODY[]"
+_FORBIDDEN: Final[tuple[str, ...]] = ("\r", "\n", "\0")
 
 
-class ImapError(RuntimeError):
-    """Raised when the IMAP server returns a non-OK response."""
+def checked(value: str) -> str:
+    """Return `value`, refusing line breaks and NUL, which would end an IMAP command."""
+    if any(character in value for character in _FORBIDDEN):
+        raise ValueError("line breaks are not allowed in a search value or folder name")
+    return value
+
+
+# A search is keywords (bare upper-case words such as FROM or ALL) followed by
+# their arguments: `text()` values, UIDs as int, dates as `date`.
+SearchItem = str | bytes | int | date
+
+
+def text(value: str) -> bytes:
+    """Wrap a search value so imapclient sends it as a literal or a quoted string, never as bare syntax."""
+    wrapped: bytes = _literal(checked(value).encode("utf-8"))
+    return wrapped
+
+
+def decode_folder_name(raw: bytes | str) -> str:
+    """Decode a modified UTF-7 folder name; a malformed one is shown as plain UTF-8."""
+    if isinstance(raw, str):
+        return raw
+    try:
+        return str(imap_utf7.decode(raw))
+    except (UnicodeDecodeError, ValueError):
+        return raw.decode("utf-8", "replace")
 
 
 class ImapSession:
@@ -42,22 +75,22 @@ class ImapSession:
     def __init__(self, mailbox: Mailbox, password: str) -> None:
         self._mailbox: Mailbox = mailbox
         self._password: str = password
-        self._connection: imaplib.IMAP4_SSL | None = None
-        self._selected_folder: str | None = None
+        self._client: IMAPClient | None = None
 
     def __enter__(self) -> ImapSession:
-        context: ssl.SSLContext = ssl.create_default_context()
-        context.check_hostname = True
-        context.verify_mode = ssl.CERT_REQUIRED
-        connection: imaplib.IMAP4_SSL = imaplib.IMAP4_SSL(
-            host=self._mailbox.imap_host,
+        client: IMAPClient = IMAPClient(
+            self._mailbox.imap_host,
             port=self._mailbox.imap_port,
-            ssl_context=context,
+            ssl=True,
+            ssl_context=ssl.create_default_context(),
+            timeout=_TIMEOUT_SECONDS,
         )
-        typ, _ = connection.login(self._mailbox.address, self._password)
-        if typ != "OK":
-            raise ImapError(f"login failed for {self._mailbox.address}")
-        self._connection = connection
+        try:
+            client.login(self._mailbox.address, self._password)
+        except BaseException:
+            client.shutdown()
+            raise
+        self._client = client
         logger.info("connected to %s as %s", self._mailbox.imap_host, self._mailbox.address)
         return self
 
@@ -67,108 +100,93 @@ class ImapSession:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        connection: imaplib.IMAP4_SSL | None = self._connection
-        self._connection = None
-        if connection is None:
+        client: IMAPClient | None = self._client
+        self._client = None
+        if client is None:
             return
         try:
-            if self._selected_folder is not None:
-                closed_status: str = connection.close()[0]
-                logger.debug("closed folder: %s", closed_status)
-            logout_status: str = connection.logout()[0]
-            logger.debug("logout: %s", logout_status)
-        except (imaplib.IMAP4.error, OSError) as error:
+            client.logout()
+        except (IMAPClient.Error, OSError) as error:
             logger.warning("error while closing connection: %s", error)
 
     @property
-    def _live(self) -> imaplib.IMAP4_SSL:
-        if self._connection is None:
-            raise ImapError("IMAP session is not open")
-        return self._connection
+    def _live(self) -> IMAPClient:
+        if self._client is None:
+            raise RuntimeError("IMAP session is not open; use it inside `with`")
+        return self._client
 
     def supports_gmail_search(self) -> bool:
-        """Return True when the server advertises Gmail's X-GM-EXT-1 extension."""
-        capabilities: tuple[str, ...] = self._live.capabilities
-        return _GMAIL_EXTENSION in capabilities
+        """Return True when the server is Gmail (advertises X-GM-EXT-1)."""
+        return bool(self._live.has_capability(_GMAIL_EXTENSION))
 
+    # no-library: scikit-learn: list_folders lists IMAP mail folders, it is not a data split.
     def list_folders(self) -> list[str]:
-        """Return every selectable folder name on the server.
-
-        Servers differ on whether the name is quoted: Gmail quotes it, Dovecot
-        (HostGator) sends a bare atom. `_LIST_RESPONSE` accepts both, and
-        \\Noselect entries are dropped because they cannot be opened.
-        """
-        typ, data = self._live.list()
-        if typ != "OK":
-            raise ImapError("LIST command failed")
-        names: list[str] = []
-        for entry in data:
-            if entry is None:
-                continue
-            decoded: str = entry.decode("utf-8", "replace") if isinstance(entry, bytes) else str(entry)
-            match: re.Match[str] | None = _LIST_RESPONSE.match(decoded.strip())
-            if match is None:
-                logger.debug("unparsed LIST entry: %s", decoded)
-                continue
-            if "\\noselect" in match.group("flags").lower():
-                continue
-            name: str = match.group("name").strip().strip('"')
-            if name:
-                names.append(imap_utf7.decode(name))
-        return names
+        """Return every selectable folder name, decoded one by one so a bad name cannot fail the rest."""
+        client: IMAPClient = self._live
+        client.folder_encode = False
+        try:
+            listing: list[tuple[tuple[bytes, ...], bytes, bytes]] = client.list_folders()
+        finally:
+            client.folder_encode = True
+        return [
+            decode_folder_name(name)
+            for flags, _, name in listing
+            if not any(flag.lower() == b"\\noselect" for flag in flags)
+        ]
 
     def select(self, folder: str, readonly: bool) -> int:
-        """Select `folder` and return the number of messages it holds.
+        """Select `folder` (the name list_folders shows) and return its message count."""
+        response: dict[bytes, Any] = self._live.select_folder(checked(folder), readonly=readonly)
+        return int(response[b"EXISTS"])
 
-        `folder` is accepted as the human-readable name shown by `list_folders`
-        and re-encoded here, so a listed folder is always selectable.
-        """
-        typ, data = self._live.select(f'"{imap_utf7.encode(folder)}"', readonly=readonly)
-        if typ != "OK":
-            raise ImapError(f"cannot select folder {folder!r}")
-        self._selected_folder = folder
-        first: bytes | None = data[0] if data else None
-        return int(first) if first is not None else 0
+    def search(self, criteria: list[SearchItem]) -> list[int]:
+        """Return the UIDs matching `criteria` in the selected folder."""
+        for item in criteria:
+            if isinstance(item, str) and not (item.isalpha() and item.isupper()):
+                raise ValueError(f"{item!r} is not a search keyword; pass values through text()")
+        needs_utf8: bool = any(isinstance(item, bytes) and not item.isascii() for item in criteria)
+        return [int(uid) for uid in self._live.search(criteria, charset="UTF-8" if needs_utf8 else None)]
 
-    def search(self, criteria: Sequence[str]) -> list[int]:
-        """Return matching UIDs, oldest first, for the selected folder."""
-        typ, data = self._live.uid("SEARCH", *criteria)
-        if typ != "OK":
-            raise ImapError(f"SEARCH failed for criteria {list(criteria)!r}")
-        payload: bytes | None = data[0] if data else None
-        if not payload:
-            return []
-        return [int(token) for token in payload.split()]
+    def gmail_search(self, query: str) -> list[int]:
+        """Return UIDs matching Gmail's own search syntax (X-GM-RAW)."""
+        return [int(uid) for uid in self._live.gmail_search(text(query))]
 
-    def fetch(self, uid: int, parts: str) -> bytes | None:
-        """Return the raw bytes of `parts` for `uid`, or None when absent."""
-        typ, data = self._live.uid("FETCH", str(uid), parts)
-        if typ != "OK":
-            raise ImapError(f"FETCH failed for uid {uid}")
-        for entry in data:
-            if isinstance(entry, tuple) and len(entry) >= 2 and isinstance(entry[1], bytes):
-                return entry[1]
-        return None
+    def exists(self, uid: int) -> bool:
+        """Return True when `uid` is in the selected folder."""
+        return uid in self.search(["UID", uid])
 
-    def append(self, folder: str, flags: str, raw_message: bytes) -> None:
+    def fetch_headers(self, uids: list[int]) -> dict[int, bytes]:
+        """Return the raw headers of `uids` in one round trip, without marking them read."""
+        if not uids:
+            return {}
+        response: dict[int, dict[bytes, Any]] = self._live.fetch(uids, [_HEADER_REQUEST])
+        return {uid: items[_HEADER_KEY] for uid, items in response.items() if isinstance(items.get(_HEADER_KEY), bytes)}
+
+    def fetch_message(self, uid: int) -> bytes | None:
+        """Return the raw message `uid` without marking it read, or None when absent."""
+        response: dict[int, dict[bytes, Any]] = self._live.fetch([uid], [_MESSAGE_REQUEST])
+        found: Any = response.get(uid, {}).get(_MESSAGE_KEY)
+        return found if isinstance(found, bytes) else None
+
+    def append(self, folder: str, flags: tuple[str, ...], raw_message: bytes) -> None:
         """Append `raw_message` to `folder` with `flags`."""
-        typ, _ = self._live.append(f'"{imap_utf7.encode(folder)}"', flags, None, raw_message)
-        if typ != "OK":
-            raise ImapError(f"APPEND to {folder!r} failed")
+        self._live.append(checked(folder), raw_message, flags=flags)
 
     def mark_deleted(self, uid: int) -> bool:
-        """Flag `uid` as deleted; expunge only when no other message is flagged.
+        """Delete `uid` from the selected folder; return True when it is gone.
 
-        EXPUNGE removes every \\Deleted message in the folder, and imaplib has no
-        UID EXPUNGE, so a folder holding someone else's pending deletions keeps
-        `uid` flagged rather than purge theirs. Returns True when expunged.
+        With UIDPLUS (Gmail, Dovecot, most servers) only `uid` is expunged. Without
+        it, EXPUNGE would also purge every other message flagged \\Deleted, so it
+        runs only when `uid` is the sole flagged one; otherwise `uid` stays flagged.
         """
-        typ, _ = self._live.uid("STORE", str(uid), "+FLAGS", r"(\Deleted)")
-        if typ != "OK":
-            raise ImapError(f"STORE \\Deleted failed for uid {uid}")
+        if not self.exists(uid):
+            raise LookupError(f"no message with uid {uid} in this folder")
+        client: IMAPClient = self._live
+        client.delete_messages([uid])
+        if client.has_capability(_UID_EXPUNGE):
+            client.uid_expunge([uid])
+            return True
         if self.search(["DELETED"]) != [uid]:
             return False
-        expunge_status: str = self._live.expunge()[0]
-        if expunge_status != "OK":
-            raise ImapError(f"EXPUNGE failed after deleting uid {uid}")
+        client.expunge()
         return True

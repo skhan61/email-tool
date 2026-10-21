@@ -12,7 +12,9 @@ from email.message import EmailMessage
 from types import TracebackType
 from typing import Any
 
-from email_tool_mcp.imap_session import ImapError, ImapSession
+from imapclient import IMAPClient
+
+from email_tool_mcp.imap_session import ImapSession, SearchItem
 from email_tool_mcp.settings import Mailbox
 
 
@@ -68,20 +70,32 @@ class FakeSession:
 
     def select(self, folder: str, readonly: bool) -> int:
         if folder not in self._server.folders:
-            raise ImapError(f"cannot select folder {folder!r}")
+            raise IMAPClient.Error(f"cannot select folder {folder!r}")
         self._folder = folder
         return len(self._server.folders[folder])
 
-    def search(self, criteria: list[str]) -> list[int]:
+    def search(self, criteria: list[SearchItem]) -> list[int]:
         return sorted(self._server.folders[self._folder])
 
-    def fetch(self, uid: int, parts: str) -> bytes | None:
+    def exists(self, uid: int) -> bool:
+        return uid in self._server.folders[self._folder]
+
+    def gmail_search(self, query: str) -> list[int]:
+        return sorted(self._server.folders[self._folder])
+
+    def fetch_headers(self, uids: list[int]) -> dict[int, bytes]:
+        messages: dict[int, bytes] = self._server.folders[self._folder]
+        return {uid: messages[uid] for uid in uids if uid in messages}
+
+    def fetch_message(self, uid: int) -> bytes | None:
         return self._server.folders[self._folder].get(uid)
 
-    def append(self, folder: str, flags: str, raw_message: bytes) -> None:
+    def append(self, folder: str, flags: tuple[str, ...], raw_message: bytes) -> None:
         self._server.add(folder, raw_message)
 
     def mark_deleted(self, uid: int) -> bool:
+        if not self.exists(uid):
+            raise LookupError(f"no message with uid {uid} in this folder")
         del self._server.folders[self._folder][uid]
         return True
 
