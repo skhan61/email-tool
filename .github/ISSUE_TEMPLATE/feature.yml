@@ -1,0 +1,28 @@
+name: Feature request
+description: A new tool, agent setup or behaviour
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: One line.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The task you cannot do today.
+    validations:
+      required: true
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: Testable conditions, one per line.
+      placeholder: |
+        - [ ] `move_email` moves a message between folders
+        - [ ] an offline test covers it
+    validations:
+      required: true

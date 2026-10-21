@@ -1,0 +1,35 @@
+# Install once per clone: `uv sync && .venv/bin/pre-commit install`.
+# CI runs the same file with `pre-commit run --all-files`.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: no-commit-to-branch
+        args: [--branch, main]
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: debug-statements
+      - id: detect-private-key
+
+  # rev must equal the ruff pin in pyproject.toml.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      # .venv/bin, not `uv run`: `uv run` re-syncs the environment mid-commit.
+      - id: mypy
+        name: mypy --strict
+        entry: .venv/bin/mypy
+        language: system
+        types: [python]
+        pass_filenames: false

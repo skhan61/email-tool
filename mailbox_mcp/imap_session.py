@@ -17,8 +17,9 @@ import imaplib
 import logging
 import re
 import ssl
+from collections.abc import Sequence
 from types import TracebackType
-from typing import Final, Sequence
+from typing import Final
 
 import imap_utf7
 from config import MailboxConfig
@@ -43,7 +44,7 @@ class ImapSession:
         self._connection: imaplib.IMAP4_SSL | None = None
         self._selected_folder: str | None = None
 
-    def __enter__(self) -> "ImapSession":
+    def __enter__(self) -> ImapSession:
         context: ssl.SSLContext = ssl.create_default_context()
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED

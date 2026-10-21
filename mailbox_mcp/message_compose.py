@@ -21,8 +21,7 @@ COMPOSE_PROPERTIES: Final[dict[str, Any]] = {
     "html": {
         "type": "string",
         "description": (
-            "Optional HTML body, for embedded links and formatting. "
-            "Sent as multipart/alternative alongside `body`."
+            "Optional HTML body, for embedded links and formatting. Sent as multipart/alternative alongside `body`."
         ),
     },
 }

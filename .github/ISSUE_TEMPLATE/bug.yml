@@ -1,0 +1,52 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Never paste a password, app password or full mail log here. Replace your address with `you@example.com`.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: One line.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. `email-tool-mcp add work`
+        2. Ask the agent "list my inbox"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: One line.
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: AI agent
+      options: [Claude Code, Claude Desktop, Claude Cowork, ChatGPT desktop, Codex CLI, Other]
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, Python and email-tool-mcp version
+      placeholder: macOS 15.6, Python 3.13.2, email-tool-mcp 4.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server log
+      description: The stderr lines from the MCP server, secrets removed.
+      render: text
+    validations:
+      required: false
