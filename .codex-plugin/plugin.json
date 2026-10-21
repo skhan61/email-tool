@@ -1,0 +1,16 @@
+{
+  "name": "email-tool",
+  "version": "4.0.0",
+  "description": "IMAP/SMTP email: read, search, draft and send mail. One MCP server for all your mailboxes; passwords in the OS keyring.",
+  "keywords": ["email", "imap", "smtp", "gmail", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.codex-mcp.json",
+  "interface": {
+    "displayName": "Email (IMAP/SMTP)",
+    "shortDescription": "Read, search, draft and send email from your own mailboxes",
+    "longDescription": "Runs on your machine. Add each mailbox once in a terminal with `email-tool-mcp add <name>`; passwords stay in the OS keyring and never leave your computer except to your mail server.",
+    "developerName": "Sayem Khan",
+    "category": "Productivity",
+    "websiteUrl": "https://github.com/skhan61/email-tool"
+  }
+}

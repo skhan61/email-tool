@@ -17,6 +17,7 @@ from mcp_types import ListToolsResult
 
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.server import build_server
+from tests.launch import declared_tool_names
 
 ROOT: Path = Path(__file__).resolve().parent.parent
 
@@ -37,6 +38,7 @@ def package_version() -> str:
     [
         ("manifest.json", ("version",)),
         (".claude-plugin/plugin.json", ("version",)),
+        (".codex-plugin/plugin.json", ("version",)),
         (".claude-plugin/marketplace.json", ("metadata", "version")),
     ],
 )
@@ -51,10 +53,9 @@ def test_manifest_version_matches_the_package(relative: str, path: tuple[str, ..
 async def test_bundle_lists_exactly_the_tools_the_server_registers(book: MailboxBook) -> None:
     async with Client(build_server(book)) as client:
         listed: ListToolsResult = await client.list_tools()
-    declared: set[str] = {tool["name"] for tool in read_json("manifest.json")["tools"]}
-    assert declared == {tool.name for tool in listed.tools}
+    assert declared_tool_names() == {tool.name for tool in listed.tools}
 
 
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
+def test_codex_plugin_runs_the_release_matching_its_version() -> None:
+    arguments: list[str] = read_json(".codex-mcp.json")["mcpServers"]["email"]["args"]
+    assert f"git+https://github.com/skhan61/email-tool@v{package_version()}" in arguments

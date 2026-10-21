@@ -35,11 +35,6 @@ TOOL_NAMES: set[str] = {
 }
 
 
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
-
-
 def text_of(result: CallToolResult) -> str:
     block: object = result.content[0]
     assert isinstance(block, TextContent)

@@ -14,6 +14,7 @@ permissions:
 
 env:
   MCPB: "@anthropic-ai/mcpb@2.1.2"
+  CODEX: "@openai/codex@0.160.1"
 
 # GitHub-hosted runners only. A self-hosted runner on a public repository runs
 # any stranger's pull request on your machine.
@@ -74,3 +75,25 @@ jobs:
       - run: unzip -q "$RUNNER_TEMP/email-tool.mcpb" -d "$RUNNER_TEMP/bundle"
       - name: Launch the unpacked bundle with the manifest's own command
         run: EMAIL_TOOL_BUNDLE_DIR="$RUNNER_TEMP/bundle" uv run --locked pytest -q tests/test_bundle.py
+
+  codex-plugin:
+    name: ChatGPT / Codex plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CODEX_HOME: ${{ github.workspace }}/../codex-home
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: npm install -g "$CODEX" && mkdir -p "$CODEX_HOME"
+      - name: Install the plugin from this checkout with the real Codex CLI
+        run: |
+          set -euo pipefail
+          codex plugin marketplace add "$GITHUB_WORKSPACE"
+          codex plugin add email-tool@email-tool
+          codex plugin list | grep -E "email-tool@email-tool +installed, enabled"
+          codex mcp get email --json > "$RUNNER_TEMP/codex-email.json"
+      - name: Launch the server Codex registered (built from this checkout) and list its tools
+        run: >-
+          EMAIL_TOOL_CODEX_SERVER="$RUNNER_TEMP/codex-email.json" EMAIL_TOOL_CODEX_FROM="$GITHUB_WORKSPACE"
+          uv run --locked pytest -q tests/test_codex_plugin.py
