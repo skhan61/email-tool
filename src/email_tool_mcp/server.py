@@ -71,7 +71,7 @@ def reported(
             raise ToolError(f"Refused, nothing was done: {error}") from error
         approved: bool = False
         try:
-            book.policy.check_call(mailbox, name, changes_mail, known_tools)
+            book.policy.check_call(mailbox, book.address_of(mailbox), name, changes_mail, known_tools)
             if destructive:
                 approved = enforce(name, approval)
             result: str = tool(*args, **kwargs)

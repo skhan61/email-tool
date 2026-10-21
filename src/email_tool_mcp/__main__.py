@@ -44,7 +44,9 @@ class PolicyCommands:
 
     def show(self, mailbox: str) -> str:
         """Print the effective rules for MAILBOX (most restrictive of both files)."""
-        return str(Policy(policy_paths()).rules_for(mailbox))
+        rules: Policy = Policy(policy_paths())
+        address: str = MailboxBook(settings_path(), os.environ, policy=rules).address_of(mailbox)
+        return str(rules.rules_for(mailbox, address))
 
 
 class Cli:

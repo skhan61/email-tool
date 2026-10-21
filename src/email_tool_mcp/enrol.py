@@ -78,7 +78,7 @@ def add_mailbox(
     password: str = normalize_password(ask_secret(f"Password for {address}{note}: "))
     if not password:
         raise ValueError("no password entered")
-    (policy if policy is not None else Policy(policy_paths())).check_fips(name)
+    (policy if policy is not None else Policy(policy_paths())).check_fips(name, address)
     login_check(mailbox, password)
 
     # Password first: a keyring that refuses it must not leave a mailbox saved without one.

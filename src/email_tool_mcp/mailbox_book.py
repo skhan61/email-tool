@@ -66,8 +66,11 @@ class MailboxBook:
         self.policy: Policy = policy if policy is not None else Policy(())
         self.environment_problem: str = ""
 
-    def _environment_mailbox(self) -> Mailbox | None:
-        """The EMAIL_TOOL_* mailbox; a malformed one is skipped and kept in `environment_problem`."""
+    def _environment_mailbox(self, enrolled: dict[str, Mailbox]) -> Mailbox | None:
+        """The EMAIL_TOOL_* mailbox, unless malformed, disallowed by policy, or clashing with an enrolled name.
+
+        Whatever keeps it out is kept in `environment_problem` and shown to the user.
+        """
         try:
             found: Mailbox | None = environment_mailbox(self._environment)
         except SettingsError as error:
@@ -75,12 +78,22 @@ class MailboxBook:
             self.environment_problem = f"The mailbox from the app's settings was ignored: {error}."
             return None
         self.environment_problem = ""
+        if found is None:
+            return None
+        if not self.policy.rules_for(found.name, found.address).allow_environment_mailbox:
+            self.environment_problem = "The mailbox from the app's settings was ignored: policy disallows it."
+            return None
+        if found.name in enrolled:
+            self.environment_problem = (
+                f"The mailbox from the app's settings was ignored: {found.name!r} is already enrolled on this machine."
+            )
+            return None
         return found
 
     def mailboxes(self) -> dict[str, Mailbox]:
         """Return every configured mailbox; the environment one wins a name clash."""
         known: dict[str, Mailbox] = load_mailboxes(self._settings_file)
-        from_environment: Mailbox | None = self._environment_mailbox()
+        from_environment: Mailbox | None = self._environment_mailbox(known)
         if from_environment is not None:
             known[from_environment.name] = from_environment
         return known
@@ -99,6 +112,13 @@ class MailboxBook:
             problem = f"No mailbox called {name!r}. Configured: {', '.join(sorted(known))}."
         raise UnknownMailbox(f"{problem} {self.environment_problem}".strip())
 
+    def address_of(self, name: str) -> str:
+        """The address of the mailbox called `name`, or "" when it cannot be resolved."""
+        try:
+            return self.resolve(name).address
+        except Exception:
+            return ""
+
     def label(self, name: str) -> str:
         """The mailbox a call acts on, as audit records and policy name it; `name` if it cannot resolve."""
         try:
@@ -108,7 +128,10 @@ class MailboxBook:
 
     def password(self, mailbox: Mailbox) -> str:
         """Return EMAIL_TOOL_PASSWORD for the environment's own mailbox when set, else the keyring."""
-        if self._environment.get(ENV_PASSWORD) and self._environment_mailbox() == mailbox:
+        if (
+            self._environment.get(ENV_PASSWORD)
+            and self._environment_mailbox(load_mailboxes(self._settings_file)) == mailbox
+        ):
             return environment_password(mailbox.name, self._environment)
         return read_password(mailbox.name)
 
@@ -122,19 +145,21 @@ class MailboxBook:
 
     def imap(self, mailbox: Mailbox) -> ImapSession:
         """Return an unopened IMAP session for `mailbox`; refused first if FIPS is required and absent."""
-        self.policy.check_fips(mailbox.name)
+        self.policy.check_fips(mailbox.name, mailbox.address)
         return self._session_factory(mailbox, self.password(mailbox))
 
     def approve(self, mailbox: Mailbox, message: EmailMessage) -> list[str]:
         """Check the message's real recipient list against policy and return it."""
         recipients: list[str] = envelope_recipients(message)
         addressed: bool = bool(str(message.get("To", "")).strip() or str(message.get("Cc", "")).strip())
-        self.policy.check_message(mailbox.name, recipients, addressed, lambda: message_markings(message))
+        self.policy.check_message(
+            mailbox.name, mailbox.address, recipients, addressed, lambda: message_markings(message)
+        )
         return recipients
 
     def smtp(self, mailbox: Mailbox) -> smtplib.SMTP:
         """Return an unauthenticated SMTP connection for `mailbox`; refused first if FIPS is required and absent."""
-        self.policy.check_fips(mailbox.name)
+        self.policy.check_fips(mailbox.name, mailbox.address)
         return self._smtp_factory(mailbox)
 
     def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:

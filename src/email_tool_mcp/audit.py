@@ -16,7 +16,6 @@ recipients, and the outcome. It never holds a subject, a body or a password.
 
 from __future__ import annotations
 
-import getpass
 import hashlib
 import hmac
 import json
@@ -25,6 +24,7 @@ import logging.handlers
 import os
 import secrets
 import socket
+import sys
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -43,12 +43,28 @@ ENV_AUDIT_FILE: Final[str] = "EMAIL_TOOL_AUDIT_FILE"
 ENV_AUDIT_SYSLOG: Final[str] = "EMAIL_TOOL_AUDIT_SYSLOG"
 KEYRING_SERVICE: Final[str] = f"{APP_NAME}-audit"
 GENESIS: Final[str] = "0" * 64
+logger: Final[logging.Logger] = logging.getLogger(__name__)
 # Arguments safe to record. Subjects, bodies and HTML are deliberately absent.
 RECORDED_ARGUMENTS: Final[tuple[str, ...]] = ("folder", "uid", "to", "cc", "limit", "sender", "since")
 
 
 class AuditError(RuntimeError):
     """Raised when a record cannot be written; the caller must not act."""
+
+
+def os_account() -> str:
+    """The account this process runs as, from its credentials, not from USER/LOGNAME (3.3.2)."""
+    if sys.platform == "win32":
+        import ctypes
+
+        size: ctypes.c_ulong = ctypes.c_ulong(257)
+        buffer: ctypes.Array[ctypes.c_wchar] = ctypes.create_unicode_buffer(size.value)
+        if ctypes.windll.advapi32.GetUserNameW(buffer, ctypes.byref(size)):  # type: ignore[attr-defined]
+            return str(buffer.value)
+        raise OSError("GetUserNameW failed")
+    import pwd
+
+    return pwd.getpwuid(os.getuid()).pw_name
 
 
 def default_audit_path() -> Path:
@@ -111,6 +127,8 @@ class VerifyResult:
 
     def render(self) -> str:
         """One line a person can read."""
+        if self.broken_at is None and self.reason:
+            return self.reason
         if self.broken_at is None:
             return f"OK: {self.records} record(s), chain intact and matches the keyring."
         return f"BROKEN at line {self.broken_at}: {self.reason}"
@@ -120,8 +138,9 @@ def verify(path: Path) -> VerifyResult:
     """Recompute every MAC and compare the newest one with the keyring anchor."""
     head: str = anchored_head(path)
     if not path.is_file():
-        broken: bool = head != GENESIS
-        return VerifyResult(0, 1 if broken else None, "the log file is missing" if broken else "")
+        if head != GENESIS:
+            return VerifyResult(0, 1, "the log file is missing")
+        return VerifyResult(0, None, f"No audit log at {path} yet: nothing has been recorded there.")
     key: bytes = audit_key(path)
     previous: str = GENESIS
     count: int = 0
@@ -168,7 +187,14 @@ class AuditLog:
         """Build from EMAIL_TOOL_AUDIT_FILE / EMAIL_TOOL_AUDIT_SYSLOG, defaulting to the user log folder."""
         path: Path = Path(environment.get(ENV_AUDIT_FILE, "") or default_audit_path())
         address: str = environment.get(ENV_AUDIT_SYSLOG, "")
-        return cls(path, syslog_handler(address) if with_syslog and address else None)
+        if not (with_syslog and address):
+            return cls(path)
+        try:
+            return cls(path, syslog_handler(address))
+        except OSError as error:
+            # The local log is authoritative; a SIEM that is down must not stop the tool.
+            logger.warning("audit copy to syslog %s unavailable, local log only: %s", address, error)
+            return cls(path)
 
     @property
     def path(self) -> Path:
@@ -189,7 +215,7 @@ class AuditLog:
         arguments: Mapping[str, Any] = fields.pop("arguments", {})
         body: dict[str, Any] = {
             "time": datetime.now(UTC).isoformat(timespec="milliseconds"),
-            "user": getpass.getuser(),
+            "user": os_account(),
             "host": socket.gethostname(),
             **fields,
         }
