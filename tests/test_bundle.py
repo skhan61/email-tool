@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from mcp import Client, StdioServerParameters
-from mcp_types import ListToolsResult
+
+from tests.launch import declared_tool_names, served_tool_names
 
 BUNDLE_DIR: str = os.environ.get("EMAIL_TOOL_BUNDLE_DIR", "")
 
@@ -23,11 +23,6 @@ pytestmark: list[pytest.MarkDecorator] = [
 ]
 
 
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
-
-
 async def test_unpacked_bundle_serves_every_declared_tool() -> None:
     bundle: Path = Path(BUNDLE_DIR).resolve()
     manifest: dict[str, Any] = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
@@ -35,7 +30,4 @@ async def test_unpacked_bundle_serves_every_declared_tool() -> None:
     arguments: list[str] = [argument.replace("${__dirname}", str(bundle)) for argument in config["args"]]
     # A blank form, as Claude Desktop sends it when the user fills nothing in.
     environment: dict[str, str] = {**os.environ, **{key: "" for key in config["env"]}}
-    server: StdioServerParameters = StdioServerParameters(command=config["command"], args=arguments, env=environment)
-    async with Client(server) as client:
-        listed: ListToolsResult = await client.list_tools()
-    assert {tool.name for tool in listed.tools} == {tool["name"] for tool in manifest["tools"]}
+    assert await served_tool_names(config["command"], arguments, environment) == declared_tool_names()

@@ -99,6 +99,15 @@ codex plugin marketplace add skhan61/email-tool
 codex plugin add email-tool@email-tool
 ```
 
+On macOS the app may not find `uvx`. If the email tools do not appear, add the
+server by hand in `~/.codex/config.toml` with the full path (`which uvx`):
+
+```toml
+[mcp_servers.email]
+command = "/Users/you/.local/bin/uvx"
+args = ["--from", "git+https://github.com/skhan61/email-tool", "email-tool-mcp", "serve"]
+```
+
 Known ChatGPT issue: local tools work in **Work / Codex** mode but do not reach
 normal **Chat** yet ([openai/codex#38162](https://github.com/openai/codex/issues/38162)).
 Nothing changes on this side when OpenAI fixes it.
@@ -106,8 +115,11 @@ Nothing changes on this side when OpenAI fixes it.
 #### ChatGPT Business / Enterprise: normal Chat and the web
 
 OpenAI's [Secure MCP Tunnel](https://github.com/openai/tunnel-client) carries
-ChatGPT's tool calls to the server on your machine over an outbound connection;
-nothing is exposed to the internet and the password stays in your keyring.
+ChatGPT's tool calls to the server on your machine over an outbound connection.
+No port is opened and the password stays in your keyring, but while
+`tunnel-client run` is going, the workspace connector can read, send and delete
+mail in every configured mailbox. Do not share the connector with other
+workspace members, and stop the tunnel when you are done.
 
 1. Create a tunnel at platform.openai.com > Settings > Tunnels, scoped to your
    ChatGPT workspace (needs the Tunnels Manage role).
@@ -123,7 +135,8 @@ nothing is exposed to the internet and the password stays in your keyring.
 
 #### Any other MCP client
 
-Add a stdio server with the command above.
+Add a stdio server that runs
+`uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve`.
 
 ## Security
 

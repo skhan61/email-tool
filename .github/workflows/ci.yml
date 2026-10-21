@@ -80,16 +80,20 @@ jobs:
     name: ChatGPT / Codex plugin
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      CODEX_HOME: ${{ github.workspace }}/../codex-home
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: npm install -g "$CODEX" && mkdir -p "$CODEX_HOME"
       - name: Install the plugin from this checkout with the real Codex CLI
         run: |
           set -euo pipefail
-          export CODEX_HOME="$HOME/codex-home"
-          npx -y "$CODEX" plugin marketplace add "$GITHUB_WORKSPACE"
-          npx -y "$CODEX" plugin add email-tool@email-tool
-          npx -y "$CODEX" plugin list | grep -E "email-tool@email-tool +installed, enabled"
-          npx -y "$CODEX" mcp list | grep -E "^email +uvx"
-      - name: Launch the server Codex registered (from this checkout) and list its tools
-        run: EMAIL_TOOL_CODEX_FROM="$GITHUB_WORKSPACE" uv run --locked pytest -q tests/test_codex_plugin.py
+          codex plugin marketplace add "$GITHUB_WORKSPACE"
+          codex plugin add email-tool@email-tool
+          codex plugin list | grep -E "email-tool@email-tool +installed, enabled"
+          codex mcp get email --json > "$RUNNER_TEMP/codex-email.json"
+      - name: Launch the server Codex registered (built from this checkout) and list its tools
+        run: >-
+          EMAIL_TOOL_CODEX_SERVER="$RUNNER_TEMP/codex-email.json" EMAIL_TOOL_CODEX_FROM="$GITHUB_WORKSPACE"
+          uv run --locked pytest -q tests/test_codex_plugin.py

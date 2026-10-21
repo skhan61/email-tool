@@ -2,7 +2,12 @@
   "mcpServers": {
     "email": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/skhan61/email-tool", "email-tool-mcp", "serve"]
+      "args": [
+        "--from",
+        "git+https://github.com/skhan61/email-tool@v4.0.0",
+        "email-tool-mcp",
+        "serve"
+      ]
     }
   }
 }

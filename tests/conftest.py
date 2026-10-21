@@ -51,6 +51,12 @@ def memory_keyring() -> Iterator[MemoryKeyring]:
 
 
 @pytest.fixture
+def anyio_backend() -> str:
+    """Run async tests on asyncio only."""
+    return "asyncio"
+
+
+@pytest.fixture
 def settings_file(tmp_path: Path) -> Path:
     """A settings file holding the `work` and `home` mailboxes."""
     path: Path = tmp_path / "mailboxes.toml"
