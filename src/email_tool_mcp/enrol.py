@@ -16,8 +16,8 @@ from typing import Final
 
 from email_tool_mcp.credentials import Credential, smtp_login
 from email_tool_mcp.imap_session import ImapSession
-from email_tool_mcp.mailbox_book import open_smtp
-from email_tool_mcp.passwords import delete_password, has_password, normalize_password, store_password
+from email_tool_mcp.mailbox_book import MailboxBook, open_smtp
+from email_tool_mcp.passwords import normalize_password, store_password
 from email_tool_mcp.policy import Policy, policy_paths
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
@@ -91,24 +91,30 @@ def add_mailbox(
     return f"Mailbox {name!r} ({address}) added. Login checked over IMAP and SMTP; password is in the OS keyring."
 
 
-def remove_mailbox(name: str, settings_file: Path) -> str:
-    """Forget the mailbox called `name` and delete its keyring password."""
+def remove_mailbox(name: str, book: MailboxBook, settings_file: Path) -> str:
+    """Forget the mailbox called `name` and delete its password or stored sign-in."""
     mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
-    if mailboxes.pop(name, None) is None:
+    removed: Mailbox | None = mailboxes.pop(name, None)
+    if removed is None:
         raise ValueError(f"no mailbox called {name!r}")
+    book.forget(removed)
     save_mailboxes(settings_file, mailboxes)
-    delete_password(name)
-    return f"Mailbox {name!r} removed, password deleted from the OS keyring."
+    what: str = (
+        "password deleted from the OS keyring" if removed.auth == "password" else f"{removed.auth} sign-in deleted"
+    )
+    return f"Mailbox {name!r} removed, {what}."
 
 
-def describe_mailboxes(settings_file: Path) -> str:
-    """Return one line per mailbox: name, address, servers, password state."""
+def describe_mailboxes(book: MailboxBook, settings_file: Path) -> str:
+    """Return one line per mailbox: name, address, servers, how it logs in."""
     mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
     if not mailboxes:
         return f"No mailboxes yet ({settings_file}). Add one with `{SETUP_COMMAND} <name>`."
     lines: list[str] = [f"Settings: {settings_file}"]
     for name, mailbox in sorted(mailboxes.items()):
-        state: str = "password in keyring" if has_password(name) else "NO PASSWORD"
+        problem: str = book.login_problem(mailbox)
+        ready: str = "password in keyring" if mailbox.auth == "password" else f"signed in to {mailbox.auth}"
+        state: str = problem.upper() if problem else ready
         lines.append(
             f"{name}: {mailbox.address}  imap {mailbox.imap_host}:{mailbox.imap_port}  "
             f"smtp {mailbox.smtp_host}:{mailbox.smtp_port}  ({state})"

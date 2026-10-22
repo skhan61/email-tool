@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from email_tool_mcp.enrol import add_mailbox, describe_mailboxes, remove_mailbox
+from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.passwords import has_password, read_password
 from email_tool_mcp.settings import Mailbox, load_mailboxes
 
@@ -64,7 +65,8 @@ def test_remove_deletes_settings_and_password(tmp_path: Path) -> None:
         ask_secret=lambda _: "secret",
         login_check=accept,
     )
-    assert "password in keyring" in describe_mailboxes(path)
-    remove_mailbox("work", path)
+    book: MailboxBook = MailboxBook(path, {})
+    assert "password in keyring" in describe_mailboxes(book, path)
+    remove_mailbox("work", book, path)
     assert load_mailboxes(path) == {}
     assert not has_password("work")

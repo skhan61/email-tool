@@ -26,13 +26,12 @@ from imapclient import IMAPClient, imap_utf7
 # value only when it holds a space, quote or backslash.
 from imapclient.imapclient import _literal
 
-from email_tool_mcp.credentials import Credential
-from email_tool_mcp.settings import Mailbox
+from email_tool_mcp.credentials import Credential, imap_login
+from email_tool_mcp.settings import NETWORK_TIMEOUT_SECONDS, Mailbox
 from email_tool_mcp.tls import client_context, socket_details
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
 
-_TIMEOUT_SECONDS: Final[float] = 60.0
 _GMAIL_EXTENSION: Final[str] = "X-GM-EXT-1"
 _UID_EXPUNGE: Final[str] = "UIDPLUS"
 _HEADER_REQUEST: Final[str] = "BODY.PEEK[HEADER]"
@@ -84,13 +83,10 @@ class ImapSession:
             port=self._mailbox.imap_port,
             ssl=True,
             ssl_context=client_context(),
-            timeout=_TIMEOUT_SECONDS,
+            timeout=NETWORK_TIMEOUT_SECONDS,
         )
         try:
-            if self._credential.is_token:
-                client.oauth2_login(self._credential.user, self._credential.secret)
-            else:
-                client.login(self._credential.user, self._credential.secret)
+            imap_login(client, self._credential)
         except BaseException:
             client.shutdown()
             raise

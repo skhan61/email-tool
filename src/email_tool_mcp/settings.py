@@ -37,6 +37,10 @@ SETUP_COMMAND: Final[str] = "uvx --from git+https://github.com/skhan61/email-too
 
 OPTIONAL_DEFAULTS: Final[dict[str, str]] = {"auth": "password", "client_id": "", "tenant": ""}
 
+NETWORK_TIMEOUT_SECONDS: Final[float] = 60.0
+# SMTP ports that start in plain text and upgrade with STARTTLS; every other port is implicit TLS.
+STARTTLS_PORTS: Final[frozenset[int]] = frozenset({25, 587})
+
 DEFAULT_IMAP_PORT: Final[int] = 993
 DEFAULT_SMTP_PORT: Final[int] = 465
 
@@ -47,7 +51,7 @@ class SettingsError(ValueError):
 
 @dataclass(frozen=True, config=ConfigDict(extra="forbid", strict=True))
 class Mailbox:
-    """One mailbox: its address and its implicit-TLS IMAP and SMTP servers."""
+    """One mailbox: its address, IMAP server (implicit TLS) and SMTP server (STARTTLS on 25/587, else implicit TLS)."""
 
     name: str
     address: str

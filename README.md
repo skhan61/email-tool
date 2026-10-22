@@ -286,7 +286,7 @@ organization must still do. Software is not CMMC certified; organizations are.
 
 - **"No password for mailbox"**: run `email-tool-mcp add <name>` again.
 - **Login refused**: check the servers with `email-tool-mcp list`; ports are
-  implicit TLS (IMAP 993, SMTP 465).
+  IMAP 993 is implicit TLS; SMTP uses STARTTLS on ports 25 and 587 and implicit TLS on any other port (465 usually).
 
 ## License
 

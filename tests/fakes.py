@@ -123,6 +123,7 @@ class FakeSmtp:
     def __init__(self, server: FakeMailServer) -> None:
         self._server: FakeMailServer = server
         self.sock: FakeTlsSocket = FakeTlsSocket()
+        self.esmtp_features: dict[str, str] = {}
 
     def __enter__(self) -> FakeSmtp:
         return self
@@ -134,7 +135,13 @@ class FakeSmtp:
         self._server.logins.append((user, password))
         return (235, b"ok")
 
+    def ehlo_or_helo_if_needed(self) -> None:
+        self.esmtp_features = {"auth": "LOGIN XOAUTH2"}
+
     def auth(self, mechanism: str, authobject: Xoauth2Responder, initial_response_ok: bool = True) -> None:
+        # Like a real server: AUTH before EHLO is refused (smtplib.auth itself never sends EHLO).
+        if "auth" not in self.esmtp_features:
+            raise smtplib.SMTPAuthenticationError(503, b"5.5.1 Send hello first")
         response: str | None = authobject(None)
         self._server.token_logins.append((f"smtp {mechanism}", response or ""))
 

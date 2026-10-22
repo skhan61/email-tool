@@ -68,7 +68,7 @@ class Cli:
 
     def remove(self, name: str) -> str:
         """Forget mailbox NAME and delete its password."""
-        return remove_mailbox(name, settings_path())
+        return remove_mailbox(name, MailboxBook(settings_path(), os.environ), settings_path())
 
     def check(self, name: str) -> str:
         """Log in to mailbox NAME and report the TLS version, cipher and FIPS state actually in use."""
@@ -77,7 +77,7 @@ class Cli:
 
     def list(self) -> str:
         """Show every mailbox on this machine."""
-        return describe_mailboxes(settings_path())
+        return describe_mailboxes(MailboxBook(settings_path(), os.environ), settings_path())
 
     def serve(self) -> None:
         """Run the MCP server on stdio (what an AI agent launches)."""

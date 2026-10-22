@@ -63,11 +63,6 @@ def pending_deletion(uid: int, folder: str) -> str:
     )
 
 
-def missing_login(mailbox: Mailbox) -> str:
-    """What a mailbox lacks before it can log in."""
-    return "no password" if mailbox.auth == "password" else f"not signed in to {mailbox.auth}"
-
-
 def render_message(message: Message) -> str:
     """Return headers, attachment names and the readable body, truncated."""
     body: str = extract_body(message)
@@ -92,7 +87,7 @@ class ReadingTools:
         """List the mailboxes configured on this machine and whether each can log in."""
         known: dict[str, Mailbox] = self._book.mailboxes()
         lines: list[str] = [
-            f"{name}: {mailbox.address} ({'ready' if self._book.has_credential(mailbox) else missing_login(mailbox)})"
+            f"{name}: {mailbox.address} ({self._book.login_problem(mailbox) or 'ready'})"
             for name, mailbox in sorted(known.items())
         ]
         if not known:

@@ -22,11 +22,13 @@ from email_tool_mcp.credentials import Credential, TokenSource, smtp_login
 from email_tool_mcp.cui import message_markings
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.message_compose import envelope_recipients
-from email_tool_mcp.passwords import MissingPassword, environment_password, read_password
+from email_tool_mcp.passwords import MissingPassword, delete_password, environment_password, read_password
 from email_tool_mcp.policy import Policy
 from email_tool_mcp.settings import (
     ENV_PASSWORD,
+    NETWORK_TIMEOUT_SECONDS,
     SETUP_COMMAND,
+    STARTTLS_PORTS,
     Mailbox,
     SettingsError,
     environment_mailbox,
@@ -38,7 +40,6 @@ SessionFactory = Callable[[Mailbox, Credential], ImapSession]
 SmtpFactory = Callable[[Mailbox], smtplib.SMTP]
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
-SMTPS_PORT: Final[int] = 465
 
 
 class UnknownMailbox(LookupError):
@@ -46,19 +47,23 @@ class UnknownMailbox(LookupError):
 
 
 def open_smtp(mailbox: Mailbox) -> smtplib.SMTP:
-    """Port 465: implicit TLS. Any other port: STARTTLS, refused if the server does not offer it.
+    """Ports 25 and 587: STARTTLS, refused if the server does not offer it. Any other port: implicit TLS.
 
     Both use tls.client_context(): certificate verified, TLS 1.2 minimum.
     """
-    if mailbox.smtp_port != SMTPS_PORT:
-        connection: smtplib.SMTP = smtplib.SMTP(host=mailbox.smtp_host, port=mailbox.smtp_port, timeout=60)
+    if mailbox.smtp_port in STARTTLS_PORTS:
+        connection: smtplib.SMTP = smtplib.SMTP(
+            host=mailbox.smtp_host, port=mailbox.smtp_port, timeout=NETWORK_TIMEOUT_SECONDS
+        )
         try:
             connection.starttls(context=client_context())
         except BaseException:
             connection.close()
             raise
         return connection
-    return smtplib.SMTP_SSL(host=mailbox.smtp_host, port=mailbox.smtp_port, context=client_context(), timeout=60)
+    return smtplib.SMTP_SSL(
+        host=mailbox.smtp_host, port=mailbox.smtp_port, context=client_context(), timeout=NETWORK_TIMEOUT_SECONDS
+    )
 
 
 class MailboxBook:
@@ -148,10 +153,28 @@ class MailboxBook:
 
     def has_credential(self, mailbox: Mailbox) -> bool:
         """True when `mailbox` can log in without asking: a stored password or sign-in."""
+        return not self.login_problem(mailbox)
+
+    def login_problem(self, mailbox: Mailbox) -> str:
+        """Why `mailbox` cannot log in right now, or "" when it can. Never raises."""
         if mailbox.auth == "password":
-            return self.has_password(mailbox)
+            return "" if self.has_password(mailbox) else "no password"
         source: TokenSource | None = self._token_sources.get(mailbox.auth)
-        return source is not None and source.is_signed_in(mailbox)
+        if source is None:
+            return f"{mailbox.auth} sign-in is not available in this version"
+        try:
+            return "" if source.is_signed_in(mailbox) else f"not signed in to {mailbox.auth}"
+        except Exception as error:
+            return f"cannot read the {mailbox.auth} sign-in: {type(error).__name__}"
+
+    def forget(self, mailbox: Mailbox) -> None:
+        """Delete what lets `mailbox` log in: its keyring password or its stored sign-in."""
+        if mailbox.auth == "password":
+            delete_password(mailbox.name)
+            return
+        source: TokenSource | None = self._token_sources.get(mailbox.auth)
+        if source is not None:
+            source.forget(mailbox)
 
     def has_password(self, mailbox: Mailbox) -> bool:
         """Return True when `password(mailbox)` would succeed."""
@@ -185,8 +208,7 @@ class MailboxBook:
         recipients: list[str] = self.approve(mailbox, message)
         if not recipients:
             raise ValueError("no recipients resolved from the 'to' and 'cc' arguments")
-        credential: Credential = self.credential(mailbox)
         with self.smtp(mailbox) as smtp:
-            smtp_login(smtp, credential)
+            smtp_login(smtp, self.credential(mailbox))
             refused: dict[str, tuple[int, bytes]] = smtp.send_message(message, to_addrs=recipients)
         return refused

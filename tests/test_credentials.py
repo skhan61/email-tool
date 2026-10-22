@@ -16,7 +16,7 @@ from mcp import Client
 from mcp_types import CallToolResult
 
 from email_tool_mcp.audit import AuditLog
-from email_tool_mcp.credentials import Xoauth2Responder, xoauth2
+from email_tool_mcp.credentials import Credential, Xoauth2Responder, smtp_login, xoauth2
 from email_tool_mcp.mailbox_book import MailboxBook, open_smtp
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import Mailbox, SettingsError, load_mailboxes, save_mailboxes
@@ -40,6 +40,9 @@ class FakeTokens:
 
     def is_signed_in(self, mailbox: Mailbox) -> bool:
         return self.signed_in
+
+    def forget(self, mailbox: Mailbox) -> None:
+        self.signed_in = False
 
 
 @pytest.fixture
@@ -136,6 +139,52 @@ def test_port_465_is_implicit_tls_and_others_use_starttls(
     open_smtp(Mailbox("o", "a@x.com", "i", 993, "smtp.x.com", port))
     assert (("starttls", ssl.TLSVersion.TLSv1_2) in RecordingSmtp.calls) is starttls
     assert RecordingSmtp.calls[0] == ("connect", ("smtp.x.com", port, not starttls))
+
+
+def test_token_login_says_hello_first_and_needs_xoauth2() -> None:
+    class Server:
+        def __init__(self, offered: str) -> None:
+            self.offered: str = offered
+            self.esmtp_features: dict[str, str] = {}
+            self.calls: list[str] = []
+
+        def ehlo_or_helo_if_needed(self) -> None:
+            self.calls.append("ehlo")
+            self.esmtp_features = {"auth": self.offered}
+
+        def auth(self, mechanism: str, authobject: Xoauth2Responder, initial_response_ok: bool = True) -> None:
+            self.calls.append(f"auth {mechanism}")
+
+    good: Server = Server("PLAIN LOGIN XOAUTH2")
+    smtp_login(good, Credential("me@x.com", "t", is_token=True))  # type: ignore[arg-type]
+    assert good.calls == ["ehlo", "auth XOAUTH2"]
+    with pytest.raises(smtplib.SMTPNotSupportedError, match="XOAUTH2"):
+        smtp_login(Server("PLAIN LOGIN"), Credential("me@x.com", "t", is_token=True))  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(("port", "starttls"), [(25, True), (2465, False)])
+def test_only_ports_25_and_587_use_starttls(monkeypatch: pytest.MonkeyPatch, port: int, starttls: bool) -> None:
+    RecordingSmtp.calls = []
+    monkeypatch.setattr(smtplib, "SMTP", RecordingSmtp)
+    monkeypatch.setattr(smtplib, "SMTP_SSL", RecordingSmtp)
+    open_smtp(Mailbox("o", "a@x.com", "i", 993, "smtp.x.com", port))
+    assert any(call[0] == "starttls" for call in RecordingSmtp.calls) is starttls
+
+
+def test_listing_explains_a_provider_this_version_lacks(tmp_path: Path) -> None:
+    assert (
+        MailboxBook(tmp_path / "m.toml", {}).login_problem(OUTLOOK)
+        == "microsoft sign-in is not available in this version"
+    )
+
+
+def test_a_broken_sign_in_store_does_not_break_the_listing(tmp_path: Path) -> None:
+    class Broken(FakeTokens):
+        def is_signed_in(self, mailbox: Mailbox) -> bool:
+            raise OSError("keyring locked")
+
+    book: MailboxBook = MailboxBook(tmp_path / "m.toml", {}, token_sources={"microsoft": Broken()})
+    assert book.login_problem(OUTLOOK) == "cannot read the microsoft sign-in: OSError"
 
 
 def test_a_server_without_starttls_is_refused_and_closed(monkeypatch: pytest.MonkeyPatch) -> None:

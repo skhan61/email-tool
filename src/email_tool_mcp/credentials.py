@@ -1,19 +1,21 @@
-"""How a mailbox proves who it is: a password, or an OAuth access token.
+"""How a mailbox proves who it is: a password, or an OAuth access token. The one place logins happen.
 
 Standard: SASL XOAUTH2, the token login Microsoft and Google document for IMAP and
 SMTP (`user=<address>^Aauth=Bearer <token>^A^A`); imapclient's `oauth2_login` for
-IMAP and `smtplib.SMTP.auth("XOAUTH2", ...)` for SMTP.
+IMAP and `smtplib.SMTP.auth("XOAUTH2", ...)` after EHLO for SMTP.
 Placement: credentials.py; MailboxBook builds one Credential per connection, and
-imap_session.py and the SMTP paths log in with it.
+imap_session.py and every SMTP path log in through `imap_login` / `smtp_login`.
 """
 
 from __future__ import annotations
 
 import smtplib
 from dataclasses import dataclass, field
-from typing import Protocol, overload
+from typing import Any, Protocol, overload
 
 from email_tool_mcp.settings import Mailbox
+
+XOAUTH2: str = "XOAUTH2"
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,10 @@ class TokenSource(Protocol):
 
     def is_signed_in(self, mailbox: Mailbox) -> bool:
         """True when a stored sign-in exists, without contacting the provider."""
+        ...
+
+    def forget(self, mailbox: Mailbox) -> None:
+        """Delete the stored sign-in for `mailbox`, if any."""
         ...
 
 
@@ -58,9 +64,25 @@ class Xoauth2Responder:
         return "" if challenge else self._initial
 
 
-def smtp_login(smtp: smtplib.SMTP, credential: Credential) -> None:
-    """Log in on an open SMTP connection with a password or an XOAUTH2 token."""
+def imap_login(client: Any, credential: Credential) -> None:
+    """Log an imapclient connection in with a password or an XOAUTH2 token."""
     if credential.is_token:
-        smtp.auth("XOAUTH2", Xoauth2Responder(credential.user, credential.secret), initial_response_ok=True)
+        client.oauth2_login(credential.user, credential.secret)
     else:
+        client.login(credential.user, credential.secret)
+
+
+def smtp_login(smtp: smtplib.SMTP, credential: Credential) -> None:
+    """Log in on an open SMTP connection with a password or an XOAUTH2 token.
+
+    `SMTP.auth`, unlike `login`, does not send EHLO itself, and it treats a 503 reply
+    as success; so EHLO is sent first and the server must offer XOAUTH2.
+    """
+    if not credential.is_token:
         smtp.login(credential.user, credential.secret)
+        return
+    smtp.ehlo_or_helo_if_needed()
+    offered: list[str] = smtp.esmtp_features.get("auth", "").upper().split()
+    if XOAUTH2 not in offered:
+        raise smtplib.SMTPNotSupportedError("the SMTP server does not offer XOAUTH2 token login")
+    smtp.auth(XOAUTH2, Xoauth2Responder(credential.user, credential.secret), initial_response_ok=True)
