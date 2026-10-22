@@ -18,7 +18,7 @@ from email_tool_mcp.diagnose import check_mailbox
 from email_tool_mcp.enrol import add_by_auth, describe_mailboxes, remove_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.policy import Policy, policy_paths, show_rules
-from email_tool_mcp.providers import microsoft_tokens, open_book
+from email_tool_mcp.providers import google_tokens, microsoft_tokens, open_book
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, settings_path
 
@@ -68,6 +68,8 @@ class Cli:
         tenant: str = "",
         cloud: str = "commercial",
         device_code: bool = False,
+        client_secrets: str = "",
+        paste_address: bool = False,
     ) -> str:
         """Add or replace mailbox NAME.
 
@@ -75,12 +77,16 @@ class Cli:
         --auth microsoft: --address; signs in in the browser (--device-code without one);
         --cloud gcc-high for GCC High (with --client-id of an app registered there);
         --tenant to pin a directory; --client-id to use your own app registration.
+        --auth google: --address and --client-secrets (the OAuth client file from Google
+        Cloud), for Google Workspace accounts without App Passwords; --paste-address when
+        the browser is on another computer.
         """
         return add_by_auth(
             name,
             settings_path(),
             auth,
             microsoft_tokens(),
+            google_tokens(),
             open_book(os.environ, with_policy=False).forget,
             address,
             imap_host,
@@ -91,6 +97,8 @@ class Cli:
             tenant,
             cloud,
             device_code,
+            client_secrets,
+            paste_address,
         )
 
     def remove(self, name: str) -> str:

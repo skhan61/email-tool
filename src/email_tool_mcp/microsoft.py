@@ -14,19 +14,17 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Final, Literal, Protocol
 
 import msal
-import requests
-from requests.adapters import HTTPAdapter
 
+from email_tool_mcp import credentials
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
-    NETWORK_TIMEOUT_SECONDS,
     SETUP_COMMAND,
     SUBMISSION_PORT,
     CloudName,
     Mailbox,
     SettingsError,
 )
-from email_tool_mcp.tls import client_context
+from email_tool_mcp.tls import https_session
 from email_tool_mcp.token_store import TokenStore
 
 PROVIDER: Final[Literal["microsoft"]] = "microsoft"
@@ -78,14 +76,11 @@ def add_command(mailbox: Mailbox) -> str:
     return " ".join(parts)
 
 
-class SignInRequired(PermissionError):
-    """The stored sign-in is missing, expired or revoked; the user must sign in again."""
+class SignInRequired(credentials.SignInRequired):
+    """The Microsoft sign-in is missing, expired or revoked."""
 
     def __init__(self, mailbox: Mailbox, detail: str = "") -> None:
-        reason: str = f" ({detail})" if detail else ""
-        super().__init__(
-            f"{mailbox.name} needs a new Microsoft sign-in{reason}. Run `{add_command(mailbox)}` in a terminal."
-        )
+        super().__init__(mailbox.name, "Microsoft", add_command(mailbox), detail)
 
 
 class MsalApp(Protocol):
@@ -103,32 +98,6 @@ class MsalApp(Protocol):
 
 
 AppFactory = Callable[[str, str, msal.SerializableTokenCache], MsalApp]
-
-
-class _TlsAdapter(HTTPAdapter):
-    """HTTPS with the TLS context and network timeout every IMAP and SMTP connection uses."""
-
-    def init_poolmanager(self, connections: int, maxsize: int, block: bool = False, **pool_kwargs: Any) -> None:
-        pool_kwargs["ssl_context"] = client_context()
-        super().init_poolmanager(connections, maxsize, block, **pool_kwargs)
-
-    def send(
-        self,
-        request: requests.PreparedRequest,
-        stream: bool = False,
-        timeout: float | tuple[float | None, float | None] | None = None,
-        verify: bool | str = True,
-        cert: str | tuple[str, str] | None = None,
-        proxies: dict[str, str] | None = None,
-    ) -> requests.Response:
-        return super().send(request, stream, timeout or NETWORK_TIMEOUT_SECONDS, verify, cert, proxies)
-
-
-def https_session() -> requests.Session:
-    """The HTTP client MSAL signs in and refreshes through."""
-    session: requests.Session = requests.Session()
-    session.mount("https://", _TlsAdapter(max_retries=1))
-    return session
 
 
 def msal_app(client_id: str, authority: str, cache: msal.SerializableTokenCache) -> MsalApp:
@@ -200,6 +169,23 @@ class SignIn:
 
 def _username(mailbox: Mailbox) -> str:
     return mailbox.account or mailbox.address
+
+
+# Microsoft's codes for "this organisation lets only its administrators approve apps"
+# (AADSTS65001 consent not granted, 90094/90095 admin consent required) and for an app
+# the organisation has not assigned to the user (50105).
+ADMIN_APPROVAL_CODES: Final[tuple[str, ...]] = ("AADSTS65001", "AADSTS90094", "AADSTS90095", "AADSTS50105")
+
+
+def _needs_admin(said: str, mailbox: Mailbox) -> str:
+    """What to ask IT for, when Microsoft says the organisation must approve the app."""
+    if not any(code in said for code in ADMIN_APPROVAL_CODES):
+        return ""
+    return (
+        f". Your organisation must approve email-tool first: ask IT to grant admin consent to the "
+        f"application ID {mailbox.client_id} (IMAP.AccessAsUser.All and SMTP.Send), or to register "
+        "the organisation's own app and give you its ID for --client-id"
+    )
 
 
 class MicrosoftTokens:
@@ -310,7 +296,8 @@ class MicrosoftTokens:
             show("A browser window opens for the Microsoft sign-in; finish it there.")
             result = app.acquire_token_interactive(scopes, login_hint=mailbox.address, prompt="select_account")
         if "access_token" not in result:
-            raise RuntimeError(f"Microsoft sign-in failed: {result.get('error_description', result.get('error'))}")
+            said: str = str(result.get("error_description", result.get("error"))).split("\n")[0]
+            raise RuntimeError(f"Microsoft sign-in failed: {said}{_needs_admin(said, mailbox)}")
         claims: dict[str, Any] = result.get("id_token_claims", {})
         username: str = str(claims.get("preferred_username") or "")
         if not username:

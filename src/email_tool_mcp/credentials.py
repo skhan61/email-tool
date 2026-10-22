@@ -27,6 +27,14 @@ class Credential:
     is_token: bool
 
 
+class SignInRequired(PermissionError):
+    """A kept sign-in is missing, expired or revoked; the user must sign in again."""
+
+    def __init__(self, name: str, provider: str, command: str, detail: str = "") -> None:
+        reason: str = f" ({detail})" if detail else ""
+        super().__init__(f"{name} needs a new {provider} sign-in{reason}. Run `{command}` in a terminal.")
+
+
 class TokenSource(Protocol):
     """Hands out OAuth access tokens for one provider, refreshing them as needed."""
 

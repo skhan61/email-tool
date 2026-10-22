@@ -13,6 +13,7 @@ import pytest
 
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.enrol import add_by_auth, add_mailbox, describe_mailboxes, remove_mailbox, save_mailbox
+from email_tool_mcp.google import GoogleTokens
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.microsoft import MicrosoftTokens
 from email_tool_mcp.passwords import has_password, read_password
@@ -113,19 +114,32 @@ def test_removing_an_unsupported_sign_in_says_it_was_left(tmp_path: Path) -> Non
 
 
 @pytest.mark.parametrize(
-    ("auth", "smtp_host", "client_id", "cloud", "complaint"),
+    ("auth", "smtp_host", "client_id", "cloud", "client_secrets", "complaint"),
     [
-        ("microsoft", "smtp.custom.us", "c", "commercial", "drop --imap-"),
-        ("password", "", "c", "commercial", "need --auth microsoft"),
-        ("password", "", "", "gcc-high", "need --auth microsoft"),
-        ("google", "", "", "commercial", "must be password or microsoft"),
+        ("microsoft", "smtp.custom.us", "c", "commercial", "", "drop --imap-"),
+        ("google", "smtp.custom.com", "", "commercial", "f.json", "drop --imap-"),
+        ("password", "", "c", "commercial", "", "need --auth microsoft"),
+        ("password", "", "", "gcc-high", "", "need --auth microsoft"),
+        ("google", "", "c", "commercial", "f.json", "need --auth microsoft"),
+        ("password", "", "", "commercial", "f.json", "need --auth google"),
+        ("microsoft", "", "", "commercial", "f.json", "need --auth google"),
+        ("yahoo", "", "", "commercial", "", "must be password, microsoft or google"),
     ],
 )
 def test_add_refuses_options_that_do_not_apply(
-    tmp_path: Path, auth: str, smtp_host: str, client_id: str, cloud: str, complaint: str
+    tmp_path: Path, auth: str, smtp_host: str, client_id: str, cloud: str, client_secrets: str, complaint: str
 ) -> None:
-    tokens: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "s"))
+    store: TokenStore = TokenStore(tmp_path / "s")
     with pytest.raises(ValueError, match=complaint):
         add_by_auth(
-            "x", tmp_path / "m.toml", auth, tokens, forget, smtp_host=smtp_host, client_id=client_id, cloud=cloud
+            "x",
+            tmp_path / "m.toml",
+            auth,
+            MicrosoftTokens(store),
+            GoogleTokens(store),
+            forget,
+            smtp_host=smtp_host,
+            client_id=client_id,
+            cloud=cloud,
+            client_secrets=client_secrets,
         )

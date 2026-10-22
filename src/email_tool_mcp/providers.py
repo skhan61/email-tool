@@ -9,6 +9,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from email_tool_mcp.credentials import TokenSource
+from email_tool_mcp.google import PROVIDER as GOOGLE
+from email_tool_mcp.google import GoogleTokens
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.microsoft import PROVIDER as MICROSOFT
 from email_tool_mcp.microsoft import MicrosoftTokens
@@ -22,9 +24,14 @@ def microsoft_tokens() -> MicrosoftTokens:
     return MicrosoftTokens(TokenStore(default_store_directory()))
 
 
+def google_tokens() -> GoogleTokens:
+    """Google sign-ins, kept in this user's encrypted sign-in store."""
+    return GoogleTokens(TokenStore(default_store_directory()))
+
+
 def token_sources() -> dict[str, TokenSource]:
     """Every provider."""
-    return {MICROSOFT: microsoft_tokens()}
+    return {MICROSOFT: microsoft_tokens(), GOOGLE: google_tokens()}
 
 
 def open_book(environment: Mapping[str, str], with_policy: bool) -> MailboxBook:
