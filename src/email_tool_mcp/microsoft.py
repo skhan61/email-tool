@@ -56,6 +56,9 @@ CLOUDS: Final[dict[CloudName, Cloud]] = {
     ),
 }
 PERSONAL_SMTP_HOST: Final[str] = "smtp-mail.outlook.com"
+# The project's own app registration (commercial cloud, work and personal accounts). An app ID
+# is public, not a secret; an organisation that wants its own app passes --client-id.
+DEFAULT_CLIENT_ID: Final[str] = "82731d7a-ac7f-4a5e-88d3-acce522f85ce"
 
 
 def add_command(mailbox: Mailbox) -> str:
@@ -65,8 +68,9 @@ def add_command(mailbox: Mailbox) -> str:
         mailbox.name,
         f"--auth {PROVIDER}",
         f"--address {mailbox.address}",
-        f"--client-id {mailbox.client_id or '<app id>'}",
     ]
+    if mailbox.client_id != DEFAULT_CLIENT_ID:
+        parts.append(f"--client-id {mailbox.client_id or '<app id>'}")
     if mailbox.cloud != "commercial":
         parts.append(f"--cloud {mailbox.cloud}")
     if mailbox.tenant:

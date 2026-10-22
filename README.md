@@ -90,30 +90,23 @@ Microsoft no longer accepts passwords for IMAP/SMTP, so these mailboxes sign in
 through Microsoft instead; no password is stored.
 
 ```bash
-email-tool-mcp add outlook --auth microsoft --address you@outlook.com --client-id <app id>
+email-tool-mcp add outlook --auth microsoft --address you@outlook.com
 ```
 
-A browser opens on Microsoft's sign-in page; sign in and approve. Personal and work
-accounts both work (any Outlook.com, Hotmail or Live domain, or a Microsoft 365 user
-name that differs from its address); the IMAP and SMTP check proves the account can
-open the mailbox before anything is kept.
-Use `--device-code` on a machine without a browser, `--cloud gcc-high` for GCC High,
-and `--tenant <directory id>` to pin a Microsoft 365 directory. The sign-in is kept
-encrypted (key in the OS keyring) and refreshes itself; if it ever expires, the
-assistant tells you to run the same command again.
+A browser opens on Microsoft's sign-in page; sign in and approve "email-tool". Personal
+and work accounts both work (any Outlook.com, Hotmail or Live domain, or a Microsoft 365
+user name that differs from its address); the IMAP and SMTP check proves the account can
+open the mailbox before anything is kept. Use `--device-code` on a machine without a
+browser and `--tenant <directory id>` to pin a Microsoft 365 directory. The sign-in is
+kept encrypted (key in the OS keyring) and refreshes itself; if it ever expires, the
+assistant tells you the command to run again.
 
-The client ID comes from an app registration in Microsoft Entra, done once by an
-administrator (or by you, with a free Azure account):
-
-1. portal.azure.com > App registrations > New registration
-2. Supported account types: "Accounts in any organizational directory and personal
-   Microsoft accounts" (or your directory only, for Microsoft 365)
-3. Redirect URI: "Public client/native (mobile & desktop)", `http://localhost`
-4. Authentication > Allow public client flows: Yes
-5. Copy the Application (client) ID from Overview; it is not a secret
-
-A Microsoft 365 administrator may have to grant consent for the IMAP and SMTP
-permissions the first time someone in the organization signs in.
+The project's own app registration is used by default. A Microsoft 365 administrator may
+have to grant it consent once, or may prefer the organisation's own app: register one in
+Microsoft Entra (App registrations > New registration; supported accounts as needed;
+redirect URI "Public client/native", `http://localhost`) and pass its Application
+(client) ID with `--client-id`. GCC High always needs its own app, registered in GCC High,
+with `--cloud gcc-high --client-id <app id>`.
 
 ### 2. Connect your agent
 

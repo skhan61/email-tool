@@ -72,8 +72,9 @@ class Cli:
         """Add or replace mailbox NAME.
 
         --auth password (default): asks for anything not given, and always for the password.
-        --auth microsoft: --address and --client-id; signs in in the browser (--device-code
-        without one); --cloud gcc-high for GCC High; --tenant to pin a directory.
+        --auth microsoft: --address; signs in in the browser (--device-code without one);
+        --cloud gcc-high for GCC High (with --client-id of an app registered there);
+        --tenant to pin a directory; --client-id to use your own app registration.
         """
         return add_by_auth(
             name,

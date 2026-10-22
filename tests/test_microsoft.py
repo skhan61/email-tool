@@ -21,6 +21,7 @@ from email_tool_mcp.credentials import Credential
 from email_tool_mcp.enrol import add_microsoft_mailbox, describe_mailboxes, remove_mailbox, save_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.microsoft import (
+    DEFAULT_CLIENT_ID,
     PERSONAL_SMTP_HOST,
     PERSONAL_TENANT_ID,
     MicrosoftTokens,
@@ -303,6 +304,21 @@ def test_switching_a_mailbox_to_microsoft_deletes_its_password(tokens: Microsoft
     assert not tokens.is_signed_in(OUTLOOK)
 
 
-def test_add_needs_a_client_id(tokens: MicrosoftTokens, tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="Application \\(client\\) ID"):
-        add_microsoft_mailbox("outlook", tmp_path / "m.toml", tokens, ADDRESS, "", forget=nothing_to_forget)
+def test_the_project_app_is_the_default_except_in_gcc_high(tokens: MicrosoftTokens, tmp_path: Path) -> None:
+    settings: Path = tmp_path / "m.toml"
+    add_microsoft_mailbox(
+        "outlook",
+        settings,
+        tokens,
+        ADDRESS,
+        "",
+        login_check=lambda mailbox, credential: None,
+        forget=nothing_to_forget,
+    )
+    saved: Mailbox = load_mailboxes(settings)["outlook"]
+    assert saved.client_id == DEFAULT_CLIENT_ID
+    assert "--client-id" not in str(SignInRequired(saved))
+    with pytest.raises(ValueError, match="GCC High needs an app registered in GCC High"):
+        add_microsoft_mailbox(
+            "gov", tmp_path / "g.toml", tokens, "me@agency.us", "", cloud="gcc-high", forget=nothing_to_forget
+        )

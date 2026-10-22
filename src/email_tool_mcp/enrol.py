@@ -17,7 +17,7 @@ from typing import Final
 from email_tool_mcp.credentials import Credential, smtp_login
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import MailboxBook, open_smtp
-from email_tool_mcp.microsoft import MicrosoftTokens, SignIn
+from email_tool_mcp.microsoft import DEFAULT_CLIENT_ID, MicrosoftTokens, SignIn
 from email_tool_mcp.microsoft import preset as microsoft_preset
 from email_tool_mcp.passwords import normalize_password, store_password
 from email_tool_mcp.policy import Policy, policy_paths
@@ -138,11 +138,12 @@ def add_microsoft_mailbox(
     """
     if not address:
         raise ValueError("give the mailbox address with --address")
-    if not client_id:
+    if not client_id and cloud != "commercial":
         raise ValueError(
-            "give the Microsoft app's Application (client) ID with --client-id "
-            "(Microsoft Entra > App registrations > your app > Overview)"
+            "GCC High needs an app registered in GCC High: give its Application (client) ID with "
+            "--client-id (Microsoft Entra > App registrations > your app > Overview)"
         )
+    client_id = client_id or DEFAULT_CLIENT_ID
     provisional: Mailbox = microsoft_preset(name, address, client_id, tenant, cloud)
     (policy if policy is not None else Policy(policy_paths())).check_fips(name, address)
     signed: SignIn = tokens.sign_in(provisional, device_code, show)
