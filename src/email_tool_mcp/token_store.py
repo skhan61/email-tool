@@ -55,10 +55,6 @@ class TokenStore:
         self._directory.mkdir(parents=True, exist_ok=True)
         return FileLock(str(self._path(provider, mailbox)) + ".lock")
 
-    def exists(self, provider: str, mailbox: str) -> bool:
-        """True when a sign-in is stored (file and key), without decrypting it."""
-        return self._path(provider, mailbox).is_file() and self._key(provider, mailbox, create=False) is not None
-
     def read(self, provider: str, mailbox: str) -> str | None:
         """The stored sign-in, or None when there is none."""
         path: Path = self._path(provider, mailbox)
@@ -81,9 +77,9 @@ class TokenStore:
         handle, name = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".tmp")
         temporary: Path = Path(name)
         try:
+            # mkstemp made it readable by its owner only.
             with os.fdopen(handle, "wb") as file:
                 file.write(Fernet(key).encrypt(value.encode("utf-8")))
-            os.chmod(temporary, 0o600)
             temporary.replace(path)
         except BaseException:
             temporary.unlink(missing_ok=True)

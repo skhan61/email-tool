@@ -7,11 +7,15 @@ Placement: tests/test_microsoft.py, beside microsoft.py, token_store.py and the 
 
 from __future__ import annotations
 
+import ssl
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import msal
 import pytest
+import requests
+from requests.adapters import HTTPAdapter
 
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.enrol import add_microsoft_mailbox, describe_mailboxes, remove_mailbox, save_mailbox
@@ -24,11 +28,12 @@ from email_tool_mcp.microsoft import (
     SignInRequired,
     authority_of,
     cloud_of,
+    https_session,
     preset,
     scopes_for,
 )
 from email_tool_mcp.passwords import has_password, store_password
-from email_tool_mcp.settings import Mailbox, load_mailboxes
+from email_tool_mcp.settings import NETWORK_TIMEOUT_SECONDS, Mailbox, load_mailboxes
 from email_tool_mcp.token_store import TokenStore
 
 ADDRESS: str = "sayem@outlook.com"
@@ -102,6 +107,10 @@ def tokens(tmp_path: Path) -> MicrosoftTokens:
 
 def accept(mailbox: Mailbox, credential: Credential) -> None:
     assert credential.is_token and credential.secret == "first-token"
+
+
+def nothing_to_forget(mailbox: Mailbox) -> bool:
+    raise AssertionError(f"nothing to forget: {mailbox.name} replaced no mailbox of another kind")
 
 
 def keep_signed_in(tokens: MicrosoftTokens, mailbox: Mailbox = OUTLOOK) -> Mailbox:
@@ -180,6 +189,28 @@ def test_sign_in_then_silent_tokens(tokens: MicrosoftTokens, device_code: bool) 
     assert ("ABCD" in shown[0]) is device_code
 
 
+def test_a_sign_in_for_another_app_does_not_count(tokens: MicrosoftTokens) -> None:
+    keep_signed_in(tokens)
+    assert not tokens.is_signed_in(replace(OUTLOOK, client_id="another-app"))
+
+
+def test_sign_in_traffic_uses_the_tls_floor_and_the_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[object] = []
+
+    def record(adapter: HTTPAdapter, request: requests.PreparedRequest, *args: object) -> requests.Response:
+        sent.append(args[1])
+        return requests.Response()
+
+    monkeypatch.setattr(HTTPAdapter, "send", record)
+    session: requests.Session = https_session()
+    adapter: object = session.get_adapter("https://login.microsoftonline.com")
+    assert isinstance(adapter, HTTPAdapter)
+    context: ssl.SSLContext = adapter.poolmanager.connection_pool_kw["ssl_context"]
+    assert context.minimum_version == ssl.TLSVersion.TLSv1_2
+    session.get("https://login.microsoftonline.com/common")
+    assert sent == [NETWORK_TIMEOUT_SECONDS]
+
+
 def test_refreshing_reuses_one_app_and_checking_builds_none(tokens: MicrosoftTokens) -> None:
     keep_signed_in(tokens)
     FakeMsal.instances = []
@@ -228,7 +259,7 @@ def test_the_stored_sign_in_is_encrypted_and_named_apart(tokens: MicrosoftTokens
 def test_add_signs_in_checks_and_saves_without_a_password(tokens: MicrosoftTokens, tmp_path: Path) -> None:
     settings: Path = tmp_path / "mailboxes.toml"
     message: str = add_microsoft_mailbox(
-        "outlook", settings, tokens, ADDRESS, "client-123", show=print, login_check=accept
+        "outlook", settings, tokens, ADDRESS, "client-123", show=print, login_check=accept, forget=nothing_to_forget
     )
     assert "No password stored" in message
     saved: Mailbox = load_mailboxes(settings)["outlook"]
@@ -244,14 +275,20 @@ def test_a_failed_check_keeps_the_earlier_sign_in(tokens: MicrosoftTokens, tmp_p
         raise OSError("AUTHENTICATE failed")
 
     settings: Path = tmp_path / "m.toml"
-    add_microsoft_mailbox("outlook", settings, tokens, ADDRESS, "client-123", login_check=accept)
+    add_microsoft_mailbox(
+        "outlook", settings, tokens, ADDRESS, "client-123", login_check=accept, forget=nothing_to_forget
+    )
     before: bytes = next((tmp_path / "sign-ins").glob("*.bin")).read_bytes()
     with pytest.raises(OSError):
-        add_microsoft_mailbox("outlook", settings, tokens, ADDRESS, "client-123", login_check=refuse)
+        add_microsoft_mailbox(
+            "outlook", settings, tokens, ADDRESS, "client-123", login_check=refuse, forget=nothing_to_forget
+        )
     assert next((tmp_path / "sign-ins").glob("*.bin")).read_bytes() == before
     assert tokens.is_signed_in(load_mailboxes(settings)["outlook"])
     with pytest.raises(OSError):
-        add_microsoft_mailbox("other", tmp_path / "n.toml", tokens, ADDRESS, "client-123", login_check=refuse)
+        add_microsoft_mailbox(
+            "other", tmp_path / "n.toml", tokens, ADDRESS, "client-123", login_check=refuse, forget=nothing_to_forget
+        )
     assert not (tmp_path / "n.toml").exists()
 
 
@@ -268,4 +305,4 @@ def test_switching_a_mailbox_to_microsoft_deletes_its_password(tokens: Microsoft
 
 def test_add_needs_a_client_id(tokens: MicrosoftTokens, tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="Application \\(client\\) ID"):
-        add_microsoft_mailbox("outlook", tmp_path / "m.toml", tokens, ADDRESS, "")
+        add_microsoft_mailbox("outlook", tmp_path / "m.toml", tokens, ADDRESS, "", forget=nothing_to_forget)

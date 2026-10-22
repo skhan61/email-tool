@@ -53,6 +53,10 @@ DEFAULT_IMAP_PORT: Final[int] = 993
 DEFAULT_SMTP_PORT: Final[int] = 465
 
 
+# The Microsoft clouds a mailbox can sign in to; microsoft.CLOUDS describes each.
+CloudName = Literal["commercial", "gcc-high"]
+
+
 class SettingsError(ValueError):
     """Raised when the settings file or the EMAIL_TOOL_* variables are malformed."""
 
@@ -74,7 +78,7 @@ class Mailbox:
     tenant: str = ""
     # The Microsoft cloud it signs in to, and the sign-in name when it is not the address
     # (a Microsoft 365 user name can differ from the mail address).
-    cloud: Literal["commercial", "gcc-high"] = "commercial"
+    cloud: CloudName = "commercial"
     account: str = ""
 
 

@@ -14,13 +14,11 @@ from pathlib import Path
 import fire
 
 from email_tool_mcp.audit import AuditLog, verify
-from email_tool_mcp.credentials import TokenSource
 from email_tool_mcp.diagnose import check_mailbox
-from email_tool_mcp.enrol import add_mailbox, add_microsoft_mailbox, describe_mailboxes, remove_mailbox
+from email_tool_mcp.enrol import add_by_auth, describe_mailboxes, remove_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.microsoft import MicrosoftTokens
 from email_tool_mcp.policy import Policy, policy_paths, show_rules
-from email_tool_mcp.providers import open_book, token_sources
+from email_tool_mcp.providers import microsoft_tokens, open_book
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, settings_path
 
@@ -77,13 +75,22 @@ class Cli:
         --auth microsoft: --address and --client-id; signs in in the browser (--device-code
         without one); --cloud gcc-high for GCC High; --tenant to pin a directory.
         """
-        if auth == "microsoft":
-            tokens: TokenSource = token_sources()["microsoft"]
-            assert isinstance(tokens, MicrosoftTokens)
-            return add_microsoft_mailbox(name, settings_path(), tokens, address, client_id, tenant, cloud, device_code)
-        if auth != "password":
-            raise ValueError(f"--auth must be password or microsoft, not {auth!r}")
-        return add_mailbox(name, settings_path(), address, imap_host, imap_port, smtp_host, smtp_port)
+        return add_by_auth(
+            name,
+            settings_path(),
+            auth,
+            microsoft_tokens(),
+            open_book(os.environ, with_policy=False).forget,
+            address,
+            imap_host,
+            imap_port,
+            smtp_host,
+            smtp_port,
+            client_id,
+            tenant,
+            cloud,
+            device_code,
+        )
 
     def remove(self, name: str) -> str:
         """Forget mailbox NAME and delete its password or sign-in."""

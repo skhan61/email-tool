@@ -17,10 +17,14 @@ from email_tool_mcp.settings import settings_path
 from email_tool_mcp.token_store import TokenStore, default_store_directory
 
 
+def microsoft_tokens() -> MicrosoftTokens:
+    """Microsoft sign-ins, kept in this user's encrypted sign-in store."""
+    return MicrosoftTokens(TokenStore(default_store_directory()))
+
+
 def token_sources() -> dict[str, TokenSource]:
-    """Every provider, sharing one encrypted sign-in store."""
-    store: TokenStore = TokenStore(default_store_directory())
-    return {MICROSOFT: MicrosoftTokens(store)}
+    """Every provider."""
+    return {MICROSOFT: microsoft_tokens()}
 
 
 def open_book(environment: Mapping[str, str], with_policy: bool) -> MailboxBook:

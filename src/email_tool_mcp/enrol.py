@@ -21,7 +21,6 @@ from email_tool_mcp.microsoft import MicrosoftTokens, SignIn
 from email_tool_mcp.microsoft import preset as microsoft_preset
 from email_tool_mcp.passwords import normalize_password, store_password
 from email_tool_mcp.policy import Policy, policy_paths
-from email_tool_mcp.providers import token_sources
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
     DEFAULT_SMTP_PORT,
@@ -29,12 +28,12 @@ from email_tool_mcp.settings import (
     Mailbox,
     load_mailboxes,
     save_mailboxes,
-    settings_path,
 )
 
 Ask = Callable[[str], str]
 LoginCheck = Callable[[Mailbox, Credential], None]
-Forget = Callable[[Mailbox], None]
+# Deletes a mailbox's password or sign-in; False when nothing could be deleted.
+Forget = Callable[[Mailbox], bool]
 
 KNOWN_HOSTS: Final[dict[str, tuple[str, str]]] = {
     "gmail.com": ("imap.gmail.com", "smtp.gmail.com"),
@@ -51,19 +50,24 @@ def check_login(mailbox: Mailbox, credential: Credential) -> None:
         smtp_login(smtp, credential)
 
 
-def forget_login(mailbox: Mailbox) -> None:
-    """Delete a mailbox's keyring password or kept sign-in, whichever it uses."""
-    MailboxBook(settings_path(), {}, token_sources=token_sources()).forget(mailbox)
+def save_mailbox(settings_file: Path, mailbox: Mailbox, forget: Forget) -> str:
+    """Save `mailbox`; when it replaces one that logged in another way, delete that old login.
 
-
-def save_mailbox(settings_file: Path, mailbox: Mailbox, forget: Forget) -> None:
-    """Save `mailbox`; when it replaces one that logged in another way, delete that old login."""
+    The new mailbox is saved and working either way, so a failed clean-up is reported
+    (returned as a note), not raised.
+    """
     mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
     previous: Mailbox | None = mailboxes.get(mailbox.name)
     mailboxes[mailbox.name] = mailbox
     save_mailboxes(settings_file, mailboxes)
-    if previous is not None and previous.auth != mailbox.auth:
-        forget(previous)
+    if previous is None or previous.auth == mailbox.auth:
+        return ""
+    try:
+        if forget(previous):
+            return f" Its old {previous.auth} login was deleted."
+    except Exception as error:
+        return f" Its old {previous.auth} login could not be deleted ({type(error).__name__}); remove it by hand."
+    return f" Its old {previous.auth} login was left in place (not supported by this version)."
 
 
 def ask_with_default(ask: Ask, prompt: str, default: str) -> str:
@@ -84,7 +88,8 @@ def add_mailbox(
     ask_secret: Ask = getpass.getpass,
     login_check: LoginCheck = check_login,
     policy: Policy | None = None,
-    forget: Forget = forget_login,
+    *,
+    forget: Forget,
 ) -> str:
     """Ask for anything missing, check the login, then save the mailbox and its password."""
     address = address or ask_with_default(ask, "Email address", "")
@@ -105,8 +110,10 @@ def add_mailbox(
 
     # Password first: a keyring that refuses it must not leave a mailbox saved without one.
     store_password(name, password)
-    save_mailbox(settings_file, mailbox, forget)
-    return f"Mailbox {name!r} ({address}) added. Login checked over IMAP and SMTP; password is in the OS keyring."
+    cleanup: str = save_mailbox(settings_file, mailbox, forget)
+    return (
+        f"Mailbox {name!r} ({address}) added. Login checked over IMAP and SMTP; password is in the OS keyring.{cleanup}"
+    )
 
 
 def add_microsoft_mailbox(
@@ -121,7 +128,8 @@ def add_microsoft_mailbox(
     show: Callable[[str], None] = print,
     login_check: LoginCheck = check_login,
     policy: Policy | None = None,
-    forget: Forget = forget_login,
+    *,
+    forget: Forget,
 ) -> str:
     """Sign in with Microsoft, check IMAP and SMTP with the token, then keep the sign-in and save.
 
@@ -143,8 +151,43 @@ def add_microsoft_mailbox(
     show(f"Signed in as {signed.username}; checking IMAP and SMTP for {address}.")
     login_check(mailbox, Credential(address, signed.access_token, is_token=True))
     tokens.keep(mailbox, signed)
-    save_mailbox(settings_file, mailbox, forget)
-    return f"Mailbox {name!r} ({address}) added. Signed in with Microsoft; IMAP and SMTP checked. No password stored."
+    note: str = save_mailbox(settings_file, mailbox, forget)
+    return (
+        f"Mailbox {name!r} ({address}) added. Signed in with Microsoft; IMAP and SMTP checked. "
+        f"No password stored.{note}"
+    )
+
+
+def add_by_auth(
+    name: str,
+    settings_file: Path,
+    auth: str,
+    tokens: MicrosoftTokens,
+    forget: Forget,
+    address: str = "",
+    imap_host: str = "",
+    imap_port: int = DEFAULT_IMAP_PORT,
+    smtp_host: str = "",
+    smtp_port: int = DEFAULT_SMTP_PORT,
+    client_id: str = "",
+    tenant: str = "",
+    cloud: str = "commercial",
+    device_code: bool = False,
+) -> str:
+    """The `add` command: refuse options that do not apply to `auth`, then add the mailbox."""
+    servers: bool = bool(imap_host or smtp_host) or (imap_port, smtp_port) != (DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT)
+    sign_in: bool = bool(client_id or tenant or device_code) or cloud != "commercial"
+    if auth == "microsoft":
+        if servers:
+            raise ValueError("--auth microsoft sets the servers itself; drop --imap-*/--smtp-*")
+        return add_microsoft_mailbox(
+            name, settings_file, tokens, address, client_id, tenant, cloud, device_code, forget=forget
+        )
+    if auth != "password":
+        raise ValueError(f"--auth must be password or microsoft, not {auth!r}")
+    if sign_in:
+        raise ValueError("--client-id, --tenant, --cloud and --device-code need --auth microsoft")
+    return add_mailbox(name, settings_file, address, imap_host, imap_port, smtp_host, smtp_port, forget=forget)
 
 
 def remove_mailbox(name: str, book: MailboxBook, settings_file: Path) -> str:
@@ -153,11 +196,13 @@ def remove_mailbox(name: str, book: MailboxBook, settings_file: Path) -> str:
     removed: Mailbox | None = mailboxes.pop(name, None)
     if removed is None:
         raise ValueError(f"no mailbox called {name!r}")
-    book.forget(removed)
+    deleted: bool = book.forget(removed)
     save_mailboxes(settings_file, mailboxes)
     what: str = (
         "password deleted from the OS keyring" if removed.auth == "password" else f"{removed.auth} sign-in deleted"
     )
+    if not deleted:
+        what = f"its {removed.auth} sign-in left in place (not supported by this version)"
     return f"Mailbox {name!r} removed, {what}."
 
 

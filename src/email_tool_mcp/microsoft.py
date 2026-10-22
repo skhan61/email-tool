@@ -14,18 +14,22 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Final, Literal, Protocol
 
 import msal
+import requests
+from requests.adapters import HTTPAdapter
 
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
+    NETWORK_TIMEOUT_SECONDS,
     SETUP_COMMAND,
     SUBMISSION_PORT,
+    CloudName,
     Mailbox,
     SettingsError,
 )
+from email_tool_mcp.tls import client_context
 from email_tool_mcp.token_store import TokenStore
 
 PROVIDER: Final[Literal["microsoft"]] = "microsoft"
-CloudName = Literal["commercial", "gcc-high"]
 # The directory every personal Microsoft account (Outlook.com, Hotmail, Live) signs in to,
 # whatever its mail domain; Microsoft returns it as the `tid` claim.
 PERSONAL_TENANT_ID: Final[str] = "9188040d-6c67-4c5b-b112-36a304b66dad"
@@ -97,14 +101,43 @@ class MsalApp(Protocol):
 AppFactory = Callable[[str, str, msal.SerializableTokenCache], MsalApp]
 
 
+class _TlsAdapter(HTTPAdapter):
+    """HTTPS with the TLS context and network timeout every IMAP and SMTP connection uses."""
+
+    def init_poolmanager(self, connections: int, maxsize: int, block: bool = False, **pool_kwargs: Any) -> None:
+        pool_kwargs["ssl_context"] = client_context()
+        super().init_poolmanager(connections, maxsize, block, **pool_kwargs)
+
+    def send(
+        self,
+        request: requests.PreparedRequest,
+        stream: bool = False,
+        timeout: float | tuple[float | None, float | None] | None = None,
+        verify: bool | str = True,
+        cert: str | tuple[str, str] | None = None,
+        proxies: dict[str, str] | None = None,
+    ) -> requests.Response:
+        return super().send(request, stream, timeout or NETWORK_TIMEOUT_SECONDS, verify, cert, proxies)
+
+
+def https_session() -> requests.Session:
+    """The HTTP client MSAL signs in and refreshes through."""
+    session: requests.Session = requests.Session()
+    session.mount("https://", _TlsAdapter(max_retries=1))
+    return session
+
+
 def msal_app(client_id: str, authority: str, cache: msal.SerializableTokenCache) -> MsalApp:
     """A real MSAL public client application (it fetches the directory's metadata once)."""
-    app: MsalApp = msal.PublicClientApplication(client_id, authority=authority, token_cache=cache)
+    app: MsalApp = msal.PublicClientApplication(
+        client_id, authority=authority, token_cache=cache, http_client=https_session()
+    )
     return app
 
 
 def cloud_named(name: str) -> CloudName:
     """`name` as a known cloud, or ValueError."""
+    known: CloudName
     for known in CLOUDS:
         if known == name:
             return known
@@ -192,7 +225,9 @@ class MicrosoftTokens:
         return app, cache
 
     def _drop_apps(self, mailbox: Mailbox) -> None:
-        for key in [key for key in self._apps if key[0] == mailbox.name]:
+        stale: list[tuple[str, str, str]] = [key for key in self._apps if key[0] == mailbox.name]
+        key: tuple[str, str, str]
+        for key in stale:
             del self._apps[key]
 
     def access_token(self, mailbox: Mailbox) -> str:
@@ -218,18 +253,32 @@ class MicrosoftTokens:
         return token
 
     def is_signed_in(self, mailbox: Mailbox) -> bool:
-        """True when a kept sign-in for this account exists; reads the cache only, no network."""
-        try:
-            saved: str | None = self._read(mailbox)
-        except SignInRequired:
+        """True when the kept sign-in holds this account and a refresh token for this app.
+
+        Reads the cache only, no network, so a refresh token Microsoft has revoked
+        still counts until the next refresh is refused.
+        """
+        if not mailbox.client_id:
             return False
-        if not (saved and mailbox.client_id):
+        with self._store.lock(PROVIDER, mailbox.name):
+            try:
+                saved: str | None = self._read(mailbox)
+            except SignInRequired:
+                return False
+        if not saved:
             return False
         cache: msal.SerializableTokenCache = msal.SerializableTokenCache()
         cache.deserialize(saved)
         wanted: str = _username(mailbox).lower()
-        accounts: list[dict[str, Any]] = list(cache.search(msal.TokenCache.CredentialType.ACCOUNT))
-        return any(str(account.get("username", "")).lower() == wanted for account in accounts)
+        homes: set[str] = {
+            str(account.get("home_account_id"))
+            for account in cache.search(msal.TokenCache.CredentialType.ACCOUNT)
+            if str(account.get("username", "")).lower() == wanted
+        }
+        refresh_tokens: list[dict[str, Any]] = list(
+            cache.search(msal.TokenCache.CredentialType.REFRESH_TOKEN, query={"client_id": mailbox.client_id})
+        )
+        return any(str(token.get("home_account_id")) in homes for token in refresh_tokens)
 
     def forget(self, mailbox: Mailbox) -> None:
         """Delete the kept sign-in."""

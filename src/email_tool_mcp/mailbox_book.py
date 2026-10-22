@@ -167,14 +167,19 @@ class MailboxBook:
         except Exception as error:
             return f"cannot read the {mailbox.auth} sign-in: {type(error).__name__}"
 
-    def forget(self, mailbox: Mailbox) -> None:
-        """Delete what lets `mailbox` log in: its keyring password or its stored sign-in."""
+    def forget(self, mailbox: Mailbox) -> bool:
+        """Delete what lets `mailbox` log in: its keyring password or its stored sign-in.
+
+        False when this version has no provider for its sign-in, so nothing was deleted.
+        """
         if mailbox.auth == "password":
             delete_password(mailbox.name)
-            return
+            return True
         source: TokenSource | None = self._token_sources.get(mailbox.auth)
-        if source is not None:
-            source.forget(mailbox)
+        if source is None:
+            return False
+        source.forget(mailbox)
+        return True
 
     def has_password(self, mailbox: Mailbox) -> bool:
         """Return True when `password(mailbox)` would succeed."""
