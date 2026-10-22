@@ -10,17 +10,25 @@ Placement: microsoft.py; MailboxBook asks it for tokens, enrol.py for the first 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any, Final, Literal, Protocol
 
 import msal
 
-from email_tool_mcp.settings import SETUP_COMMAND, Mailbox
+from email_tool_mcp.settings import (
+    DEFAULT_IMAP_PORT,
+    SETUP_COMMAND,
+    SUBMISSION_PORT,
+    Mailbox,
+    SettingsError,
+)
 from email_tool_mcp.token_store import TokenStore
 
 PROVIDER: Final[Literal["microsoft"]] = "microsoft"
-# Mail domains that are personal Microsoft accounts (Outlook.com).
-PERSONAL_DOMAINS: Final[frozenset[str]] = frozenset({"outlook.com", "hotmail.com", "live.com", "msn.com"})
+CloudName = Literal["commercial", "gcc-high"]
+# The directory every personal Microsoft account (Outlook.com, Hotmail, Live) signs in to,
+# whatever its mail domain; Microsoft returns it as the `tid` claim.
+PERSONAL_TENANT_ID: Final[str] = "9188040d-6c67-4c5b-b112-36a304b66dad"
 
 
 @dataclass(frozen=True)
@@ -31,17 +39,35 @@ class Cloud:
     resource: str
     imap_host: str
     smtp_host: str
+    # Directory used when none is pinned: "common" takes work and personal accounts alike.
+    default_tenant: str
 
 
-COMMERCIAL: Final[Cloud] = Cloud(
-    "login.microsoftonline.com", "outlook.office.com", "outlook.office365.com", "smtp.office365.com"
-)
-GCC_HIGH: Final[Cloud] = Cloud(
-    "login.microsoftonline.us", "outlook.office365.us", "outlook.office365.us", "smtp.office365.us"
-)
-CLOUDS: Final[dict[str, Cloud]] = {"commercial": COMMERCIAL, "gcc-high": GCC_HIGH}
+CLOUDS: Final[dict[CloudName, Cloud]] = {
+    "commercial": Cloud(
+        "login.microsoftonline.com", "outlook.office.com", "outlook.office365.com", "smtp.office365.com", "common"
+    ),
+    "gcc-high": Cloud(
+        "login.microsoftonline.us", "outlook.office365.us", "outlook.office365.us", "smtp.office365.us", "organizations"
+    ),
+}
 PERSONAL_SMTP_HOST: Final[str] = "smtp-mail.outlook.com"
-SMTP_STARTTLS_PORT: Final[int] = 587
+
+
+def add_command(mailbox: Mailbox) -> str:
+    """The full command that signs `mailbox` in again with the settings it has now."""
+    parts: list[str] = [
+        SETUP_COMMAND,
+        mailbox.name,
+        f"--auth {PROVIDER}",
+        f"--address {mailbox.address}",
+        f"--client-id {mailbox.client_id or '<app id>'}",
+    ]
+    if mailbox.cloud != "commercial":
+        parts.append(f"--cloud {mailbox.cloud}")
+    if mailbox.tenant:
+        parts.append(f"--tenant {mailbox.tenant}")
+    return " ".join(parts)
 
 
 class SignInRequired(PermissionError):
@@ -50,8 +76,7 @@ class SignInRequired(PermissionError):
     def __init__(self, mailbox: Mailbox, detail: str = "") -> None:
         reason: str = f" ({detail})" if detail else ""
         super().__init__(
-            f"{mailbox.name} needs a new Microsoft sign-in{reason}. "
-            f"Run `{SETUP_COMMAND} {mailbox.name} --auth microsoft` in a terminal."
+            f"{mailbox.name} needs a new Microsoft sign-in{reason}. Run `{add_command(mailbox)}` in a terminal."
         )
 
 
@@ -73,14 +98,28 @@ AppFactory = Callable[[str, str, msal.SerializableTokenCache], MsalApp]
 
 
 def msal_app(client_id: str, authority: str, cache: msal.SerializableTokenCache) -> MsalApp:
-    """A real MSAL public client application."""
+    """A real MSAL public client application (it fetches the directory's metadata once)."""
     app: MsalApp = msal.PublicClientApplication(client_id, authority=authority, token_cache=cache)
     return app
 
 
+def cloud_named(name: str) -> CloudName:
+    """`name` as a known cloud, or ValueError."""
+    for known in CLOUDS:
+        if known == name:
+            return known
+    raise ValueError(f"cloud must be one of {sorted(CLOUDS)}, not {name!r}")
+
+
 def cloud_of(mailbox: Mailbox) -> Cloud:
-    """The cloud a mailbox's servers belong to (GCC High hosts end in `.us`)."""
-    return GCC_HIGH if mailbox.imap_host.endswith(".us") else COMMERCIAL
+    """The cloud a mailbox signs in to."""
+    return CLOUDS[mailbox.cloud]
+
+
+def authority_of(mailbox: Mailbox) -> str:
+    """The sign-in URL: the mailbox's cloud and its pinned directory, or the cloud's default."""
+    cloud: Cloud = cloud_of(mailbox)
+    return f"https://{cloud.login_host}/{mailbox.tenant or cloud.default_tenant}"
 
 
 def scopes_for(cloud: Cloud) -> list[str]:
@@ -89,24 +128,41 @@ def scopes_for(cloud: Cloud) -> list[str]:
 
 
 def preset(name: str, address: str, client_id: str, tenant: str, cloud: str) -> Mailbox:
-    """A Microsoft mailbox with the right servers and directory for its address and cloud."""
-    if cloud not in CLOUDS:
-        raise ValueError(f"cloud must be one of {sorted(CLOUDS)}, not {cloud!r}")
-    chosen: Cloud = CLOUDS[cloud]
-    personal: bool = address.rpartition("@")[2].lower() in PERSONAL_DOMAINS
-    if personal and cloud != "commercial":
-        raise ValueError("Outlook.com accounts exist only in the commercial cloud")
+    """A Microsoft mailbox with its cloud's servers; `SignIn.complete` adjusts it once the account is known."""
+    chosen: CloudName = cloud_named(cloud)
     return Mailbox(
         name=name,
         address=address,
-        imap_host=chosen.imap_host,
-        imap_port=993,
-        smtp_host=PERSONAL_SMTP_HOST if personal else chosen.smtp_host,
-        smtp_port=SMTP_STARTTLS_PORT,
+        imap_host=CLOUDS[chosen].imap_host,
+        imap_port=DEFAULT_IMAP_PORT,
+        smtp_host=CLOUDS[chosen].smtp_host,
+        smtp_port=SUBMISSION_PORT,
         auth=PROVIDER,
         client_id=client_id,
-        tenant=tenant or ("consumers" if personal else "organizations"),
+        tenant=tenant,
+        cloud=chosen,
     )
+
+
+@dataclass(frozen=True)
+class SignIn:
+    """A finished sign-in, not yet kept: who signed in, a token to check the mailbox with, the new cache."""
+
+    username: str
+    personal: bool
+    access_token: str = field(repr=False)
+    cache: str = field(repr=False)
+
+    def complete(self, mailbox: Mailbox) -> Mailbox:
+        """`mailbox` with the SMTP server and sign-in name this account needs."""
+        account: str = "" if self.username.lower() == mailbox.address.lower() else self.username
+        smtp_host: str = PERSONAL_SMTP_HOST if self.personal else mailbox.smtp_host
+        completed: Mailbox = replace(mailbox, account=account, smtp_host=smtp_host)
+        return completed
+
+
+def _username(mailbox: Mailbox) -> str:
+    return mailbox.account or mailbox.address
 
 
 class MicrosoftTokens:
@@ -115,52 +171,80 @@ class MicrosoftTokens:
     def __init__(self, store: TokenStore, app_factory: AppFactory = msal_app) -> None:
         self._store: TokenStore = store
         self._app_factory: AppFactory = app_factory
+        # One MSAL app per mailbox and authority, built once: building one costs a metadata fetch.
+        self._apps: dict[tuple[str, str, str], tuple[MsalApp, msal.SerializableTokenCache]] = {}
 
-    def _open(self, mailbox: Mailbox) -> tuple[MsalApp, msal.SerializableTokenCache]:
-        if not mailbox.client_id:
-            raise SignInRequired(mailbox, "no app client ID is set for this mailbox")
-        cache: msal.SerializableTokenCache = msal.SerializableTokenCache()
-        saved: str | None = self._store.read(PROVIDER, mailbox.name)
-        if saved:
-            cache.deserialize(saved)
-        authority: str = f"https://{cloud_of(mailbox).login_host}/{mailbox.tenant or 'common'}"
-        return self._app_factory(mailbox.client_id, authority, cache), cache
+    def _read(self, mailbox: Mailbox) -> str | None:
+        try:
+            return self._store.read(PROVIDER, mailbox.name)
+        except SettingsError as error:
+            raise SignInRequired(mailbox, str(error)) from error
 
-    def _save(self, mailbox: Mailbox, cache: msal.SerializableTokenCache) -> None:
-        if cache.has_state_changed:
-            self._store.write(PROVIDER, mailbox.name, cache.serialize())
+    def _app(self, mailbox: Mailbox, saved: str) -> tuple[MsalApp, msal.SerializableTokenCache]:
+        key: tuple[str, str, str] = (mailbox.name, mailbox.client_id, authority_of(mailbox))
+        if key not in self._apps:
+            fresh: msal.SerializableTokenCache = msal.SerializableTokenCache()
+            self._apps[key] = (self._app_factory(mailbox.client_id, key[2], fresh), fresh)
+        app: MsalApp = self._apps[key][0]
+        cache: msal.SerializableTokenCache = self._apps[key][1]
+        # The latest from disk: another process may have refreshed it since.
+        cache.deserialize(saved)
+        return app, cache
+
+    def _drop_apps(self, mailbox: Mailbox) -> None:
+        for key in [key for key in self._apps if key[0] == mailbox.name]:
+            del self._apps[key]
 
     def access_token(self, mailbox: Mailbox) -> str:
-        """A valid access token, refreshed silently from the cached sign-in."""
-        app, cache = self._open(mailbox)
-        accounts: list[dict[str, Any]] = app.get_accounts(username=mailbox.address)
-        if not accounts:
-            raise SignInRequired(mailbox)
-        result: dict[str, Any] | None = app.acquire_token_silent(scopes_for(cloud_of(mailbox)), account=accounts[0])
-        self._save(mailbox, cache)
+        """A valid access token, refreshed silently from the kept sign-in."""
+        if not mailbox.client_id:
+            raise SignInRequired(mailbox, "no app client ID is set for this mailbox")
+        with self._store.lock(PROVIDER, mailbox.name):
+            saved: str | None = self._read(mailbox)
+            if not saved:
+                raise SignInRequired(mailbox)
+            app: MsalApp
+            cache: msal.SerializableTokenCache
+            app, cache = self._app(mailbox, saved)
+            accounts: list[dict[str, Any]] = app.get_accounts(username=_username(mailbox))
+            if not accounts:
+                raise SignInRequired(mailbox)
+            result: dict[str, Any] | None = app.acquire_token_silent(scopes_for(cloud_of(mailbox)), account=accounts[0])
+            if cache.has_state_changed:
+                self._store.write(PROVIDER, mailbox.name, cache.serialize())
         if not result or "access_token" not in result:
             raise SignInRequired(mailbox, str((result or {}).get("error_description", "")).split("\n")[0])
         token: str = result["access_token"]
         return token
 
     def is_signed_in(self, mailbox: Mailbox) -> bool:
-        """True when a cached sign-in for this address exists (no network)."""
-        if not self._store.exists(PROVIDER, mailbox.name):
+        """True when a kept sign-in for this account exists; reads the cache only, no network."""
+        try:
+            saved: str | None = self._read(mailbox)
+        except SignInRequired:
             return False
-        app: MsalApp = self._open(mailbox)[0]
-        return bool(app.get_accounts(username=mailbox.address))
+        if not (saved and mailbox.client_id):
+            return False
+        cache: msal.SerializableTokenCache = msal.SerializableTokenCache()
+        cache.deserialize(saved)
+        wanted: str = _username(mailbox).lower()
+        accounts: list[dict[str, Any]] = list(cache.search(msal.TokenCache.CredentialType.ACCOUNT))
+        return any(str(account.get("username", "")).lower() == wanted for account in accounts)
 
     def forget(self, mailbox: Mailbox) -> None:
-        """Delete the cached sign-in."""
-        self._store.delete(PROVIDER, mailbox.name)
+        """Delete the kept sign-in."""
+        with self._store.lock(PROVIDER, mailbox.name):
+            self._store.delete(PROVIDER, mailbox.name)
+            self._drop_apps(mailbox)
 
-    def sign_in(self, mailbox: Mailbox, device_code: bool, show: Callable[[str], None]) -> None:
-        """Sign in once in the browser (or with a device code) and keep the result.
+    def sign_in(self, mailbox: Mailbox, device_code: bool, show: Callable[[str], None]) -> SignIn:
+        """Sign in once in the browser (or with a device code); nothing is kept until `keep`.
 
-        The account that signs in must be `mailbox.address`; any other account is refused
-        and nothing is stored.
+        The sign-in goes into a new cache, so a sign-in kept earlier is untouched if
+        this one, or the check after it, fails.
         """
-        app, cache = self._open(mailbox)
+        cache: msal.SerializableTokenCache = msal.SerializableTokenCache()
+        app: MsalApp = self._app_factory(mailbox.client_id, authority_of(mailbox), cache)
         scopes: list[str] = scopes_for(cloud_of(mailbox))
         result: dict[str, Any]
         if device_code:
@@ -175,9 +259,13 @@ class MicrosoftTokens:
         if "access_token" not in result:
             raise RuntimeError(f"Microsoft sign-in failed: {result.get('error_description', result.get('error'))}")
         claims: dict[str, Any] = result.get("id_token_claims", {})
-        signed_in: str = str(claims.get("preferred_username") or claims.get("email") or "")
-        if signed_in.lower() != mailbox.address.lower():
-            raise RuntimeError(
-                f"signed in as {signed_in or 'an unknown account'}, not {mailbox.address}; nothing saved"
-            )
-        self._save(mailbox, cache)
+        username: str = str(claims.get("preferred_username") or "")
+        if not username:
+            raise RuntimeError("Microsoft did not say which account signed in; nothing saved")
+        return SignIn(username, claims.get("tid") == PERSONAL_TENANT_ID, str(result["access_token"]), cache.serialize())
+
+    def keep(self, mailbox: Mailbox, signed: SignIn) -> None:
+        """Keep a checked sign-in for `mailbox`, replacing any earlier one."""
+        with self._store.lock(PROVIDER, mailbox.name):
+            self._store.write(PROVIDER, mailbox.name, signed.cache)
+            self._drop_apps(mailbox)

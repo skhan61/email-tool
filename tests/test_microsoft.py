@@ -1,4 +1,4 @@
-"""Microsoft sign-in: presets, silent refresh, wrong-account refusal, encrypted storage, add and remove.
+"""Microsoft sign-in: presets, account kinds, silent refresh, encrypted storage, add, re-add and remove.
 
 Standard: pytest; a fake MSAL application stands in for Microsoft's servers, with the real
 msal.SerializableTokenCache and the real encrypted TokenStore.
@@ -14,9 +14,20 @@ import msal
 import pytest
 
 from email_tool_mcp.credentials import Credential
-from email_tool_mcp.enrol import add_microsoft_mailbox, describe_mailboxes, remove_mailbox
+from email_tool_mcp.enrol import add_microsoft_mailbox, describe_mailboxes, remove_mailbox, save_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.microsoft import MicrosoftTokens, SignInRequired, cloud_of, preset, scopes_for
+from email_tool_mcp.microsoft import (
+    PERSONAL_SMTP_HOST,
+    PERSONAL_TENANT_ID,
+    MicrosoftTokens,
+    SignIn,
+    SignInRequired,
+    authority_of,
+    cloud_of,
+    preset,
+    scopes_for,
+)
+from email_tool_mcp.passwords import has_password, store_password
 from email_tool_mcp.settings import Mailbox, load_mailboxes
 from email_tool_mcp.token_store import TokenStore
 
@@ -33,6 +44,8 @@ class FakeMsal:
         self.authority: str = authority
         self.cache: msal.SerializableTokenCache = cache
         self.signed_in_as: str = ADDRESS
+        self.tenant_id: str = PERSONAL_TENANT_ID
+        self.scopes: list[str] = []
         self.silent: dict[str, Any] | None = {"access_token": "fresh-token"}
         FakeMsal.instances.append(self)
 
@@ -64,16 +77,18 @@ class FakeMsal:
                 "authority_type": "MSSTS",
             }
         )
-        return {"access_token": "first-token", "id_token_claims": {"preferred_username": self.signed_in_as}}
+        claims: dict[str, str] = {"preferred_username": self.signed_in_as, "tid": self.tenant_id}
+        return {"access_token": "first-token", "id_token_claims": claims}
 
     def acquire_token_interactive(self, scopes: list[str], **options: Any) -> dict[str, Any]:
         return self._signed_in(scopes)
 
     def initiate_device_flow(self, scopes: list[str]) -> dict[str, Any]:
+        self.scopes = scopes
         return {"user_code": "ABCD", "message": "Go to https://microsoft.com/devicelogin and enter ABCD"}
 
     def acquire_token_by_device_flow(self, flow: dict[str, Any]) -> dict[str, Any]:
-        return self._signed_in(scopes_for(cloud_of(OUTLOOK)))
+        return self._signed_in(self.scopes)
 
 
 OUTLOOK: Mailbox = preset("outlook", ADDRESS, "client-123", "", "commercial")
@@ -86,42 +101,93 @@ def tokens(tmp_path: Path) -> MicrosoftTokens:
 
 
 def accept(mailbox: Mailbox, credential: Credential) -> None:
-    assert credential.is_token and credential.secret == "fresh-token"
+    assert credential.is_token and credential.secret == "first-token"
 
 
-def test_presets_pick_servers_and_directory_for_each_kind_of_account() -> None:
-    assert (OUTLOOK.imap_host, OUTLOOK.smtp_host, OUTLOOK.smtp_port, OUTLOOK.tenant) == (
+def keep_signed_in(tokens: MicrosoftTokens, mailbox: Mailbox = OUTLOOK) -> Mailbox:
+    signed: SignIn = tokens.sign_in(mailbox, False, print)
+    completed: Mailbox = signed.complete(mailbox)
+    tokens.keep(completed, signed)
+    return completed
+
+
+def test_presets_pick_servers_and_directory_for_each_cloud() -> None:
+    assert (OUTLOOK.imap_host, OUTLOOK.smtp_host, OUTLOOK.smtp_port, OUTLOOK.cloud) == (
         "outlook.office365.com",
-        "smtp-mail.outlook.com",
+        "smtp.office365.com",
         587,
-        "consumers",
+        "commercial",
     )
-    work: Mailbox = preset("w", "me@contoso.com", "c", "", "commercial")
-    assert (work.smtp_host, work.tenant) == ("smtp.office365.com", "organizations")
+    assert authority_of(OUTLOOK) == "https://login.microsoftonline.com/common"
     gcc: Mailbox = preset("g", "me@agency.us", "c", "tenant-id", "gcc-high")
-    assert (gcc.imap_host, gcc.smtp_host, gcc.tenant) == ("outlook.office365.us", "smtp.office365.us", "tenant-id")
+    assert (gcc.imap_host, gcc.smtp_host, gcc.cloud) == ("outlook.office365.us", "smtp.office365.us", "gcc-high")
+    assert authority_of(gcc) == "https://login.microsoftonline.us/tenant-id"
+    assert authority_of(preset("g", "me@agency.us", "c", "", "gcc-high")).endswith("/organizations")
     assert scopes_for(cloud_of(gcc)) == [
         "https://outlook.office365.us/IMAP.AccessAsUser.All",
         "https://outlook.office365.us/SMTP.Send",
     ]
     with pytest.raises(ValueError):
-        preset("x", "me@outlook.com", "c", "", "gcc-high")
+        preset("x", "me@outlook.com", "c", "", "moon")
+
+
+class Regional(FakeMsal):
+    """A personal account on a regional domain."""
+
+    def __init__(self, client_id: str, authority: str, cache: msal.SerializableTokenCache) -> None:
+        super().__init__(client_id, authority, cache)
+        self.signed_in_as = "sayem@hotmail.co.uk"
+
+
+class Work(FakeMsal):
+    """A Microsoft 365 account whose user name is not its mail address."""
+
+    def __init__(self, client_id: str, authority: str, cache: msal.SerializableTokenCache) -> None:
+        super().__init__(client_id, authority, cache)
+        self.signed_in_as = "skhan@contoso.onmicrosoft.com"
+        self.tenant_id = "contoso-tenant"
+
+
+def test_the_account_kind_comes_from_microsoft_not_the_domain(tmp_path: Path) -> None:
+    regional: Mailbox = preset("uk", "sayem@hotmail.co.uk", "c", "", "commercial")
+    personal: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "a"), Regional)
+    assert tokens_complete(personal, regional).smtp_host == PERSONAL_SMTP_HOST
+    work: Mailbox = preset("w", "s.khan@contoso.com", "c", "", "commercial")
+    completed: Mailbox = tokens_complete(MicrosoftTokens(TokenStore(tmp_path / "b"), Work), work)
+    assert (completed.smtp_host, completed.account) == ("smtp.office365.com", "skhan@contoso.onmicrosoft.com")
+
+
+def tokens_complete(tokens: MicrosoftTokens, mailbox: Mailbox) -> Mailbox:
+    return tokens.sign_in(mailbox, False, print).complete(mailbox)
+
+
+def test_a_user_name_unlike_the_address_is_kept_and_refreshed(tmp_path: Path) -> None:
+    tokens: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "s"), Work)
+    work: Mailbox = keep_signed_in(tokens, preset("w", "s.khan@contoso.com", "c", "", "commercial"))
+    assert tokens.is_signed_in(work) and tokens.access_token(work) == "fresh-token"
+    assert not tokens.is_signed_in(preset("w", "s.khan@contoso.com", "c", "", "commercial"))
 
 
 @pytest.mark.parametrize("device_code", [False, True])
 def test_sign_in_then_silent_tokens(tokens: MicrosoftTokens, device_code: bool) -> None:
     shown: list[str] = []
-    tokens.sign_in(OUTLOOK, device_code, shown.append)
+    signed: SignIn = tokens.sign_in(OUTLOOK, device_code, shown.append)
+    assert not tokens.is_signed_in(OUTLOOK)
+    tokens.keep(signed.complete(OUTLOOK), signed)
     assert tokens.is_signed_in(OUTLOOK)
     assert tokens.access_token(OUTLOOK) == "fresh-token"
-    assert FakeMsal.instances[0].authority == "https://login.microsoftonline.com/consumers"
+    assert FakeMsal.instances[0].authority == "https://login.microsoftonline.com/common"
     assert ("ABCD" in shown[0]) is device_code
 
 
-class OtherAccount(FakeMsal):
-    def __init__(self, client_id: str, authority: str, cache: msal.SerializableTokenCache) -> None:
-        super().__init__(client_id, authority, cache)
-        self.signed_in_as = "someone.else@outlook.com"
+def test_refreshing_reuses_one_app_and_checking_builds_none(tokens: MicrosoftTokens) -> None:
+    keep_signed_in(tokens)
+    FakeMsal.instances = []
+    assert tokens.is_signed_in(OUTLOOK)
+    assert FakeMsal.instances == []
+    tokens.access_token(OUTLOOK)
+    tokens.access_token(OUTLOOK)
+    assert len(FakeMsal.instances) == 1
 
 
 class Expired(FakeMsal):
@@ -130,25 +196,33 @@ class Expired(FakeMsal):
         self.silent = {"error": "invalid_grant", "error_description": "AADSTS70043: refresh token expired\nTrace"}
 
 
-def test_signing_in_as_another_account_is_refused_and_nothing_is_stored(tmp_path: Path) -> None:
-    tokens: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "sign-ins"), OtherAccount)
-    with pytest.raises(RuntimeError, match="someone.else@outlook.com"):
-        tokens.sign_in(OUTLOOK, False, print)
-    assert not tokens.is_signed_in(OUTLOOK)
-
-
-def test_an_expired_sign_in_names_the_command_to_fix_it(tokens: MicrosoftTokens, tmp_path: Path) -> None:
-    tokens.sign_in(OUTLOOK, False, print)
+def test_an_expired_sign_in_names_the_whole_command_to_fix_it(tokens: MicrosoftTokens, tmp_path: Path) -> None:
+    gcc: Mailbox = keep_signed_in(tokens, preset("gov", "me@agency.us", "client-9", "", "gcc-high"))
     expired: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "sign-ins"), Expired)
-    with pytest.raises(SignInRequired, match="--auth microsoft") as raised:
-        expired.access_token(OUTLOOK)
-    assert "AADSTS70043: refresh token expired" in str(raised.value) and "Trace" not in str(raised.value)
+    with pytest.raises(SignInRequired) as raised:
+        expired.access_token(gcc)
+    message: str = str(raised.value)
+    assert "add gov --auth microsoft --address me@agency.us --client-id client-9 --cloud gcc-high" in message
+    assert "AADSTS70043: refresh token expired" in message and "Trace" not in message
 
 
-def test_the_stored_sign_in_is_encrypted(tokens: MicrosoftTokens, tmp_path: Path) -> None:
-    tokens.sign_in(OUTLOOK, False, print)
-    stored: bytes = next((tmp_path / "sign-ins").iterdir()).read_bytes()
+def test_an_undecryptable_sign_in_asks_for_a_new_one(tokens: MicrosoftTokens, tmp_path: Path) -> None:
+    keep_signed_in(tokens)
+    stored: Path = next((tmp_path / "sign-ins").glob("*.bin"))
+    stored.write_bytes(b"garbage")
+    assert not tokens.is_signed_in(OUTLOOK)
+    with pytest.raises(SignInRequired, match="--client-id client-123"):
+        tokens.access_token(OUTLOOK)
+
+
+def test_the_stored_sign_in_is_encrypted_and_named_apart(tokens: MicrosoftTokens, tmp_path: Path) -> None:
+    keep_signed_in(tokens)
+    stored: bytes = next((tmp_path / "sign-ins").glob("*.bin")).read_bytes()
     assert b"refresh" not in stored and b"first-token" not in stored and ADDRESS.encode() not in stored
+    store: TokenStore = TokenStore(tmp_path / "names")
+    store.write("microsoft", "a b", "one")
+    store.write("microsoft", "a_b", "two")
+    assert (store.read("microsoft", "a b"), store.read("microsoft", "a_b")) == ("one", "two")
 
 
 def test_add_signs_in_checks_and_saves_without_a_password(tokens: MicrosoftTokens, tmp_path: Path) -> None:
@@ -157,21 +231,39 @@ def test_add_signs_in_checks_and_saves_without_a_password(tokens: MicrosoftToken
         "outlook", settings, tokens, ADDRESS, "client-123", show=print, login_check=accept
     )
     assert "No password stored" in message
-    assert load_mailboxes(settings)["outlook"] == OUTLOOK
+    saved: Mailbox = load_mailboxes(settings)["outlook"]
+    assert (saved.smtp_host, saved.account) == (PERSONAL_SMTP_HOST, "")
     book: MailboxBook = MailboxBook(settings, {}, token_sources={"microsoft": tokens})
     assert "signed in to microsoft" in describe_mailboxes(book, settings)
     remove_mailbox("outlook", book, settings)
-    assert not tokens.is_signed_in(OUTLOOK)
+    assert not tokens.is_signed_in(saved)
 
 
-def test_a_failed_check_removes_the_sign_in(tokens: MicrosoftTokens, tmp_path: Path) -> None:
+def test_a_failed_check_keeps_the_earlier_sign_in(tokens: MicrosoftTokens, tmp_path: Path) -> None:
     def refuse(mailbox: Mailbox, credential: Credential) -> None:
         raise OSError("AUTHENTICATE failed")
 
+    settings: Path = tmp_path / "m.toml"
+    add_microsoft_mailbox("outlook", settings, tokens, ADDRESS, "client-123", login_check=accept)
+    before: bytes = next((tmp_path / "sign-ins").glob("*.bin")).read_bytes()
     with pytest.raises(OSError):
-        add_microsoft_mailbox("outlook", tmp_path / "m.toml", tokens, ADDRESS, "client-123", login_check=refuse)
+        add_microsoft_mailbox("outlook", settings, tokens, ADDRESS, "client-123", login_check=refuse)
+    assert next((tmp_path / "sign-ins").glob("*.bin")).read_bytes() == before
+    assert tokens.is_signed_in(load_mailboxes(settings)["outlook"])
+    with pytest.raises(OSError):
+        add_microsoft_mailbox("other", tmp_path / "n.toml", tokens, ADDRESS, "client-123", login_check=refuse)
+    assert not (tmp_path / "n.toml").exists()
+
+
+def test_switching_a_mailbox_to_microsoft_deletes_its_password(tokens: MicrosoftTokens, tmp_path: Path) -> None:
+    settings: Path = tmp_path / "m.toml"
+    book: MailboxBook = MailboxBook(settings, {}, token_sources={"microsoft": tokens})
+    save_mailbox(settings, Mailbox("outlook", ADDRESS, "imap.x", 993, "smtp.x", 465), book.forget)
+    store_password("outlook", "old-password")
+    add_microsoft_mailbox("outlook", settings, tokens, ADDRESS, "client-123", login_check=accept, forget=book.forget)
+    assert not has_password("outlook")
+    save_mailbox(settings, Mailbox("outlook", ADDRESS, "imap.x", 993, "smtp.x", 465), book.forget)
     assert not tokens.is_signed_in(OUTLOOK)
-    assert not (tmp_path / "m.toml").exists()
 
 
 def test_add_needs_a_client_id(tokens: MicrosoftTokens, tmp_path: Path) -> None:

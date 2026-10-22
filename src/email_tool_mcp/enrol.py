@@ -17,10 +17,11 @@ from typing import Final
 from email_tool_mcp.credentials import Credential, smtp_login
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import MailboxBook, open_smtp
-from email_tool_mcp.microsoft import MicrosoftTokens
+from email_tool_mcp.microsoft import MicrosoftTokens, SignIn
 from email_tool_mcp.microsoft import preset as microsoft_preset
 from email_tool_mcp.passwords import normalize_password, store_password
 from email_tool_mcp.policy import Policy, policy_paths
+from email_tool_mcp.providers import token_sources
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
     DEFAULT_SMTP_PORT,
@@ -28,10 +29,12 @@ from email_tool_mcp.settings import (
     Mailbox,
     load_mailboxes,
     save_mailboxes,
+    settings_path,
 )
 
 Ask = Callable[[str], str]
 LoginCheck = Callable[[Mailbox, Credential], None]
+Forget = Callable[[Mailbox], None]
 
 KNOWN_HOSTS: Final[dict[str, tuple[str, str]]] = {
     "gmail.com": ("imap.gmail.com", "smtp.gmail.com"),
@@ -46,6 +49,21 @@ def check_login(mailbox: Mailbox, credential: Credential) -> None:
         pass
     with open_smtp(mailbox) as smtp:
         smtp_login(smtp, credential)
+
+
+def forget_login(mailbox: Mailbox) -> None:
+    """Delete a mailbox's keyring password or kept sign-in, whichever it uses."""
+    MailboxBook(settings_path(), {}, token_sources=token_sources()).forget(mailbox)
+
+
+def save_mailbox(settings_file: Path, mailbox: Mailbox, forget: Forget) -> None:
+    """Save `mailbox`; when it replaces one that logged in another way, delete that old login."""
+    mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
+    previous: Mailbox | None = mailboxes.get(mailbox.name)
+    mailboxes[mailbox.name] = mailbox
+    save_mailboxes(settings_file, mailboxes)
+    if previous is not None and previous.auth != mailbox.auth:
+        forget(previous)
 
 
 def ask_with_default(ask: Ask, prompt: str, default: str) -> str:
@@ -66,6 +84,7 @@ def add_mailbox(
     ask_secret: Ask = getpass.getpass,
     login_check: LoginCheck = check_login,
     policy: Policy | None = None,
+    forget: Forget = forget_login,
 ) -> str:
     """Ask for anything missing, check the login, then save the mailbox and its password."""
     address = address or ask_with_default(ask, "Email address", "")
@@ -86,9 +105,7 @@ def add_mailbox(
 
     # Password first: a keyring that refuses it must not leave a mailbox saved without one.
     store_password(name, password)
-    mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
-    mailboxes[name] = mailbox
-    save_mailboxes(settings_file, mailboxes)
+    save_mailbox(settings_file, mailbox, forget)
     return f"Mailbox {name!r} ({address}) added. Login checked over IMAP and SMTP; password is in the OS keyring."
 
 
@@ -104,11 +121,12 @@ def add_microsoft_mailbox(
     show: Callable[[str], None] = print,
     login_check: LoginCheck = check_login,
     policy: Policy | None = None,
+    forget: Forget = forget_login,
 ) -> str:
-    """Sign in with Microsoft, check IMAP and SMTP with the token, then save the mailbox.
+    """Sign in with Microsoft, check IMAP and SMTP with the token, then keep the sign-in and save.
 
-    No password is stored: the encrypted sign-in refreshes itself. A failed check
-    removes the sign-in again, so nothing half-configured is left behind.
+    No password is stored: the encrypted sign-in refreshes itself. Nothing is kept
+    until the check passes, so a failed attempt leaves an earlier sign-in as it was.
     """
     if not address:
         raise ValueError("give the mailbox address with --address")
@@ -117,17 +135,15 @@ def add_microsoft_mailbox(
             "give the Microsoft app's Application (client) ID with --client-id "
             "(Microsoft Entra > App registrations > your app > Overview)"
         )
-    mailbox: Mailbox = microsoft_preset(name, address, client_id, tenant, cloud)
+    provisional: Mailbox = microsoft_preset(name, address, client_id, tenant, cloud)
     (policy if policy is not None else Policy(policy_paths())).check_fips(name, address)
-    tokens.sign_in(mailbox, device_code, show)
-    try:
-        login_check(mailbox, Credential(address, tokens.access_token(mailbox), is_token=True))
-    except BaseException:
-        tokens.forget(mailbox)
-        raise
-    mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
-    mailboxes[name] = mailbox
-    save_mailboxes(settings_file, mailboxes)
+    signed: SignIn = tokens.sign_in(provisional, device_code, show)
+    mailbox: Mailbox = signed.complete(provisional)
+    # The real login decides: a Microsoft 365 user name may differ from the address it opens.
+    show(f"Signed in as {signed.username}; checking IMAP and SMTP for {address}.")
+    login_check(mailbox, Credential(address, signed.access_token, is_token=True))
+    tokens.keep(mailbox, signed)
+    save_mailbox(settings_file, mailbox, forget)
     return f"Mailbox {name!r} ({address}) added. Signed in with Microsoft; IMAP and SMTP checked. No password stored."
 
 
