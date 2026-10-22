@@ -12,7 +12,18 @@
    ```bash
    uv run pytest
    ```
-6. Open a PR with the template filled in, `Fixes #N` in the body. CI must be green.
+6. Open a PR with the template filled in, `Fixes #N` in the body. CI must be green,
+   and `main` needs one approval from someone other than the PR's author.
+
+The maintainer's own changes are opened by `skhan61-bot[bot]` (a GitHub App), so the
+maintainer reviews and approves them like anyone else's. Two gates (`gates.yml`) fail
+a PR the maintainer opened himself and a PR with no review starting `## Code review`.
+`ready` turns on auto-merge, so an approved PR with green CI merges itself:
+```bash
+uv run python -m tools.bot_pr push --branch=feat/N-x
+uv run python -m tools.bot_pr open_pr --branch=feat/N-x --title="..." --body_file=/path
+uv run python -m tools.bot_pr ready --pr=N   # after the code review is posted
+```
 
 ## Releasing
 
