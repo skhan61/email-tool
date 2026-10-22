@@ -1,0 +1,55 @@
+site_name: email-tool
+site_description: Email for AI agents, built for CMMC Level 2 and NIST SP 800-171 environments.
+site_url: https://skhan61.github.io/email-tool/
+repo_url: https://github.com/skhan61/email-tool
+repo_name: skhan61/email-tool
+edit_uri: edit/main/docs/
+copyright: MIT License. Sayem Khan.
+
+theme:
+  name: material
+  logo: assets/icon.png
+  favicon: assets/icon.png
+  font:
+    text: Fira Sans
+    code: Fira Code
+  palette:
+    scheme: slate
+    primary: black
+    accent: light blue
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+# privacy: the fonts are downloaded at build time and served from this site, so a
+# visitor's browser never contacts Google Fonts.
+plugins:
+  - search
+  - privacy
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Add your mailboxes: mailboxes.md
+  - Everyday use: use.md
+  - Why CMMC: why-cmmc.md
+  - CMMC control mapping: cmmc.md
+  - For administrators: administrators.md
+  - Troubleshooting: troubleshooting.md
+  - Privacy: privacy.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true

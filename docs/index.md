@@ -1,10 +1,49 @@
 # email-tool
 
-Email for AI agents (Claude, ChatGPT and any MCP client), built for CMMC Level 2 /
-NIST SP 800-171 environments: an audit log, policy, human approval before sending,
-a CUI guard and TLS 1.2 or newer. It runs on your own computer.
+email-tool lets an AI assistant read, search, draft and send your email. It works with
+Claude Code, Claude Desktop, Claude Cowork, ChatGPT desktop, Codex and any other app that
+supports the Model Context Protocol (MCP).
 
-- [Install and set up](https://github.com/skhan61/email-tool#install)
-- [CMMC Level 2 control mapping](cmmc.md)
-- [Privacy policy](privacy.md)
-- [Source code and issues](https://github.com/skhan61/email-tool)
+It runs on your own computer and keeps your passwords in your operating system's keyring.
+It is built for organizations that handle Controlled Unclassified Information (CUI) under
+CMMC Level 2 and NIST SP 800-171: every action is logged, sending can wait for your
+approval, and CUI-marked mail stays inside the domains you allow.
+
+## What you can ask for
+
+- "Summarize the unread mail in my work inbox."
+- "Find the invoice Dana sent last week and show it to me."
+- "Draft a reply to that message, and keep it in my drafts."
+- "Send the draft to the whole project team."
+
+## Get started
+
+1. [Install email-tool](install.md) for your AI app.
+2. [Add your mailboxes](mailboxes.md): Outlook, Microsoft 365, Gmail, Google Workspace or
+   any IMAP mailbox.
+3. Ask your assistant to check your mail.
+
+## Works with
+
+| App | How it connects |
+|---|---|
+| Claude Code | plugin |
+| Claude Desktop and Claude Cowork | `.mcpb` bundle or config file |
+| ChatGPT desktop and Codex | plugin |
+| ChatGPT Business and Enterprise (Chat and web) | OpenAI Secure MCP Tunnel |
+| Any other MCP app | a local command |
+
+| Mail account | How it signs in |
+|---|---|
+| Outlook.com, Hotmail, Live | Microsoft sign-in |
+| Microsoft 365 (company, school or any organization) | Microsoft sign-in |
+| Microsoft 365 GCC High | Microsoft sign-in with your organization's app |
+| Gmail | App Password |
+| Google Workspace (company, school or any organization) | Google sign-in |
+| Any other mailbox with IMAP and SMTP | password |
+
+## Built for regulated work
+
+See [Why CMMC](why-cmmc.md) for what each protection does, with examples, and the
+[CMMC control mapping](cmmc.md) for the NIST SP 800-171 requirement each one supports.
+Software is not CMMC certified; organizations are.

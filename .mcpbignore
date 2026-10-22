@@ -17,3 +17,7 @@ skills/
 .codex-plugin/
 .codex-mcp.json
 .hypothesis/
+docs/
+mkdocs.yml
+site/
+.cache/

@@ -25,6 +25,17 @@ uv run python -m tools.bot_pr open_pr --branch=feat/N-x --title="..." --body_fil
 uv run python -m tools.bot_pr ready --pr=N   # after the code review is posted
 ```
 
+## Documentation
+
+The site lives in `docs/` (MkDocs Material, configured in `mkdocs.yml`) and is published
+from `main`. Preview it while you edit:
+
+```bash
+uv run --group docs mkdocs serve
+```
+
+Pull requests build it with `--strict`, so a broken link fails the check.
+
 ## Releasing
 
 1. Bump the version in `pyproject.toml`, `manifest.json`, `.claude-plugin/plugin.json`,
