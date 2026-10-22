@@ -82,6 +82,10 @@ For Outlook.com, Hotmail, Live and Microsoft 365. No password is stored.
 The sign-in is kept encrypted on your computer and renews itself. If it ever expires, your
 assistant tells you the command to run again.
 
+**If your account belongs to several Microsoft 365 organizations**, add
+`--tenant <directory ID>` to sign in to one of them. Your IT department can give you the
+directory (tenant) ID.
+
 **On a computer without a browser**, add `--device-code`: the terminal shows a code to enter
 at microsoft.com/devicelogin from any device.
 

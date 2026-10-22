@@ -210,7 +210,8 @@ def add_google_mailbox(
     if not client_secrets or not secrets.is_file():
         raise ValueError(
             "give the OAuth client file with --client-secrets (Google Cloud > Google Auth Platform > "
-            "Clients > your Desktop client > Download JSON); see the README's Google section"
+            "Clients > your Desktop client > Download JSON); steps: "
+            "https://skhan61.github.io/email-tool/mailboxes/#google-workspace"
         )
     provisional: Mailbox = google_preset(name, address)
     (policy if policy is not None else Policy(policy_paths())).check_fips(name, address, keeps_sign_in=True)

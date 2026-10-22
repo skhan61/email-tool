@@ -19,4 +19,4 @@ One line: what a reviewer might fear this touches, and does not.
 ## Checklist
 - [ ] CI green
 - [ ] No password, address or mail host added to the repository
-- [ ] README updated if a command or setup step changed
+- [ ] Docs (docs/) updated if a command or setup step changed
