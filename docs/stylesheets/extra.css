@@ -1,0 +1,12 @@
+/* A black page in the dark scheme, with text and code that stay readable. */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0b0b0c;
+  --md-default-fg-color--light: #c9c9cf;
+  --md-code-bg-color: #17171a;
+  --md-typeset-a-color: #7cc4ff;
+}
+
+[data-md-color-scheme="slate"] .md-header,
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #000000;
+}
