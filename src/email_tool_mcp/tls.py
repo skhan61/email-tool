@@ -72,6 +72,11 @@ class TlsAdapter(HTTPAdapter):
         pool_kwargs["ssl_context"] = client_context()
         super().init_poolmanager(connections, maxsize, block, **pool_kwargs)
 
+    def proxy_manager_for(self, proxy: str, **proxy_kwargs: Any) -> Any:
+        # Through HTTPS_PROXY too: the proxy pool is built separately from the direct one.
+        proxy_kwargs["ssl_context"] = client_context()
+        return super().proxy_manager_for(proxy, **proxy_kwargs)
+
     def send(
         self,
         request: requests.PreparedRequest,
@@ -81,7 +86,8 @@ class TlsAdapter(HTTPAdapter):
         cert: str | tuple[str, str] | None = None,
         proxies: dict[str, str] | None = None,
     ) -> requests.Response:
-        return super().send(request, stream, timeout or NETWORK_TIMEOUT_SECONDS, verify, cert, proxies)
+        # Always the project's timeout: google-auth passes its own 120 s, MSAL none.
+        return super().send(request, stream, NETWORK_TIMEOUT_SECONDS, verify, cert, proxies)
 
 
 def https_session() -> requests.Session:

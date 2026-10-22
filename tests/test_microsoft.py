@@ -209,7 +209,13 @@ def test_sign_in_traffic_uses_the_tls_floor_and_the_timeout(monkeypatch: pytest.
     context: ssl.SSLContext = adapter.poolmanager.connection_pool_kw["ssl_context"]
     assert context.minimum_version == ssl.TLSVersion.TLSv1_2
     session.get("https://login.microsoftonline.com/common")
-    assert sent == [NETWORK_TIMEOUT_SECONDS]
+    # google-auth passes 120 s of its own; the project's timeout still applies.
+    session.post("https://oauth2.googleapis.com/token", timeout=120)
+    assert sent == [NETWORK_TIMEOUT_SECONDS, NETWORK_TIMEOUT_SECONDS]
+    proxied: object = adapter.proxy_manager_for("http://proxy.example.com:3128")
+    proxy_context: object = getattr(proxied, "connection_pool_kw", {}).get("ssl_context")
+    assert isinstance(proxy_context, ssl.SSLContext)
+    assert proxy_context.minimum_version == ssl.TLSVersion.TLSv1_2
 
 
 def test_refreshing_reuses_one_app_and_checking_builds_none(tokens: MicrosoftTokens) -> None:
@@ -336,3 +342,15 @@ def test_admin_approval_says_what_to_ask_it_for(tmp_path: Path) -> None:
     message: str = str(raised.value)
     assert "AADSTS90094" in message and "Trace ID" not in message
     assert "admin consent to the application ID client-123" in message
+
+
+class NoBrowserAnswer(FakeMsal):
+    def acquire_token_interactive(self, scopes: list[str], **options: Any) -> dict[str, Any]:
+        assert options["timeout"] == 300
+        raise RuntimeError("Timeout")
+
+
+def test_a_browser_that_never_answers_gives_up(tmp_path: Path) -> None:
+    tokens: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "s"), NoBrowserAnswer)
+    with pytest.raises(RuntimeError, match="no answer from the browser within 5 minutes"):
+        tokens.sign_in(OUTLOOK, False, print)

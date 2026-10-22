@@ -19,6 +19,7 @@ from email_tool_mcp import credentials
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
     SETUP_COMMAND,
+    SIGN_IN_SECONDS,
     SUBMISSION_PORT,
     CloudName,
     Mailbox,
@@ -294,7 +295,15 @@ class MicrosoftTokens:
             result = app.acquire_token_by_device_flow(flow)
         else:
             show("A browser window opens for the Microsoft sign-in; finish it there.")
-            result = app.acquire_token_interactive(scopes, login_hint=mailbox.address, prompt="select_account")
+            try:
+                result = app.acquire_token_interactive(
+                    scopes, login_hint=mailbox.address, prompt="select_account", timeout=SIGN_IN_SECONDS
+                )
+            except RuntimeError as error:
+                raise RuntimeError(
+                    f"no answer from the browser within {SIGN_IN_SECONDS // 60} minutes; nothing saved. "
+                    "On a computer without a browser, use --device-code"
+                ) from error
         if "access_token" not in result:
             said: str = str(result.get("error_description", result.get("error"))).split("\n")[0]
             raise RuntimeError(f"Microsoft sign-in failed: {said}{_needs_admin(said, mailbox)}")

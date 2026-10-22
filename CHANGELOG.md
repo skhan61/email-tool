@@ -14,7 +14,8 @@ Documentation: https://skhan61.github.io/email-tool/
   `email-tool-mcp add <name> --auth google --address you@company.com --client-secrets <file>`,
   with `--paste-address` when the browser is on another computer.
 - No password is stored for either: the sign-in is kept encrypted (key in the OS keyring)
-  and renews itself. Sign-in traffic uses the same TLS 1.2 floor and 60 s timeout as mail.
+  and renews itself. Sign-in traffic uses the same TLS 1.2 floor and 60 s timeout as mail,
+  through an HTTPS proxy too. A browser sign-in gives up after 5 minutes.
 - Token login (SASL XOAUTH2) for IMAP and SMTP.
 - `require_fips` also covers kept sign-ins: a Microsoft or Google mailbox is refused,
   before its sign-in is read, unless the `cryptography` package runs on a FIPS provider.
@@ -23,6 +24,11 @@ Documentation: https://skhan61.github.io/email-tool/
   why CMMC with examples, administration and troubleshooting.
 - Release files are signed with Sigstore (`*.sigstore.json`) and carry SLSA build
   provenance (`*.intoto.jsonl`).
+
+### Changed
+- The project contact and package maintainer is sayem.eee.kuet@gmail.com.
+- Runtime dependencies: pydantic 2.14.0, platformdirs 4.12.4, and `requests` 2.34.2
+  pinned directly (sign-in traffic uses it).
 
 ### Fixed
 - A tool call whose text holds a broken Unicode character (an unpaired surrogate) is

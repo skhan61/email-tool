@@ -24,7 +24,14 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from email_tool_mcp import credentials
-from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, SETUP_COMMAND, Mailbox, SettingsError
+from email_tool_mcp.settings import (
+    DEFAULT_IMAP_PORT,
+    DEFAULT_SMTP_PORT,
+    SETUP_COMMAND,
+    SIGN_IN_SECONDS,
+    Mailbox,
+    SettingsError,
+)
 from email_tool_mcp.tls import TlsAdapter, https_session
 from email_tool_mcp.token_store import TokenStore
 
@@ -33,8 +40,6 @@ PROVIDER: Final[Literal["google"]] = "google"
 SCOPES: Final[list[str]] = ["https://mail.google.com/", "openid", "https://www.googleapis.com/auth/userinfo.email"]
 IMAP_HOST: Final[str] = "imap.gmail.com"
 SMTP_HOST: Final[str] = "smtp.gmail.com"
-# How long the browser sign-in may take before the loopback listener gives up.
-SIGN_IN_SECONDS: Final[int] = 300
 # Where a pasted sign-in lands: nothing listens there, so the browser shows "site can't be
 # reached" with the one-time code in its address bar, for the user to paste back.
 PASTE_REDIRECT: Final[str] = "http://localhost/"

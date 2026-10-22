@@ -83,7 +83,7 @@
       "title": "SMTP port",
       "default": 465,
       "required": false,
-      "description": "465 (direct TLS) or 587 (STARTTLS); always encrypted",
+      "description": "465 for direct TLS, or 587 or 25 for STARTTLS. Always encrypted.",
       "min": 1,
       "max": 65535
     },
@@ -99,7 +99,7 @@
   "tools": [
     {
       "name": "list_mailboxes",
-      "description": "Mailboxes on this machine and whether each has a password"
+      "description": "Mailboxes on this machine and whether each can log in (password stored, or signed in)"
     },
     {
       "name": "list_folders",
