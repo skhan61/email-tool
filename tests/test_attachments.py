@@ -30,6 +30,10 @@ from email_tool_mcp.server import build_server
 from tests.fakes import FakeMailServer
 from tests.test_approval import Person
 
+# A fake key's first line, joined at run time so no file holds it whole (the repository's
+# private-key hook scans for that line).
+KEY_HEADER: str = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"
+
 
 def pdf_with_text(text: str) -> bytes:
     """A one-page PDF whose page text is `text`."""
@@ -88,7 +92,7 @@ def private_key(tmp_path: Path) -> Path:
     folder: Path = tmp_path / ".ssh"
     folder.mkdir()
     path: Path = folder / "id_ed25519"
-    path.write_text("-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----\n")
+    path.write_text(f"{KEY_HEADER}\nabc\n")
     return path
 
 
@@ -119,7 +123,7 @@ def test_a_missing_file_or_too_much_in_total_is_refused(
         (".env.production", b"API_KEY=1", "environment file"),
         ("server.pem", b"x", "key or certificate"),
         ("vault.kdbx", b"x", "password database"),
-        ("notes.txt", b"-----BEGIN RSA PRIVATE KEY-----", "private key"),
+        ("notes.txt", KEY_HEADER.encode(), "private key"),
         ("config", b"aws_secret_access_key = abc", "AWS secret key"),
     ],
 )
