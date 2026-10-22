@@ -36,7 +36,12 @@ uv run python -m tools.bot_pr ready --pr=N   # after the code review is posted
    Sigstore (`*.sigstore.json`), adds SLSA build provenance (`*.intoto.jsonl`) and publishes a
    GitHub release. With the repository variable `PYPI_PUBLISH` set to `true` (after the PyPI
    trusted publisher exists, #31), it also publishes the wheel and sdist to PyPI.
-   Verify a download: `uvx sigstore verify github --repository skhan61/email-tool <file>`.
+   Verify a download (X.Y.Z the version): it must be signed by release.yml on that tag:
+   ```bash
+   uvx sigstore==4.5.0 verify identity <file> \
+     --cert-identity https://github.com/skhan61/email-tool/.github/workflows/release.yml@refs/tags/vX.Y.Z \
+     --cert-oidc-issuer https://token.actions.githubusercontent.com
+   ```
 
 ## OpenSSF Scorecard token
 

@@ -16,13 +16,6 @@ def compose(sender: str, to: str, subject: str, body: str, cc: str, html: str) -
     multipart/alternative makes mail clients show the HTML part and open a saved
     draft in rich-text mode, with `body` as the plain-text fallback.
     """
-    fields: dict[str, str] = {"to": to, "cc": cc, "subject": subject, "body": body, "html": html}
-    for name, value in fields.items():
-        try:
-            value.encode("utf-8")
-        except UnicodeEncodeError as error:
-            # JSON can carry a lone surrogate (\ud800) that is not a character; refuse it by name.
-            raise ValueError(f"{name} contains invalid text (a broken Unicode character); nothing composed") from error
     message: EmailMessage = EmailMessage()
     message["From"] = sender
     message["To"] = to

@@ -71,10 +71,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - name: Install the agent CLIs, locked by hash
-        run: |
-          npm ci --prefix .github/tools --no-audit --no-fund
-          echo "$GITHUB_WORKSPACE/.github/tools/node_modules/.bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/agent-cli
+        with:
+          tool: mcpb
+          scripts: "false"
       - run: mcpb validate manifest.json
       - run: mcpb pack . "$RUNNER_TEMP/email-tool.mcpb"
       - run: unzip -q "$RUNNER_TEMP/email-tool.mcpb" -d "$RUNNER_TEMP/bundle"
@@ -90,10 +90,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - name: Install the agent CLIs, locked by hash
-        run: |
-          npm ci --prefix .github/tools --no-audit --no-fund
-          echo "$GITHUB_WORKSPACE/.github/tools/node_modules/.bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/agent-cli
+        with:
+          tool: codex
       - run: mkdir -p "$CODEX_HOME"
       - name: Install the plugin from this checkout with the real Codex CLI
         run: |
@@ -114,10 +113,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - name: Install the agent CLIs, locked by hash
-        run: |
-          npm ci --prefix .github/tools --no-audit --no-fund
-          echo "$GITHUB_WORKSPACE/.github/tools/node_modules/.bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/agent-cli
+        with:
+          tool: claude-code
       - name: Validate the plugin and marketplace with Claude Code's own checker
         run: claude plugin validate .
       - name: Launch the plugin's server with Claude Code's command and list its tools

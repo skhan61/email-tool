@@ -16,7 +16,7 @@ updates:
       dev:
         dependency-type: development
   - package-ecosystem: npm
-    directory: /.github/tools
+    directories: [/.github/tools/mcpb, /.github/tools/codex, /.github/tools/claude-code]
     schedule:
       interval: weekly
     cooldown:

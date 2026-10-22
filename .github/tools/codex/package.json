@@ -1,0 +1,8 @@
+{
+  "name": "email-tool-ci-codex",
+  "private": true,
+  "description": "One agent CLI for CI, locked by hash in package-lock.json and installed with npm ci.",
+  "devDependencies": {
+    "@openai/codex": "0.160.1"
+  }
+}
