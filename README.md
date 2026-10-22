@@ -71,42 +71,67 @@ You need [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ### 1. Add each mailbox once per machine
 
-```bash
-uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp add work
-```
+Pick the row for your account. Each command checks that reading and sending both
+work before it saves anything.
 
-It asks for the address, the IMAP and SMTP servers (filled in for Gmail) and
-the password (hidden), checks that both logins work, then saves the servers
-to your user settings and the password to the OS keyring. Repeat for each
-mailbox (`add home`, ...). Gmail needs an
-[App Password](https://myaccount.google.com/apppasswords), not your account
-password.
+| Your account | How it signs in | Command |
+|---|---|---|
+| Your own domain or hosting (cPanel, Fastmail, ...) | password | `email-tool-mcp add work` |
+| Gmail (personal) | [App Password](https://myaccount.google.com/apppasswords) | `email-tool-mcp add gmail` |
+| Outlook.com, Hotmail, Live | Microsoft sign-in | `email-tool-mcp add outlook --auth microsoft --address you@outlook.com` |
+| Microsoft 365 at work or university | Microsoft sign-in | `email-tool-mcp add work --auth microsoft --address you@company.com` |
+| Google Workspace at work or university, App Passwords turned off | Google sign-in, your own client | `email-tool-mcp add school --auth google --address you@school.edu --client-secrets <file>` |
 
+Not sure which one you have? Ask your IT department, or look at the mail records of your
+domain (for example on mxtoolbox.com): `google.com` means Google, `outlook.com` means
+Microsoft. Run the commands with `uvx --from git+https://github.com/skhan61/email-tool`
+in front if email-tool is not installed as a package.
+
+Passwords go to the OS keyring; sign-ins are kept encrypted (key in the OS keyring) and
+refresh themselves. If one ever expires, the assistant tells you the command to run again.
 Other commands: `email-tool-mcp list`, `email-tool-mcp remove <name>`.
 
-#### Outlook.com, Microsoft 365 and GCC High (Microsoft sign-in)
+#### Microsoft sign-in
 
-Microsoft no longer accepts passwords for IMAP/SMTP, so these mailboxes sign in
-through Microsoft instead; no password is stored.
+A browser opens on Microsoft's sign-in page; sign in and approve "email-tool". The
+project's app is used by default, so there is nothing to set up. Options:
+`--device-code` on a machine without a browser, `--tenant <directory id>` to pin a
+Microsoft 365 directory, `--client-id <id>` to use your organisation's own app.
+GCC High always needs an app registered in GCC High:
+`--cloud gcc-high --client-id <app id>`.
 
-```bash
-email-tool-mcp add outlook --auth microsoft --address you@outlook.com
-```
+An organisation's IT department can register its own app instead: Microsoft Entra >
+App registrations > New registration; supported accounts as needed; redirect URI
+"Public client/native", `http://localhost`; then give users its Application (client) ID.
 
-A browser opens on Microsoft's sign-in page; sign in and approve "email-tool". Personal
-and work accounts both work (any Outlook.com, Hotmail or Live domain, or a Microsoft 365
-user name that differs from its address); the IMAP and SMTP check proves the account can
-open the mailbox before anything is kept. Use `--device-code` on a machine without a
-browser and `--tenant <directory id>` to pin a Microsoft 365 directory. The sign-in is
-kept encrypted (key in the OS keyring) and refreshes itself; if it ever expires, the
-assistant tells you the command to run again.
+#### Google sign-in (Google Workspace without App Passwords)
 
-The project's own app registration is used by default. A Microsoft 365 administrator may
-have to grant it consent once, or may prefer the organisation's own app: register one in
-Microsoft Entra (App registrations > New registration; supported accounts as needed;
-redirect URI "Public client/native", `http://localhost`) and pass its Application
-(client) ID with `--client-id`. GCC High always needs its own app, registered in GCC High,
-with `--cloud gcc-high --client-id <app id>`.
+Google does not allow one shared app for full Gmail access without a paid review, so
+each person, or their IT department once for everyone, creates a small sign-in client:
+
+1. [console.cloud.google.com](https://console.cloud.google.com/projectcreate): create a
+   project (a personal Google account is fine; it does not need to be the mail account).
+2. Google Auth Platform > Get started: app name `email-tool`, your email as support and
+   contact. Audience: **Internal** if you are your organisation's administrator (no
+   limits, no warning), otherwise **External**.
+3. External only: Audience > Publish app (needs the home page and privacy links on the
+   Branding page), so sign-ins do not expire after 7 days. Until then, add yourself
+   under Test users.
+4. Clients > Create client > **Desktop app** > Create > **Download JSON**.
+5. `email-tool-mcp add school --auth google --address you@school.edu --client-secrets ~/Downloads/client_secret_....json`
+
+Google then shows "Google hasn't verified this app" for an External client: it is your
+own app, so choose Continue. If the browser is on another computer, or ends on
+"site can't be reached", add `--paste-address` and paste back the address it ends on.
+
+#### When a sign-in is refused
+
+| What you see | What it means | What to do |
+|---|---|---|
+| "Need admin approval" (Microsoft AADSTS90094, 65001) | your organisation approves apps centrally | ask IT to grant admin consent to the app ID in the message, or for their own app's ID |
+| "Access blocked: ... admin" (Google) | your Workspace blocks unapproved apps | ask IT to allow your client, or to create an Internal client |
+| login check fails after a successful sign-in | IMAP or SMTP is turned off for your mailbox | ask IT to enable IMAP and authenticated SMTP |
+| "App Passwords" missing in your Google account | your Workspace turned them off | use Google sign-in above |
 
 ### 2. Connect your agent
 

@@ -15,6 +15,9 @@ from pathlib import Path
 from typing import Final
 
 from email_tool_mcp.credentials import Credential, smtp_login
+from email_tool_mcp.google import GoogleTokens
+from email_tool_mcp.google import SignIn as GoogleSignIn
+from email_tool_mcp.google import preset as google_preset
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import MailboxBook, open_smtp
 from email_tool_mcp.microsoft import DEFAULT_CLIENT_ID, MicrosoftTokens, SignIn
@@ -159,11 +162,51 @@ def add_microsoft_mailbox(
     )
 
 
+def add_google_mailbox(
+    name: str,
+    settings_file: Path,
+    tokens: GoogleTokens,
+    address: str,
+    client_secrets: str,
+    show: Callable[[str], None] = print,
+    login_check: LoginCheck = check_login,
+    policy: Policy | None = None,
+    *,
+    forget: Forget,
+    paste: Ask | None = None,
+) -> str:
+    """Sign in with Google, check IMAP and SMTP with the token, then keep the sign-in and save.
+
+    For Google Workspace accounts whose administrator turned off App Passwords. Nothing
+    is kept until the check passes.
+    """
+    if not address:
+        raise ValueError("give the Google account's address with --address")
+    secrets: Path = Path(client_secrets).expanduser()
+    if not client_secrets or not secrets.is_file():
+        raise ValueError(
+            "give the OAuth client file with --client-secrets (Google Cloud > Google Auth Platform > "
+            "Clients > your Desktop client > Download JSON); see the README's Google section"
+        )
+    provisional: Mailbox = google_preset(name, address)
+    (policy if policy is not None else Policy(policy_paths())).check_fips(name, address, keeps_sign_in=True)
+    signed: GoogleSignIn = tokens.sign_in(provisional, secrets, show, paste)
+    mailbox: Mailbox = signed.complete(provisional)
+    login_check(mailbox, Credential(address, signed.access_token, is_token=True))
+    tokens.keep(mailbox, signed)
+    cleanup: str = save_mailbox(settings_file, mailbox, forget)
+    return (
+        f"Mailbox {name!r} ({address}) added. Signed in with Google; IMAP and SMTP checked. "
+        f"No password stored.{cleanup}"
+    )
+
+
 def add_by_auth(
     name: str,
     settings_file: Path,
     auth: str,
-    tokens: MicrosoftTokens,
+    microsoft: MicrosoftTokens,
+    google: GoogleTokens,
     forget: Forget,
     address: str = "",
     imap_host: str = "",
@@ -174,20 +217,28 @@ def add_by_auth(
     tenant: str = "",
     cloud: str = "commercial",
     device_code: bool = False,
+    client_secrets: str = "",
+    paste_address: bool = False,
 ) -> str:
     """The `add` command: refuse options that do not apply to `auth`, then add the mailbox."""
     servers: bool = bool(imap_host or smtp_host) or (imap_port, smtp_port) != (DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT)
-    sign_in: bool = bool(client_id or tenant or device_code) or cloud != "commercial"
+    microsoft_options: bool = bool(client_id or tenant or device_code) or cloud != "commercial"
+    if auth in ("microsoft", "google") and servers:
+        raise ValueError(f"--auth {auth} sets the servers itself; drop --imap-*/--smtp-*")
+    if auth != "microsoft" and microsoft_options:
+        raise ValueError("--client-id, --tenant, --cloud and --device-code need --auth microsoft")
+    if auth != "google" and (client_secrets or paste_address):
+        raise ValueError("--client-secrets and --paste-address need --auth google")
     if auth == "microsoft":
-        if servers:
-            raise ValueError("--auth microsoft sets the servers itself; drop --imap-*/--smtp-*")
         return add_microsoft_mailbox(
-            name, settings_file, tokens, address, client_id, tenant, cloud, device_code, forget=forget
+            name, settings_file, microsoft, address, client_id, tenant, cloud, device_code, forget=forget
+        )
+    if auth == "google":
+        return add_google_mailbox(
+            name, settings_file, google, address, client_secrets, forget=forget, paste=input if paste_address else None
         )
     if auth != "password":
-        raise ValueError(f"--auth must be password or microsoft, not {auth!r}")
-    if sign_in:
-        raise ValueError("--client-id, --tenant, --cloud and --device-code need --auth microsoft")
+        raise ValueError(f"--auth must be password, microsoft or google, not {auth!r}")
     return add_mailbox(name, settings_file, address, imap_host, imap_port, smtp_host, smtp_port, forget=forget)
 
 

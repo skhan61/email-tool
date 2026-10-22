@@ -29,12 +29,12 @@ from email_tool_mcp.microsoft import (
     SignInRequired,
     authority_of,
     cloud_of,
-    https_session,
     preset,
     scopes_for,
 )
 from email_tool_mcp.passwords import has_password, store_password
 from email_tool_mcp.settings import NETWORK_TIMEOUT_SECONDS, Mailbox, load_mailboxes
+from email_tool_mcp.tls import https_session
 from email_tool_mcp.token_store import TokenStore
 
 ADDRESS: str = "sayem@outlook.com"
@@ -322,3 +322,17 @@ def test_the_project_app_is_the_default_except_in_gcc_high(tokens: MicrosoftToke
         add_microsoft_mailbox(
             "gov", tmp_path / "g.toml", tokens, "me@agency.us", "", cloud="gcc-high", forget=nothing_to_forget
         )
+
+
+class NeedsAdmin(FakeMsal):
+    def acquire_token_interactive(self, scopes: list[str], **options: Any) -> dict[str, Any]:
+        return {"error": "consent_required", "error_description": "AADSTS90094: Need admin approval.\nTrace ID: x"}
+
+
+def test_admin_approval_says_what_to_ask_it_for(tmp_path: Path) -> None:
+    tokens: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "s"), NeedsAdmin)
+    with pytest.raises(RuntimeError) as raised:
+        tokens.sign_in(OUTLOOK, False, print)
+    message: str = str(raised.value)
+    assert "AADSTS90094" in message and "Trace ID" not in message
+    assert "admin consent to the application ID client-123" in message
