@@ -47,7 +47,11 @@ jobs:
   provenance:
     needs: build
     # The generator's own upload job declares contents: write even with upload-assets
-    # off, and a called workflow may not ask for more than this job grants.
+    # off, and a called workflow may not ask for more than this job grants. That write
+    # grant goes to a third-party workflow referenced by tag (below), so a moved or
+    # compromised v2.1.0 tag could use it; SLSA allows no hash pin. Scorecard lists it.
+    # A tag push is the first time this file runs, so release-workflow changes need a
+    # dry run before tagging (tracked for v5.2).
     permissions:
       actions: read
       id-token: write
