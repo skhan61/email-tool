@@ -18,6 +18,7 @@ from typing import Final
 
 from keyring.errors import KeyringError
 
+from email_tool_mcp.credentials import Credential, TokenSource, smtp_login
 from email_tool_mcp.cui import message_markings
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.message_compose import envelope_recipients
@@ -33,10 +34,11 @@ from email_tool_mcp.settings import (
 )
 from email_tool_mcp.tls import client_context
 
-SessionFactory = Callable[[Mailbox, str], ImapSession]
+SessionFactory = Callable[[Mailbox, Credential], ImapSession]
 SmtpFactory = Callable[[Mailbox], smtplib.SMTP]
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
+SMTPS_PORT: Final[int] = 465
 
 
 class UnknownMailbox(LookupError):
@@ -44,8 +46,19 @@ class UnknownMailbox(LookupError):
 
 
 def open_smtp(mailbox: Mailbox) -> smtplib.SMTP:
-    """Open an implicit-TLS SMTP connection: verified, TLS 1.2 minimum (tls.py)."""
-    return smtplib.SMTP_SSL(host=mailbox.smtp_host, port=mailbox.smtp_port, context=client_context())
+    """Port 465: implicit TLS. Any other port: STARTTLS, refused if the server does not offer it.
+
+    Both use tls.client_context(): certificate verified, TLS 1.2 minimum.
+    """
+    if mailbox.smtp_port != SMTPS_PORT:
+        connection: smtplib.SMTP = smtplib.SMTP(host=mailbox.smtp_host, port=mailbox.smtp_port, timeout=60)
+        try:
+            connection.starttls(context=client_context())
+        except BaseException:
+            connection.close()
+            raise
+        return connection
+    return smtplib.SMTP_SSL(host=mailbox.smtp_host, port=mailbox.smtp_port, context=client_context(), timeout=60)
 
 
 class MailboxBook:
@@ -58,12 +71,14 @@ class MailboxBook:
         session_factory: SessionFactory = ImapSession,
         smtp_factory: SmtpFactory = open_smtp,
         policy: Policy | None = None,
+        token_sources: Mapping[str, TokenSource] | None = None,
     ) -> None:
         self._settings_file: Path = settings_file
         self._environment: Mapping[str, str] = environment
         self._session_factory: SessionFactory = session_factory
         self._smtp_factory: SmtpFactory = smtp_factory
         self.policy: Policy = policy if policy is not None else Policy(())
+        self._token_sources: Mapping[str, TokenSource] = token_sources or {}
         self.environment_problem: str = ""
 
     def _environment_mailbox(self, enrolled: dict[str, Mailbox]) -> tuple[Mailbox | None, str]:
@@ -122,6 +137,22 @@ class MailboxBook:
             return environment_password(mailbox.name, self._environment)
         return read_password(mailbox.name)
 
+    def credential(self, mailbox: Mailbox) -> Credential:
+        """How `mailbox` logs in now: its password, or a fresh access token from its sign-in."""
+        if mailbox.auth == "password":
+            return Credential(mailbox.address, self.password(mailbox), is_token=False)
+        source: TokenSource | None = self._token_sources.get(mailbox.auth)
+        if source is None:
+            raise SettingsError(f"{mailbox.auth} sign-in is not available in this version of email-tool")
+        return Credential(mailbox.address, source.access_token(mailbox), is_token=True)
+
+    def has_credential(self, mailbox: Mailbox) -> bool:
+        """True when `mailbox` can log in without asking: a stored password or sign-in."""
+        if mailbox.auth == "password":
+            return self.has_password(mailbox)
+        source: TokenSource | None = self._token_sources.get(mailbox.auth)
+        return source is not None and source.is_signed_in(mailbox)
+
     def has_password(self, mailbox: Mailbox) -> bool:
         """Return True when `password(mailbox)` would succeed."""
         try:
@@ -133,7 +164,7 @@ class MailboxBook:
     def imap(self, mailbox: Mailbox) -> ImapSession:
         """Return an unopened IMAP session for `mailbox`; refused first if FIPS is required and absent."""
         self.policy.check_fips(mailbox.name, mailbox.address)
-        return self._session_factory(mailbox, self.password(mailbox))
+        return self._session_factory(mailbox, self.credential(mailbox))
 
     def approve(self, mailbox: Mailbox, message: EmailMessage) -> list[str]:
         """Check the message's real recipient list against policy and return it."""
@@ -154,8 +185,8 @@ class MailboxBook:
         recipients: list[str] = self.approve(mailbox, message)
         if not recipients:
             raise ValueError("no recipients resolved from the 'to' and 'cc' arguments")
-        password: str = self.password(mailbox)
+        credential: Credential = self.credential(mailbox)
         with self.smtp(mailbox) as smtp:
-            smtp.login(mailbox.address, password)
+            smtp_login(smtp, credential)
             refused: dict[str, tuple[int, bytes]] = smtp.send_message(message, to_addrs=recipients)
         return refused

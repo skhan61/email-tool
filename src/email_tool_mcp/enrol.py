@@ -14,6 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
+from email_tool_mcp.credentials import Credential, smtp_login
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import open_smtp
 from email_tool_mcp.passwords import delete_password, has_password, normalize_password, store_password
@@ -39,10 +40,11 @@ _GMAIL_NOTE: Final[str] = "Gmail needs an App Password (Google Account > Securit
 
 def check_login(mailbox: Mailbox, password: str) -> None:
     """Log in over IMAP and SMTP; raise if either refuses."""
-    with ImapSession(mailbox, password):
+    credential: Credential = Credential(mailbox.address, password, is_token=False)
+    with ImapSession(mailbox, credential):
         pass
     with open_smtp(mailbox) as smtp:
-        smtp.login(mailbox.address, password)
+        smtp_login(smtp, credential)
 
 
 def ask_with_default(ask: Ask, prompt: str, default: str) -> str:

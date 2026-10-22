@@ -14,7 +14,7 @@ import tomllib
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Literal
 
 import tomli_w
 from platformdirs import user_config_path
@@ -35,6 +35,8 @@ ENV_PASSWORD: Final[str] = "EMAIL_TOOL_PASSWORD"
 # Where a missing-password or no-mailbox message sends the user.
 SETUP_COMMAND: Final[str] = "uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp add"
 
+OPTIONAL_DEFAULTS: Final[dict[str, str]] = {"auth": "password", "client_id": "", "tenant": ""}
+
 DEFAULT_IMAP_PORT: Final[int] = 993
 DEFAULT_SMTP_PORT: Final[int] = 465
 
@@ -53,6 +55,11 @@ class Mailbox:
     imap_port: int
     smtp_host: str
     smtp_port: int
+    # How it logs in: a keyring password, or a Microsoft or Google sign-in (OAuth).
+    auth: Literal["password", "microsoft", "google"] = "password"
+    # The OAuth app registration and directory (Microsoft tenant); empty for passwords.
+    client_id: str = ""
+    tenant: str = ""
 
 
 def settings_path() -> Path:
@@ -78,7 +85,8 @@ def save_mailboxes(path: Path, mailboxes: Mapping[str, Mailbox]) -> None:
     for name, mailbox in sorted(mailboxes.items()):
         fields: dict[str, Any] = asdict(mailbox)
         del fields["name"]
-        tables[name] = fields
+        # Sign-in fields only when used, so a password mailbox's entry looks as it always did.
+        tables[name] = {key: value for key, value in fields.items() if OPTIONAL_DEFAULTS.get(key, object()) != value}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(tomli_w.dumps({"mailboxes": tables}), encoding="utf-8")
 
