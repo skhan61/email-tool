@@ -35,11 +35,19 @@ ENV_PASSWORD: Final[str] = "EMAIL_TOOL_PASSWORD"
 # Where a missing-password or no-mailbox message sends the user.
 SETUP_COMMAND: Final[str] = "uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp add"
 
-OPTIONAL_DEFAULTS: Final[dict[str, str]] = {"auth": "password", "client_id": "", "tenant": ""}
+OPTIONAL_DEFAULTS: Final[dict[str, str]] = {
+    "auth": "password",
+    "client_id": "",
+    "tenant": "",
+    "cloud": "commercial",
+    "account": "",
+}
 
 NETWORK_TIMEOUT_SECONDS: Final[float] = 60.0
-# SMTP ports that start in plain text and upgrade with STARTTLS; every other port is implicit TLS.
-STARTTLS_PORTS: Final[frozenset[int]] = frozenset({25, 587})
+# Mail submission (RFC 6409); with 25, the SMTP ports that start in plain text and upgrade
+# with STARTTLS. Every other port is implicit TLS.
+SUBMISSION_PORT: Final[int] = 587
+STARTTLS_PORTS: Final[frozenset[int]] = frozenset({25, SUBMISSION_PORT})
 
 DEFAULT_IMAP_PORT: Final[int] = 993
 DEFAULT_SMTP_PORT: Final[int] = 465
@@ -64,6 +72,10 @@ class Mailbox:
     # The OAuth app registration and directory (Microsoft tenant); empty for passwords.
     client_id: str = ""
     tenant: str = ""
+    # The Microsoft cloud it signs in to, and the sign-in name when it is not the address
+    # (a Microsoft 365 user name can differ from the mail address).
+    cloud: Literal["commercial", "gcc-high"] = "commercial"
+    account: str = ""
 
 
 def settings_path() -> Path:

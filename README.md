@@ -93,7 +93,10 @@ through Microsoft instead; no password is stored.
 email-tool-mcp add outlook --auth microsoft --address you@outlook.com --client-id <app id>
 ```
 
-A browser opens on Microsoft's sign-in page; sign in as that address and approve.
+A browser opens on Microsoft's sign-in page; sign in and approve. Personal and work
+accounts both work (any Outlook.com, Hotmail or Live domain, or a Microsoft 365 user
+name that differs from its address); the IMAP and SMTP check proves the account can
+open the mailbox before anything is kept.
 Use `--device-code` on a machine without a browser, `--cloud gcc-high` for GCC High,
 and `--tenant <directory id>` to pin a Microsoft 365 directory. The sign-in is kept
 encrypted (key in the OS keyring) and refreshes itself; if it ever expires, the
