@@ -494,6 +494,7 @@ dev = [
     { name = "pygithub" },
     { name = "pytest" },
     { name = "pytest-timeout" },
+    { name = "requests" },
     { name = "ruff" },
 ]
 
@@ -517,6 +518,7 @@ dev = [
     { name = "pygithub", specifier = "==2.8.1" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-timeout", specifier = "==2.5.0" },
+    { name = "requests", specifier = "==2.34.2" },
     { name = "ruff", specifier = "==0.16.10" },
 ]
 
