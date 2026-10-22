@@ -44,6 +44,8 @@ OPTIONAL_DEFAULTS: Final[dict[str, str]] = {
 }
 
 NETWORK_TIMEOUT_SECONDS: Final[float] = 60.0
+# How long a browser sign-in may take before its localhost listener gives up.
+SIGN_IN_SECONDS: Final[int] = 300
 # Mail submission (RFC 6409); with 25, the SMTP ports that start in plain text and upgrade
 # with STARTTLS. Every other port is implicit TLS.
 SUBMISSION_PORT: Final[int] = 587

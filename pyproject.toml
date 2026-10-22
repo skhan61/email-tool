@@ -1,6 +1,6 @@
 [project]
 name = "email-tool-mcp"
-version = "5.0.0"
+version = "5.1.0"
 description = "IMAP/SMTP email for any MCP client: read, search, draft and send mail."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,6 +20,8 @@ dependencies = [
     "mcp-types==2.3.0",
     "platformdirs==4.12.4",
     "pydantic==2.14.0",
+    # tls.py mounts its own HTTPS adapter (TLS context, timeout) for MSAL and google-auth.
+    "requests==2.34.2",
     "tomli-w==1.2.0",
 ]
 
@@ -42,7 +44,6 @@ dev = [
     "pre-commit==4.6.2",
     # `tools.bot_pr` signs in as the GitHub App that opens this repository's issues and PRs.
     "pygithub==2.10.0",
-    "requests==2.34.2",
     "pytest==9.1.1",
     "pytest-timeout==2.5.0",
     "ruff==0.16.10",

@@ -5,7 +5,7 @@ resolution-markers = [
     "python_full_version >= '3.15'",
     "python_full_version == '3.14.*'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version < '3.12' or (python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten')",
+    "(python_full_version < '3.14' and sys_platform != 'emscripten') or (python_full_version < '3.12' and sys_platform == 'emscripten')",
 ]
 
 [[package]]
@@ -496,7 +496,7 @@ wheels = [
 
 [[package]]
 name = "email-tool-mcp"
-version = "5.0.0"
+version = "5.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -511,6 +511,7 @@ dependencies = [
     { name = "msal" },
     { name = "platformdirs" },
     { name = "pydantic" },
+    { name = "requests" },
     { name = "tomli-w" },
 ]
 
@@ -522,7 +523,6 @@ dev = [
     { name = "pygithub" },
     { name = "pytest" },
     { name = "pytest-timeout" },
-    { name = "requests" },
     { name = "ruff" },
 ]
 docs = [
@@ -544,6 +544,7 @@ requires-dist = [
     { name = "msal", specifier = "==1.39.0" },
     { name = "platformdirs", specifier = "==4.12.4" },
     { name = "pydantic", specifier = "==2.14.0" },
+    { name = "requests", specifier = "==2.34.2" },
     { name = "tomli-w", specifier = "==1.2.0" },
 ]
 
@@ -555,7 +556,6 @@ dev = [
     { name = "pygithub", specifier = "==2.10.0" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-timeout", specifier = "==2.5.0" },
-    { name = "requests", specifier = "==2.34.2" },
     { name = "ruff", specifier = "==0.16.10" },
 ]
 docs = [
