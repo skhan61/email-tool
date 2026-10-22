@@ -11,17 +11,18 @@ from pathlib import Path
 
 import pytest
 
+from email_tool_mcp.credentials import Credential
 from email_tool_mcp.enrol import add_mailbox, describe_mailboxes, remove_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.passwords import has_password, read_password
 from email_tool_mcp.settings import Mailbox, load_mailboxes
 
 
-def accept(mailbox: Mailbox, password: str) -> None:
+def accept(mailbox: Mailbox, credential: Credential) -> None:
     return None
 
 
-def refuse(mailbox: Mailbox, password: str) -> None:
+def refuse(mailbox: Mailbox, credential: Credential) -> None:
     raise OSError("authentication failed")
 
 

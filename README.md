@@ -84,6 +84,34 @@ password.
 
 Other commands: `email-tool-mcp list`, `email-tool-mcp remove <name>`.
 
+#### Outlook.com, Microsoft 365 and GCC High (Microsoft sign-in)
+
+Microsoft no longer accepts passwords for IMAP/SMTP, so these mailboxes sign in
+through Microsoft instead; no password is stored.
+
+```bash
+email-tool-mcp add outlook --auth microsoft --address you@outlook.com --client-id <app id>
+```
+
+A browser opens on Microsoft's sign-in page; sign in as that address and approve.
+Use `--device-code` on a machine without a browser, `--cloud gcc-high` for GCC High,
+and `--tenant <directory id>` to pin a Microsoft 365 directory. The sign-in is kept
+encrypted (key in the OS keyring) and refreshes itself; if it ever expires, the
+assistant tells you to run the same command again.
+
+The client ID comes from an app registration in Microsoft Entra, done once by an
+administrator (or by you, with a free Azure account):
+
+1. portal.azure.com > App registrations > New registration
+2. Supported account types: "Accounts in any organizational directory and personal
+   Microsoft accounts" (or your directory only, for Microsoft 365)
+3. Redirect URI: "Public client/native (mobile & desktop)", `http://localhost`
+4. Authentication > Allow public client flows: Yes
+5. Copy the Application (client) ID from Overview; it is not a secret
+
+A Microsoft 365 administrator may have to grant consent for the IMAP and SMTP
+permissions the first time someone in the organization signs in.
+
 ### 2. Connect your agent
 
 Every agent runs the same command:

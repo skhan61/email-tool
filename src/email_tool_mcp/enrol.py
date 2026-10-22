@@ -17,6 +17,8 @@ from typing import Final
 from email_tool_mcp.credentials import Credential, smtp_login
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import MailboxBook, open_smtp
+from email_tool_mcp.microsoft import MicrosoftTokens
+from email_tool_mcp.microsoft import preset as microsoft_preset
 from email_tool_mcp.passwords import normalize_password, store_password
 from email_tool_mcp.policy import Policy, policy_paths
 from email_tool_mcp.settings import (
@@ -29,7 +31,7 @@ from email_tool_mcp.settings import (
 )
 
 Ask = Callable[[str], str]
-LoginCheck = Callable[[Mailbox, str], None]
+LoginCheck = Callable[[Mailbox, Credential], None]
 
 KNOWN_HOSTS: Final[dict[str, tuple[str, str]]] = {
     "gmail.com": ("imap.gmail.com", "smtp.gmail.com"),
@@ -38,9 +40,8 @@ KNOWN_HOSTS: Final[dict[str, tuple[str, str]]] = {
 _GMAIL_NOTE: Final[str] = "Gmail needs an App Password (Google Account > Security > App passwords), not your password."
 
 
-def check_login(mailbox: Mailbox, password: str) -> None:
-    """Log in over IMAP and SMTP; raise if either refuses."""
-    credential: Credential = Credential(mailbox.address, password, is_token=False)
+def check_login(mailbox: Mailbox, credential: Credential) -> None:
+    """Log in over IMAP and SMTP with a password or a token; raise if either refuses."""
     with ImapSession(mailbox, credential):
         pass
     with open_smtp(mailbox) as smtp:
@@ -81,7 +82,7 @@ def add_mailbox(
     if not password:
         raise ValueError("no password entered")
     (policy if policy is not None else Policy(policy_paths())).check_fips(name, address)
-    login_check(mailbox, password)
+    login_check(mailbox, Credential(address, password, is_token=False))
 
     # Password first: a keyring that refuses it must not leave a mailbox saved without one.
     store_password(name, password)
@@ -89,6 +90,45 @@ def add_mailbox(
     mailboxes[name] = mailbox
     save_mailboxes(settings_file, mailboxes)
     return f"Mailbox {name!r} ({address}) added. Login checked over IMAP and SMTP; password is in the OS keyring."
+
+
+def add_microsoft_mailbox(
+    name: str,
+    settings_file: Path,
+    tokens: MicrosoftTokens,
+    address: str,
+    client_id: str,
+    tenant: str = "",
+    cloud: str = "commercial",
+    device_code: bool = False,
+    show: Callable[[str], None] = print,
+    login_check: LoginCheck = check_login,
+    policy: Policy | None = None,
+) -> str:
+    """Sign in with Microsoft, check IMAP and SMTP with the token, then save the mailbox.
+
+    No password is stored: the encrypted sign-in refreshes itself. A failed check
+    removes the sign-in again, so nothing half-configured is left behind.
+    """
+    if not address:
+        raise ValueError("give the mailbox address with --address")
+    if not client_id:
+        raise ValueError(
+            "give the Microsoft app's Application (client) ID with --client-id "
+            "(Microsoft Entra > App registrations > your app > Overview)"
+        )
+    mailbox: Mailbox = microsoft_preset(name, address, client_id, tenant, cloud)
+    (policy if policy is not None else Policy(policy_paths())).check_fips(name, address)
+    tokens.sign_in(mailbox, device_code, show)
+    try:
+        login_check(mailbox, Credential(address, tokens.access_token(mailbox), is_token=True))
+    except BaseException:
+        tokens.forget(mailbox)
+        raise
+    mailboxes: dict[str, Mailbox] = load_mailboxes(settings_file)
+    mailboxes[name] = mailbox
+    save_mailboxes(settings_file, mailboxes)
+    return f"Mailbox {name!r} ({address}) added. Signed in with Microsoft; IMAP and SMTP checked. No password stored."
 
 
 def remove_mailbox(name: str, book: MailboxBook, settings_file: Path) -> str:

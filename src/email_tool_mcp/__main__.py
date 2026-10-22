@@ -14,10 +14,13 @@ from pathlib import Path
 import fire
 
 from email_tool_mcp.audit import AuditLog, verify
+from email_tool_mcp.credentials import TokenSource
 from email_tool_mcp.diagnose import check_mailbox
-from email_tool_mcp.enrol import add_mailbox, describe_mailboxes, remove_mailbox
+from email_tool_mcp.enrol import add_mailbox, add_microsoft_mailbox, describe_mailboxes, remove_mailbox
 from email_tool_mcp.mailbox_book import MailboxBook
+from email_tool_mcp.microsoft import MicrosoftTokens
 from email_tool_mcp.policy import Policy, policy_paths, show_rules
+from email_tool_mcp.providers import open_book, token_sources
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, settings_path
 
@@ -62,27 +65,43 @@ class Cli:
         imap_port: int = DEFAULT_IMAP_PORT,
         smtp_host: str = "",
         smtp_port: int = DEFAULT_SMTP_PORT,
+        auth: str = "password",
+        client_id: str = "",
+        tenant: str = "",
+        cloud: str = "commercial",
+        device_code: bool = False,
     ) -> str:
-        """Add or replace mailbox NAME; asks for anything not given, and always for the password."""
+        """Add or replace mailbox NAME.
+
+        --auth password (default): asks for anything not given, and always for the password.
+        --auth microsoft: --address and --client-id; signs in in the browser (--device-code
+        without one); --cloud gcc-high for GCC High; --tenant to pin a directory.
+        """
+        if auth == "microsoft":
+            tokens: TokenSource = token_sources()["microsoft"]
+            assert isinstance(tokens, MicrosoftTokens)
+            return add_microsoft_mailbox(name, settings_path(), tokens, address, client_id, tenant, cloud, device_code)
+        if auth != "password":
+            raise ValueError(f"--auth must be password or microsoft, not {auth!r}")
         return add_mailbox(name, settings_path(), address, imap_host, imap_port, smtp_host, smtp_port)
 
     def remove(self, name: str) -> str:
-        """Forget mailbox NAME and delete its password."""
-        return remove_mailbox(name, MailboxBook(settings_path(), os.environ), settings_path())
+        """Forget mailbox NAME and delete its password or sign-in."""
+        return remove_mailbox(name, open_book(os.environ, with_policy=False), settings_path())
 
     def check(self, name: str) -> str:
         """Log in to mailbox NAME and report the TLS version, cipher and FIPS state actually in use."""
-        book: MailboxBook = MailboxBook(settings_path(), os.environ, policy=Policy(policy_paths()))
+        book: MailboxBook = open_book(os.environ, with_policy=True)
         return check_mailbox(book, AuditLog.from_environment(os.environ, with_syslog=True), name)
 
     def list(self) -> str:
         """Show every mailbox on this machine."""
-        return describe_mailboxes(MailboxBook(settings_path(), os.environ), settings_path())
+        return describe_mailboxes(open_book(os.environ, with_policy=False), settings_path())
 
     def serve(self) -> None:
         """Run the MCP server on stdio (what an AI agent launches)."""
         logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-        book: MailboxBook = MailboxBook(settings_path(), os.environ, policy=Policy(policy_paths()))
+        book: MailboxBook = open_book(os.environ, with_policy=True)
         audit: AuditLog = AuditLog.from_environment(os.environ, with_syslog=True)
         build_server(book, audit).run("stdio")
 

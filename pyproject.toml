@@ -9,9 +9,11 @@ authors = [{ name = "Sayem Khan", email = "sayem.eee.kuet@gmail.com" }]
 maintainers = [{ name = "Sayem Khan", email = "s.khan@alchlight.com" }]
 dependencies = [
     "filelock==4.0.12",
+    "cryptography==50.0.2",
     "fire==0.7.1",
     "imapclient==4.1.0",
     "keyring==25.7.0",
+    "msal==1.39.0",
     "mcp==2.3.0",
     "mcp-types==2.3.0",
     "platformdirs==4.12.3",
@@ -52,8 +54,8 @@ python_version = "3.11"
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-# Neither ships type information.
-module = ["fire", "imapclient", "imapclient.*"]
+# None of these ships type information.
+module = ["fire", "imapclient", "imapclient.*", "msal"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
