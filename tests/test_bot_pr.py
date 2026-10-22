@@ -659,7 +659,7 @@ def stale_origin(tmp_path: Path) -> _Fixture:
         capture_output=True,
     )
     _git_in(clone, "config", "user.name", "A Human")
-    _git_in(clone, "config", "user.email", "rnd@alchlight.com")
+    _git_in(clone, "config", "user.email", "owner@example.com")
     _git_in(clone, "config", "commit.gpgsign", "false")
     # A machine with `core.hooksPath` set globally (pre-commit installs one) would
     # otherwise run this repository's hooks against the fixture's commits.

@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Sayem Khan", email = "sayem.eee.kuet@gmail.com" }]
-maintainers = [{ name = "Sayem Khan", email = "s.khan@alchlight.com" }]
+maintainers = [{ name = "Sayem Khan", email = "sayem.eee.kuet@gmail.com" }]
 dependencies = [
     "filelock==4.0.12",
     "cryptography==50.0.2",

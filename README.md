@@ -114,8 +114,9 @@ each person, or their IT department once for everyone, creates a small sign-in c
 2. Google Auth Platform > Get started: app name `email-tool`, your email as support and
    contact. Audience: **Internal** if you are your organisation's administrator (no
    limits, no warning), otherwise **External**.
-3. External only: Audience > Publish app (needs the home page and privacy links on the
-   Branding page), so sign-ins do not expire after 7 days. Until then, add yourself
+3. External only: Audience > Publish app, so sign-ins do not expire after 7 days. Google
+   first wants a home page and a privacy policy of your own on the Branding page (they
+   name you, or your organisation, as the contact for your client). Until then, add yourself
    under Test users.
 4. Clients > Create client > **Desktop app** > Create > **Download JSON**.
 5. `email-tool-mcp add school --auth google --address you@school.edu --client-secrets ~/Downloads/client_secret_....json`
