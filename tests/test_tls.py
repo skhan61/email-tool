@@ -15,6 +15,7 @@ import pytest
 
 from email_tool_mcp import policy as policy_module
 from email_tool_mcp.audit import AuditLog
+from email_tool_mcp.credentials import Credential
 from email_tool_mcp.diagnose import check_mailbox
 from email_tool_mcp.enrol import add_mailbox
 from email_tool_mcp.imap_session import ImapSession
@@ -119,7 +120,7 @@ class StubClient:
     [(("TLS_AES_256_GCM_SHA384", "TLSv1.3", 256), "TLSv1.3 TLS_AES_256_GCM_SHA384"), (None, "TLSv1.3 ?")],
 )
 def test_the_real_imap_session_reports_its_socket(cipher: tuple[str, str, int] | None, shown: str) -> None:
-    session: ImapSession = ImapSession(WORK, "pw")
+    session: ImapSession = ImapSession(WORK, Credential(WORK.address, "pw", is_token=False))
     session._client = StubClient(StubSocket(cipher))
     assert session.tls_details() == shown
 

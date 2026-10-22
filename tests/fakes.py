@@ -14,6 +14,7 @@ from typing import Any
 
 from imapclient import IMAPClient
 
+from email_tool_mcp.credentials import Credential, Xoauth2Responder
 from email_tool_mcp.imap_session import ImapSession, SearchItem
 from email_tool_mcp.settings import Mailbox
 
@@ -25,11 +26,14 @@ class FakeMailServer:
     folders: dict[str, dict[int, bytes]] = field(default_factory=lambda: {"INBOX": {}, "Drafts": {}})
     sent: list[tuple[EmailMessage, list[str]]] = field(default_factory=list)
     logins: list[tuple[str, str]] = field(default_factory=list)
+    token_logins: list[tuple[str, str]] = field(default_factory=list)
     gmail: bool = False
 
-    def open_imap(self, mailbox: Mailbox, password: str) -> ImapSession:
+    def open_imap(self, mailbox: Mailbox, credential: Credential) -> ImapSession:
         """Return a session over this server; the ImapSession factory signature."""
-        self.logins.append((mailbox.address, password))
+        self.logins.append((credential.user, credential.secret))
+        if credential.is_token:
+            self.token_logins.append(("imap", credential.secret))
         return FakeSession(self)  # type: ignore[return-value]
 
     def open_smtp(self, mailbox: Mailbox) -> smtplib.SMTP:
@@ -119,6 +123,7 @@ class FakeSmtp:
     def __init__(self, server: FakeMailServer) -> None:
         self._server: FakeMailServer = server
         self.sock: FakeTlsSocket = FakeTlsSocket()
+        self.esmtp_features: dict[str, str] = {}
 
     def __enter__(self) -> FakeSmtp:
         return self
@@ -129,6 +134,16 @@ class FakeSmtp:
     def login(self, user: str, password: str) -> tuple[int, bytes]:
         self._server.logins.append((user, password))
         return (235, b"ok")
+
+    def ehlo_or_helo_if_needed(self) -> None:
+        self.esmtp_features = {"auth": "LOGIN XOAUTH2"}
+
+    def auth(self, mechanism: str, authobject: Xoauth2Responder, initial_response_ok: bool = True) -> None:
+        # Like a real server: AUTH before EHLO is refused (smtplib.auth itself never sends EHLO).
+        if "auth" not in self.esmtp_features:
+            raise smtplib.SMTPAuthenticationError(503, b"5.5.1 Send hello first")
+        response: str | None = authobject(None)
+        self._server.token_logins.append((f"smtp {mechanism}", response or ""))
 
     def send_message(self, message: EmailMessage, to_addrs: list[str]) -> dict[str, tuple[int, bytes]]:
         self._server.sent.append((message, to_addrs))

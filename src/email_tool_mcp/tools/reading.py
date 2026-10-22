@@ -84,10 +84,10 @@ class ReadingTools:
         self._book: MailboxBook = book
 
     def list_mailboxes(self) -> str:
-        """List the mailboxes configured on this machine and whether each has a password."""
+        """List the mailboxes configured on this machine and whether each can log in."""
         known: dict[str, Mailbox] = self._book.mailboxes()
         lines: list[str] = [
-            f"{name}: {mailbox.address} ({'ready' if self._book.has_password(mailbox) else 'no password'})"
+            f"{name}: {mailbox.address} ({self._book.login_problem(mailbox) or 'ready'})"
             for name, mailbox in sorted(known.items())
         ]
         if not known:

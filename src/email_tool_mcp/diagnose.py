@@ -12,6 +12,7 @@ import smtplib
 import ssl
 
 from email_tool_mcp.audit import AuditLog
+from email_tool_mcp.credentials import smtp_login
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tls import client_context, describe_context, fips_enabled, socket_details
@@ -33,7 +34,7 @@ def smtp_line(book: MailboxBook, mailbox: Mailbox) -> str:
     try:
         smtp: smtplib.SMTP
         with book.smtp(mailbox) as smtp:
-            smtp.login(mailbox.address, book.password(mailbox))
+            smtp_login(smtp, book.credential(mailbox))
             sock: ssl.SSLSocket = smtp.sock  # type: ignore[assignment]
             return f"{where}  {socket_details(sock)}  (login ok)"
     except Exception as error:

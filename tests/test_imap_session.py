@@ -14,6 +14,7 @@ import pytest
 # Private, but it is exactly what IMAPClient.search sends; pinned with imapclient==4.1.0.
 from imapclient.imapclient import _literal, _normalise_search_criteria
 
+from email_tool_mcp.credentials import Credential
 from email_tool_mcp.imap_session import ImapSession, SearchItem, decode_folder_name, text
 from tests.conftest import WORK
 
@@ -54,7 +55,7 @@ class StubClient:
 
 
 def session_over(client: StubClient) -> ImapSession:
-    session: ImapSession = ImapSession(WORK, "secret")
+    session: ImapSession = ImapSession(WORK, Credential(WORK.address, "secret", is_token=False))
     session._client = client
     return session
 

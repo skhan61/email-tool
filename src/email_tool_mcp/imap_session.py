@@ -26,12 +26,12 @@ from imapclient import IMAPClient, imap_utf7
 # value only when it holds a space, quote or backslash.
 from imapclient.imapclient import _literal
 
-from email_tool_mcp.settings import Mailbox
+from email_tool_mcp.credentials import Credential, imap_login
+from email_tool_mcp.settings import NETWORK_TIMEOUT_SECONDS, Mailbox
 from email_tool_mcp.tls import client_context, socket_details
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
 
-_TIMEOUT_SECONDS: Final[float] = 60.0
 _GMAIL_EXTENSION: Final[str] = "X-GM-EXT-1"
 _UID_EXPUNGE: Final[str] = "UIDPLUS"
 _HEADER_REQUEST: Final[str] = "BODY.PEEK[HEADER]"
@@ -72,9 +72,9 @@ def decode_folder_name(raw: bytes | str) -> str:
 class ImapSession:
     """Context manager wrapping one authenticated IMAP connection."""
 
-    def __init__(self, mailbox: Mailbox, password: str) -> None:
+    def __init__(self, mailbox: Mailbox, credential: Credential) -> None:
         self._mailbox: Mailbox = mailbox
-        self._password: str = password
+        self._credential: Credential = credential
         self._client: IMAPClient | None = None
 
     def __enter__(self) -> ImapSession:
@@ -83,10 +83,10 @@ class ImapSession:
             port=self._mailbox.imap_port,
             ssl=True,
             ssl_context=client_context(),
-            timeout=_TIMEOUT_SECONDS,
+            timeout=NETWORK_TIMEOUT_SECONDS,
         )
         try:
-            client.login(self._mailbox.address, self._password)
+            imap_login(client, self._credential)
         except BaseException:
             client.shutdown()
             raise
