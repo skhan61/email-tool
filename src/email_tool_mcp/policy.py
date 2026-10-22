@@ -169,27 +169,35 @@ class Policy:
             layers.extend(rules for key, rules in mailboxes.items() if key.lower() in keys)
         return combine(layers)
 
-    def check_fips(self, mailbox: str, address: str, sign_in: bool = False) -> None:
+    def check_fips(self, mailbox: str, address: str, *, keeps_sign_in: bool) -> None:
         """Raise PolicyRefusal before any connection when `require_fips` is set and OpenSSL is not in FIPS mode.
 
-        `sign_in`: the mailbox logs in with a kept sign-in, whose encryption must be FIPS too.
+        `keeps_sign_in` (`Mailbox.keeps_sign_in`, always given): the mailbox logs in with a kept
+        sign-in, whose encryption must be FIPS too, before it is even read.
         """
         if not self.rules_for(mailbox, address).require_fips:
             return
         if not fips_enabled():
             raise PolicyRefusal("policy: require_fips is set but Python's OpenSSL is not in FIPS mode")
-        if sign_in and not sign_in_storage_fips_enabled():
+        if keeps_sign_in and not sign_in_storage_fips_enabled():
             raise PolicyRefusal(
                 "policy: require_fips is set but the `cryptography` package that encrypts the kept "
                 "sign-in is not on a FIPS provider; use a password mailbox"
             )
 
     def check_call(
-        self, mailbox: str, address: str, tool: str, changes_mail: bool, known_tools: frozenset[str]
+        self,
+        mailbox: str,
+        address: str,
+        tool: str,
+        changes_mail: bool,
+        known_tools: frozenset[str],
+        *,
+        keeps_sign_in: bool,
     ) -> None:
         """Raise PolicyRefusal when `tool` may not run on `mailbox`; SettingsError for an unknown tool name."""
         rules: Rules = self.rules_for(mailbox, address)
-        self.check_fips(mailbox, address)
+        self.check_fips(mailbox, address, keeps_sign_in=keeps_sign_in)
         if rules.allowed_tools is not None:
             unknown: set[str] = set(rules.allowed_tools) - known_tools
             if unknown:

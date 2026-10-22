@@ -85,7 +85,12 @@ def reported(
                 # Never check policy without the address: a mailbox that cannot be resolved does not run.
                 raise unresolved
             book.policy.check_call(
-                mailbox, target.address if target is not None else "", name, changes_mail, known_tools
+                mailbox,
+                target.address if target is not None else "",
+                name,
+                changes_mail,
+                known_tools,
+                keeps_sign_in=target is not None and target.keeps_sign_in,
             )
             if destructive:
                 approved = enforce(name, approval)

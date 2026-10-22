@@ -39,7 +39,8 @@ def sign_in_storage_fips_enabled() -> bool:
         from cryptography.hazmat.bindings._rust import openssl
 
         return bool(openssl.is_fips_enabled())
-    except (ImportError, AttributeError):
+    except Exception:
+        # Moved or failing private binding: fail closed, so require_fips refuses rather than trusts.
         return False
 
 

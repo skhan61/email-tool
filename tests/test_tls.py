@@ -50,9 +50,9 @@ def test_require_fips_refuses_without_fips_mode(
     rules: Policy = Policy([policy_file])
     if refused:
         with pytest.raises(PolicyRefusal, match="FIPS"):
-            rules.check_call("work", "me@example.com", "list_emails", False, TOOLS)
+            rules.check_call("work", "me@example.com", "list_emails", False, TOOLS, keeps_sign_in=False)
     else:
-        rules.check_call("work", "me@example.com", "list_emails", False, TOOLS)
+        rules.check_call("work", "me@example.com", "list_emails", False, TOOLS, keeps_sign_in=False)
 
 
 def test_check_reports_both_connections_and_fips(book: MailboxBook, audit: AuditLog) -> None:
@@ -151,30 +151,56 @@ def test_fips_enabled_reads_openssl_and_falls_back(
 
 @pytest.mark.parametrize(
     ("auth", "storage_fips", "refused"),
-    [
-        ("password", False, False),
-        ("microsoft", False, True),
-        ("microsoft", True, False),
-    ],
+    [("password", False, False), ("microsoft", False, True), ("microsoft", True, False)],
 )
+@pytest.mark.parametrize("connect", ["imap", "smtp"])
 def test_require_fips_also_covers_a_kept_sign_in(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     auth: Literal["password", "microsoft"],
     storage_fips: bool,
     refused: bool,
+    connect: str,
+    mail_server: FakeMailServer,
 ) -> None:
     monkeypatch.setattr(policy_module, "fips_enabled", lambda: True)
     monkeypatch.setattr(policy_module, "sign_in_storage_fips_enabled", lambda: storage_fips)
     policy_file: Path = tmp_path / "admin.toml"
     policy_file.write_text("[default]\nrequire_fips = true\n", encoding="utf-8")
-    book: MailboxBook = MailboxBook(tmp_path / "m.toml", {}, policy=Policy([policy_file]))
+    book: MailboxBook = MailboxBook(
+        tmp_path / "m.toml",
+        {},
+        mail_server.open_imap,
+        mail_server.open_smtp,
+        policy=Policy([policy_file]),
+    )
     mailbox: Mailbox = Mailbox("work", "me@example.com", "i", 993, "s", 587, auth=auth, client_id="c")
+    monkeypatch.setattr(book, "credential", lambda mailbox: Credential("me@example.com", "t", is_token=True))
     if refused:
         with pytest.raises(PolicyRefusal, match="cryptography"):
-            book.smtp(mailbox)
+            book.imap(mailbox) if connect == "imap" else book.smtp(mailbox)
     else:
-        book.policy.check_fips(mailbox.name, mailbox.address, sign_in=auth != "password")
+        book.imap(mailbox) if connect == "imap" else book.smtp(mailbox)
+
+
+def test_listing_refuses_to_read_a_sign_in_under_require_fips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(policy_module, "fips_enabled", lambda: True)
+    monkeypatch.setattr(policy_module, "sign_in_storage_fips_enabled", lambda: False)
+    policy_file: Path = tmp_path / "admin.toml"
+    policy_file.write_text("[default]\nrequire_fips = true\n", encoding="utf-8")
+
+    class Unread(MicrosoftTokens):
+        def is_signed_in(self, mailbox: Mailbox) -> bool:
+            raise AssertionError("the sign-in must not be decrypted")
+
+    book: MailboxBook = MailboxBook(
+        tmp_path / "m.toml",
+        {},
+        policy=Policy([policy_file]),
+        token_sources={"microsoft": Unread(TokenStore(tmp_path / "s"))},
+    )
+    mailbox: Mailbox = Mailbox("o", "me@outlook.com", "i", 993, "s", 587, auth="microsoft", client_id="c")
+    assert book.login_problem(mailbox).startswith("refused: policy: require_fips")
 
 
 def test_require_fips_refuses_a_microsoft_add_before_any_sign_in(
@@ -203,12 +229,28 @@ def test_require_fips_refuses_a_microsoft_add_before_any_sign_in(
 
 @pytest.mark.parametrize(
     ("binding", "expected"),
-    [(SimpleNamespace(is_fips_enabled=lambda: True), True), (SimpleNamespace(), False)],
+    [
+        (SimpleNamespace(is_fips_enabled=lambda: True), True),
+        (SimpleNamespace(), False),
+        (SimpleNamespace(is_fips_enabled=lambda: 1 / 0), False),
+    ],
 )
-def test_sign_in_storage_fips_reads_cryptography_and_falls_back(
+def test_sign_in_storage_fips_reads_cryptography_and_fails_closed(
     monkeypatch: pytest.MonkeyPatch, binding: object, expected: bool
 ) -> None:
     import cryptography.hazmat.bindings._rust as rust
 
     monkeypatch.setattr(rust, "openssl", binding)
     assert sign_in_storage_fips_enabled() is expected
+
+
+def test_sign_in_storage_fips_without_the_binding_is_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(sys.modules, "cryptography.hazmat.bindings._rust", None)
+    assert sign_in_storage_fips_enabled() is False
+
+
+def test_the_pinned_cryptography_still_has_the_binding() -> None:
+    """A cryptography upgrade that moves the private binding must fail here, not silently refuse."""
+    from cryptography.hazmat.bindings._rust import openssl
+
+    assert isinstance(openssl.is_fips_enabled(), bool)

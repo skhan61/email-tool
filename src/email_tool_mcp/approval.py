@@ -99,7 +99,9 @@ def approval_resolver(
     def question(ctx: Context, **arguments: Any) -> Elicit[Approval] | Decision:
         try:
             mailbox: Mailbox = book.resolve(str(arguments.get("mailbox", "")))
-            book.policy.check_call(mailbox.name, mailbox.address, tool, True, known_tools)
+            book.policy.check_call(
+                mailbox.name, mailbox.address, tool, True, known_tools, keeps_sign_in=mailbox.keeps_sign_in
+            )
             if not book.policy.rules_for(mailbox.name, mailbox.address).require_approval:
                 return Decision(required=False)
             if not can_ask(ctx.client_capabilities):
