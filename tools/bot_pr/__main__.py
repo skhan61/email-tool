@@ -6,7 +6,7 @@
     python -m tools.bot_pr open_pr --branch=feat/N-x --title="..." --body_file=/path
     python -m tools.bot_pr ready   --pr=N               # after the review is posted
 
-The verbs and their flags are exactly what CLAUDE.md documents. They are
+The verbs and their flags are what CONTRIBUTING.md documents. They are
 re-exported by `tools/bot_pr/__init__.py`; the logic lives in
 `_github.py` and `_git.py`.
 """

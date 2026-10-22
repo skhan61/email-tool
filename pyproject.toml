@@ -36,6 +36,7 @@ dev = [
     "pre-commit==4.6.2",
     # `tools.bot_pr` signs in as the GitHub App that opens this repository's issues and PRs.
     "pygithub==2.8.1",
+    "requests==2.34.2",
     "pytest==9.1.1",
     "pytest-timeout==2.5.0",
     "ruff==0.16.10",
@@ -58,8 +59,8 @@ files = ["src", "tests", "tools"]
 module = ["fire", "imapclient", "imapclient.*"]
 ignore_missing_imports = true
 
-# The shared app (skhan61-bot, installed on every repository) is described once in
-# ~/.config/github-apps/bot.toml; this login is what the PR route hook checks.
+# The bot that opens the maintainer's PRs. Its App ID and key are machine settings
+# (~/.config/github-apps/bot.toml), never in the repository.
 [tool.bot_pr]
 bot_login = "skhan61-bot[bot]"
 

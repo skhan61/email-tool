@@ -75,18 +75,18 @@ def run_git(
     return result.stdout.strip()
 
 
-def reauthor_range(branch: str, cwd: Path | None = None) -> str:
-    """`<merge-base>..<branch>`, computed against a JUST-FETCHED origin/main."""
-    run_git(["fetch", "--quiet", "origin", "main"], "could not fetch origin/main", cwd=cwd)
+def reauthor_range(branch: str, cwd: Path | None = None, base: str = "main") -> str:
+    """`<merge-base>..<branch>`, computed against a JUST-FETCHED origin/<base> (the PR's base)."""
+    run_git(["fetch", "--quiet", "origin", base], f"could not fetch origin/{base}", cwd=cwd)
     merge_base: str = run_git(
-        ["merge-base", "origin/main", branch],
-        f"could not find where {branch} left main",
+        ["merge-base", f"origin/{base}", branch],
+        f"could not find where {branch} left {base}",
         cwd=cwd,
     )
     return f"{merge_base}..{branch}"
 
 
-def reauthor_commits(branch: str, cwd: Path | None = None) -> str:
+def reauthor_commits(branch: str, cwd: Path | None = None, base: str = "main") -> str:
     """Rewrite the branch's own commits to the bot. Returns the range rewritten.
 
     The commits on a branch carry whatever `git config user.name` said when they
@@ -94,7 +94,7 @@ def reauthor_commits(branch: str, cwd: Path | None = None) -> str:
     uniform rather than leaving a branch whose PR is the bot's and whose commits
     are the operator's.
     """
-    rewrite: str = reauthor_range(branch, cwd=cwd)
+    rewrite: str = reauthor_range(branch, cwd=cwd, base=base)
     # An empty range is not an error, but filter-branch thinks it is: it exits 2
     # with "Found nothing to rewrite", which `run_git` turns into "could not
     # rewrite authorship: Found nothing to rewrite" and the push never happens.
@@ -176,20 +176,22 @@ def push_branch(branch: str, token: str, cwd: Path | None = None, force: bool = 
         raise BotError(f"push failed: {combined.replace(token, '<token>')[:400]}")
 
 
-def push(branch: str, reauthor: bool = False) -> str:
+def push(branch: str, reauthor: bool = False, base: str = "main") -> str:
     """Push `branch` as the bot. With `reauthor`, rewrite its commits to the bot.
 
     OFF BY DEFAULT (#51): GitHub's rule against approving your own PR looks at who OPENED it, which
     `open_pr` makes the bot, not at who wrote the commits. Rewriting changed every SHA after the
     push, so a merge had to look up the new head before it could name it.
     """
+    # `fire` turns a numeric-looking flag into a number; git needs the name.
+    branch, base = str(branch), str(base)
     token: str = installation_token()
 
     # Fetch the branch too, so `lease_flag` has a ref to pin the lease to. It is
     # allowed to fail: on a first push the branch does not exist on the remote.
     subprocess.run(["git", "fetch", "--quiet", "origin", branch], capture_output=True, check=False)
     if reauthor:
-        reauthor_commits(branch)
+        reauthor_commits(branch, base=base)
     push_branch(branch, token, force=reauthor)
     log.info("pushed %s as the bot", branch)
     return branch

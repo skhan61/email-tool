@@ -1,0 +1,70 @@
+---
+# Merge gates a pull request cannot edit (adapted from skhan61/project-template).
+#
+# `pull_request_target` runs this file as it is on main, so a branch cannot
+# weaken a gate that judges it. That trigger is safe only because no step here
+# checks out, builds or runs anything from the pull request: both jobs read the
+# event payload and the review list from the API, nothing else. Keep it so.
+#
+# A skipped job counts as passing, so the draft condition is safe only because
+# GitHub refuses to merge a draft.
+name: gates
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: gates-${{ github.event.pull_request.number }}-${{ github.event.pull_request.draft }}
+  cancel-in-progress: true
+
+jobs:
+  pr-author:
+    name: PR not opened by the owner
+    # GitHub forbids approving your own pull request, so a PR the owner opens
+    # can only meet the required approval if someone approves with his token.
+    # His changes are opened by the bot (`python -m tools.bot_pr open_pr`);
+    # anyone else's PR passes.
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: The author must not be the repository owner
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          if [ "$PR_AUTHOR" = "$OWNER" ]; then
+            echo "::error::opened by the owner '$OWNER', who cannot approve it."
+            echo "Close it and reopen with: python -m tools.bot_pr open_pr --branch=..."
+            exit 1
+          fi
+          echo "author is $PR_AUTHOR"
+
+  review-posted:
+    name: code review posted
+    # The machine review must be written on the PR, where the approver and
+    # later readers see it, before the owner is asked to judge.
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: A review starting '## Code review' must be posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          count=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" \
+            --jq '[.[] | select((.body // "") | ltrimstr("\n") | startswith("## Code review"))] | length')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No review starting '## Code review' is posted on this pull request."
+            exit 1
+          fi
+          echo "$count code review(s) posted"

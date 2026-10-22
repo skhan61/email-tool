@@ -198,6 +198,10 @@ class _Pull:
     draft: bool = True
     marked_ready: int = 0
     drafted: int = 0
+    automerge: str = ""
+
+    def enable_automerge(self, merge_method: str) -> None:
+        self.automerge = merge_method
 
     def mark_ready_for_review(self) -> None:
         self.marked_ready += 1
@@ -545,6 +549,29 @@ def test_ready_marks_a_reviewed_draft_ready_once(github: _GitHubStandIn) -> None
     assert "ready for review" in _github.ready(130)
     assert github.repo.pull.marked_ready == 1 and not github.repo.pull.draft
     assert github.repo.pull.drafted == 0, "a draft goes ready with no detour"
+    assert github.repo.pull.automerge == "SQUASH", "the owner's approval merges it once CI is green"
+
+
+def test_ready_needs_a_review_that_starts_with_the_heading(github: _GitHubStandIn) -> None:
+    github.repo.pull.reviews = ["Code review pending, not done yet"]
+    with pytest.raises(BotError):
+        _github.ready(130)
+    assert github.repo.pull.marked_ready == 0
+
+
+def test_ready_that_cannot_redraft_does_not_claim_a_draft(
+    github: _GitHubStandIn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    github.repo.pull.reviews = ["## Code review\n\nfindings"]
+    github.repo.pull.draft = False
+
+    def refused() -> None:
+        raise GithubException(502, {"message": "Bad Gateway"}, None)
+
+    monkeypatch.setattr(github.repo.pull, "convert_to_draft", refused)
+    with pytest.raises(BotError) as raised:
+        _github.ready(130)
+    assert "put back to draft" not in str(raised.value)
 
 
 def test_ready_on_a_ready_pr_runs_its_gates_again(github: _GitHubStandIn) -> None:
@@ -919,7 +946,7 @@ def test_the_cli_signatures_are_unchanged() -> None:
 
     assert list(inspect.signature(bot_pr.whoami).parameters) == []
     push_parameters: dict[str, inspect.Parameter] = dict(inspect.signature(bot_pr.push).parameters)
-    assert list(push_parameters) == ["branch", "reauthor"]
+    assert list(push_parameters) == ["branch", "reauthor", "base"]
     # OFF BY DEFAULT (#51): the PR author, not the commit author, blocks self-approval.
     assert push_parameters["reauthor"].default is False
     open_pr_parameters: dict[str, inspect.Parameter] = dict(inspect.signature(bot_pr.open_pr).parameters)

@@ -19,7 +19,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
 
 import requests
 from github import Auth, Github, GithubException, GithubIntegration
@@ -42,14 +41,13 @@ from tools.bot_pr._identity import (
 )
 
 log: logging.Logger = logging.getLogger(__name__)
-T = TypeVar("T")
 
 
 GATE_CHECK: str = "code review posted"
 """The gate a review satisfies. Must match the job's `name:` in `.github/workflows/gates.yml`."""
 
-REVIEW_MARKER: str = "Code review"
-"""What that gate looks for in a review body. Must match the string in `gates.yml`."""
+REVIEW_MARKER: str = "## Code review"
+"""How a review that gate counts must start. Must match the string in `gates.yml`."""
 
 
 def _said(error: GithubException) -> str:
@@ -65,7 +63,7 @@ def _app() -> GithubIntegration:
     if not key.is_file():
         raise BotError(
             f"no app private key at {key}. It is deliberately not in the "
-            "secret store (see CLAUDE.md): it is a machine identity, and a store "
+            "secret store (see CONTRIBUTING.md): it is a machine identity, and a store "
             "three machines can decrypt would let any of them act as the bot."
         )
     return GithubIntegration(auth=Auth.AppAuth(app_id(), key.read_text()))
@@ -91,7 +89,7 @@ def _installation_token() -> str:
         ) from None
 
 
-def _reached(call: Callable[[], T]) -> T:
+def _reached(call: Callable[[], str]) -> str:
     """`call`, with GitHub out of reach said as a `BotError`, not a traceback (toolpath#128 review: the
     urllib client said "could not reach"; PyGithub raises `requests`' own errors).
     """
@@ -182,7 +180,8 @@ def _discover() -> str:
 
 def open_pr(branch: str, title: str, body_file: str, base: str = "main") -> str:
     """Open the pull request as the bot. Returns its URL."""
-    return _reached(lambda: _open_pr(branch, title, body_file, base))
+    # `fire` turns a numeric-looking flag (a title of 2026) into a number; GitHub needs text.
+    return _reached(lambda: _open_pr(str(branch), str(title), str(body_file), str(base)))
 
 
 def _open_pr(branch: str, title: str, body_file: str, base: str) -> str:
@@ -205,34 +204,34 @@ def ready(pr: int) -> str:
 
 
 def _ready(pr: int) -> str:
-    """The PR out of draft, so the gates run on it, once, with the review already there.
+    """The PR out of draft, so the gates run on it once, with the review already there; then auto-merge.
 
-    WHY A DRAFT AND NOT A RE-RUN. The review can only be posted after the PR exists, and a PR opened
-    ready ran `code review posted` before it: the gate failed every time and was re-run by hand. A
-    draft skips both gates (`gates.yml`), and `ready_for_review` runs them on the PR as it is.
+    WHY A DRAFT. The review can only be posted after the PR exists, and a PR opened ready ran
+    `code review posted` before it. A draft skips both gates (`gates.yml`), and `ready_for_review`
+    runs them on the PR as it is.
 
     IT REFUSES WHEN THERE IS NO REVIEW, rather than letting the gate fail.
 
-    A PR ALREADY READY goes back to draft and out again (toolpath#130 review): opened ready, or readied
-    before its review, its gates failed then and do not run again on their own, and
-    `ready_for_review` is the one event that runs main's copy of them. If it then cannot be marked
-    ready, the error says it was left a draft, so `ready` is run again (toolpath#130 second review). A
-    draft also turns off auto-merge, which these PRs never use: the owner's approval merges them.
+    A PR ALREADY READY goes back to draft and out again, the one event that re-runs the gates. That
+    also turns auto-merge off, which is why auto-merge is switched on here, last: the owner's approval
+    then merges it once CI is green.
     """
     redrafted: bool = False
     try:
         pull: PullRequest = _repository(_as_bot()).get_pull(pr)
-        if not any(REVIEW_MARKER in (one.body or "") for one in pull.get_reviews()):
+        if not any((one.body or "").lstrip().startswith(REVIEW_MARKER) for one in pull.get_reviews()):
             raise BotError(
-                f"PR #{pr} has no review containing {REVIEW_MARKER!r}: post the /code-review "
-                "findings on it first, as a review starting '## Code review'."
+                f"PR #{pr} has no review starting {REVIEW_MARKER!r}: post the /code-review "
+                "findings on it first, as a review."
             )
-        redrafted = not pull.draft
-        if redrafted:
+        if not pull.draft:
             pull.convert_to_draft()
+            redrafted = True
         pull.mark_ready_for_review()
+        redrafted = False
+        pull.enable_automerge(merge_method="SQUASH")
     except GithubException as error:
         left: str = f": it was put back to draft and is one now, so run `ready --pr={pr}` again" if redrafted else ""
         raise BotError(f"could not mark PR #{pr} ready ({_said(error)}){left}") from None
-    log.info("PR #%s marked ready for review", pr)
-    return f"PR #{pr} is ready for review: the gates run now"
+    log.info("PR #%s marked ready for review, auto-merge on", pr)
+    return f"PR #{pr} is ready for review: the gates run now, and it merges once approved and green"

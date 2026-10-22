@@ -55,8 +55,6 @@ class BotError(RuntimeError):
     """Something in the bot PR path is not set up, with what to fix named."""
 
 
-API: str = "https://api.github.com"
-
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 PYPROJECT: Path = REPO_ROOT / "pyproject.toml"
 
@@ -84,7 +82,7 @@ _SETUP_HINT: str = (
     "on the account with 'All repositories', then run "
     "`python -m tools.bot_pr discover` and put its output in "
     f"{USER_CONFIG} under [bot_pr]. Only a repository that deliberately wants "
-    "its own app needs [tool.bot_pr] in its pyproject.toml. See README.md."
+    "its own app needs [tool.bot_pr] in its pyproject.toml. See CONTRIBUTING.md."
 )
 
 
