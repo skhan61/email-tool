@@ -21,7 +21,7 @@ from google_auth_oauthlib.flow import WSGITimeoutError
 
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.enrol import add_google_mailbox
-from email_tool_mcp.google import GoogleTokens, SignIn, SignInRequired, preset
+from email_tool_mcp.google import GoogleTokens, SignIn, SignInRequired, browser_available, preset
 from email_tool_mcp.settings import Mailbox, load_mailboxes
 from email_tool_mcp.token_store import TokenStore
 
@@ -238,3 +238,44 @@ def test_no_answer_in_time_names_the_paste_option(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="--paste-address"):
         tokens_with(tmp_path, Silent()).sign_in(RIT, client_file(tmp_path), print)
+
+
+def test_unticking_mail_access_says_so(tmp_path: Path) -> None:
+    class Partial(FakeFlow):
+        def run_local_server(self, **options: Any) -> Credentials:
+            raise Warning('Scope has changed from "https://mail.google.com/ openid" to "openid".')
+
+        def fetch_token(self, **options: Any) -> dict[str, Any]:
+            raise Warning('Scope has changed from "https://mail.google.com/ openid" to "openid".')
+
+    tokens: GoogleTokens = tokens_with(tmp_path, Partial())
+    with pytest.raises(RuntimeError, match="leave every box ticked"):
+        tokens.sign_in(RIT, client_file(tmp_path), print)
+    with pytest.raises(RuntimeError, match="leave every box ticked"):
+        tokens.sign_in(RIT, client_file(tmp_path), print, lambda prompt: "http://localhost/?code=c&state=s")
+
+
+@pytest.mark.parametrize(
+    ("browser", "expected"),
+    [(webbrowser.GenericBrowser("w3m"), False), (webbrowser.BackgroundBrowser("xdg-open"), True)],
+)
+def test_a_console_browser_does_not_count(
+    monkeypatch: pytest.MonkeyPatch, browser: webbrowser.BaseBrowser, expected: bool
+) -> None:
+    monkeypatch.setattr(webbrowser, "get", lambda: browser)
+    assert browser_available() is expected
+
+
+@pytest.mark.parametrize(
+    ("record", "reason"),
+    [("not json", "incomplete"), ('{"refresh_token": "r"}', "incomplete"), (None, "another OAuth client")],
+)
+def test_a_damaged_or_foreign_sign_in_asks_for_a_new_one(tmp_path: Path, record: str | None, reason: str) -> None:
+    tokens: GoogleTokens = tokens_with(tmp_path, FakeFlow())
+    signed: SignIn = tokens.sign_in(RIT, client_file(tmp_path), print)
+    mailbox: Mailbox = signed.complete(RIT)
+    kept: str = record if record is not None else signed.credentials_json
+    tokens.keep(mailbox, SignIn(ADDRESS, signed.client_id, "", kept))
+    asked: Mailbox = mailbox if record is not None else RIT
+    with pytest.raises(SignInRequired, match=reason):
+        tokens.access_token(asked)

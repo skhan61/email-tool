@@ -119,6 +119,28 @@ def add_mailbox(
     )
 
 
+def finish_sign_in(
+    settings_file: Path,
+    mailbox: Mailbox,
+    access_token: str,
+    keep: Callable[[], None],
+    provider: str,
+    login_check: LoginCheck,
+    forget: Forget,
+) -> str:
+    """Every provider's last step: check IMAP and SMTP with the new token, then keep the sign-in and save.
+
+    Nothing is kept until the check passes, so a failed attempt leaves an earlier sign-in as it was.
+    """
+    login_check(mailbox, Credential(mailbox.address, access_token, is_token=True))
+    keep()
+    cleanup: str = save_mailbox(settings_file, mailbox, forget)
+    return (
+        f"Mailbox {mailbox.name!r} ({mailbox.address}) added. Signed in with {provider}; IMAP and SMTP "
+        f"checked. No password stored.{cleanup}"
+    )
+
+
 def add_microsoft_mailbox(
     name: str,
     settings_file: Path,
@@ -153,12 +175,14 @@ def add_microsoft_mailbox(
     mailbox: Mailbox = signed.complete(provisional)
     # The real login decides: a Microsoft 365 user name may differ from the address it opens.
     show(f"Signed in as {signed.username}; checking IMAP and SMTP for {address}.")
-    login_check(mailbox, Credential(address, signed.access_token, is_token=True))
-    tokens.keep(mailbox, signed)
-    note: str = save_mailbox(settings_file, mailbox, forget)
-    return (
-        f"Mailbox {name!r} ({address}) added. Signed in with Microsoft; IMAP and SMTP checked. "
-        f"No password stored.{note}"
+    return finish_sign_in(
+        settings_file,
+        mailbox,
+        signed.access_token,
+        lambda: tokens.keep(mailbox, signed),
+        "Microsoft",
+        login_check,
+        forget,
     )
 
 
@@ -192,12 +216,14 @@ def add_google_mailbox(
     (policy if policy is not None else Policy(policy_paths())).check_fips(name, address, keeps_sign_in=True)
     signed: GoogleSignIn = tokens.sign_in(provisional, secrets, show, paste)
     mailbox: Mailbox = signed.complete(provisional)
-    login_check(mailbox, Credential(address, signed.access_token, is_token=True))
-    tokens.keep(mailbox, signed)
-    cleanup: str = save_mailbox(settings_file, mailbox, forget)
-    return (
-        f"Mailbox {name!r} ({address}) added. Signed in with Google; IMAP and SMTP checked. "
-        f"No password stored.{cleanup}"
+    return finish_sign_in(
+        settings_file,
+        mailbox,
+        signed.access_token,
+        lambda: tokens.keep(mailbox, signed),
+        "Google",
+        login_check,
+        forget,
     )
 
 

@@ -22,7 +22,6 @@ from google.auth.credentials import TokenState
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow, WSGITimeoutError
 
 from email_tool_mcp import credentials
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, SETUP_COMMAND, Mailbox, SettingsError
@@ -79,6 +78,9 @@ Refresher = Callable[[Credentials], None]
 
 def installed_app_flow(client_secrets: Path) -> Flow:
     """A real browser sign-in for the OAuth client in `client_secrets`, over the project's TLS."""
+    # Imported here: only `add --auth google` needs the browser flow, not every server start.
+    from google_auth_oauthlib.flow import InstalledAppFlow
+
     flow: InstalledAppFlow = InstalledAppFlow.from_client_secrets_file(str(client_secrets), scopes=SCOPES)
     session: requests.Session = flow.oauth2session
     session.mount("https://", TlsAdapter(max_retries=1))
@@ -88,16 +90,21 @@ def installed_app_flow(client_secrets: Path) -> Flow:
 
 def refresh(google_credentials: Credentials) -> None:
     """Refresh through the project's TLS context and timeout."""
-    google_credentials.refresh(Request(session=https_session()))
+    with https_session() as session:
+        google_credentials.refresh(Request(session=session))
 
 
 def browser_available() -> bool:
-    """True when Python can open a browser from here (a terminal without one prints the address)."""
+    """True when Python can open a graphical browser from here; otherwise the address is printed.
+
+    A plain `GenericBrowser` is a console one (lynx, w3m) run in the foreground of the
+    terminal, where Google's sign-in does not work; graphical ones are its subclasses.
+    """
     try:
-        webbrowser.get()
+        browser: webbrowser.BaseBrowser = webbrowser.get()
     except webbrowser.Error:
         return False
-    return True
+    return type(browser) is not webbrowser.GenericBrowser
 
 
 def preset(name: str, address: str) -> Mailbox:
@@ -150,6 +157,8 @@ def _browser_sign_in(flow: Flow, mailbox: Mailbox, show: Callable[[str], None]) 
         if opens
         else "No browser can be opened from here: open the address below in a browser on this computer."
     )
+    from google_auth_oauthlib.flow import WSGITimeoutError
+
     try:
         signed: Credentials = flow.run_local_server(
             port=0,
@@ -159,6 +168,8 @@ def _browser_sign_in(flow: Flow, mailbox: Mailbox, show: Callable[[str], None]) 
             authorization_prompt_message="Google sign-in address:\n{url}\n",
             **AUTHORIZATION_OPTIONS,
         )
+    except Warning as warning:
+        raise _not_granted(warning) from warning
     except WSGITimeoutError as error:
         raise RuntimeError(
             f"no answer from the browser within {SIGN_IN_SECONDS // 60} minutes; nothing saved. If the browser "
@@ -182,8 +193,19 @@ def _pasted_sign_in(
             f"that is not the address the browser ended on (it starts with {PASTE_REDIRECT}); nothing saved"
         )
     # oauthlib takes only https responses; the loopback answer is http by design (RFC 8252 7.3).
-    flow.fetch_token(authorization_response=answer.replace("http://", "https://", 1))
+    try:
+        flow.fetch_token(authorization_response=answer.replace("http://", "https://", 1))
+    except Warning as warning:
+        raise _not_granted(warning) from warning
     return flow.credentials
+
+
+def _not_granted(warning: Warning) -> RuntimeError:
+    """oauthlib's `Warning("Scope has changed ...")`: the user unticked part of the access."""
+    return RuntimeError(
+        f"Google granted less than was asked ({warning}). Sign in again and leave every box ticked: "
+        "IMAP and SMTP need full mail access; nothing saved"
+    )
 
 
 class GoogleTokens:
@@ -208,7 +230,13 @@ class GoogleTokens:
             saved: str | None = self._read(mailbox)
             if not saved:
                 raise SignInRequired(mailbox)
-            kept: Credentials = Credentials.from_authorized_user_info(json.loads(saved), SCOPES)
+            try:
+                info: dict[str, Any] = json.loads(saved)
+                kept: Credentials = Credentials.from_authorized_user_info(info, SCOPES)
+            except ValueError as error:
+                raise SignInRequired(mailbox, "the kept sign-in is incomplete") from error
+            if info.get("client_id") != mailbox.client_id:
+                raise SignInRequired(mailbox, "the kept sign-in belongs to another OAuth client")
             # STALE (about to expire) and INVALID both refresh; only FRESH is used as it is.
             if kept.token_state != TokenState.FRESH:
                 try:
