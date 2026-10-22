@@ -476,12 +476,14 @@ name = "email-tool-mcp"
 version = "5.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "filelock" },
     { name = "fire" },
     { name = "imapclient" },
     { name = "keyring" },
     { name = "mcp" },
     { name = "mcp-types" },
+    { name = "msal" },
     { name = "platformdirs" },
     { name = "pydantic" },
     { name = "tomli-w" },
@@ -500,12 +502,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = "==50.0.2" },
     { name = "filelock", specifier = "==4.0.12" },
     { name = "fire", specifier = "==0.7.1" },
     { name = "imapclient", specifier = "==4.1.0" },
     { name = "keyring", specifier = "==25.7.0" },
     { name = "mcp", specifier = "==2.3.0" },
     { name = "mcp-types", specifier = "==2.3.0" },
+    { name = "msal", specifier = "==1.39.0" },
     { name = "platformdirs", specifier = "==4.12.3" },
     { name = "pydantic", specifier = "==2.13.5" },
     { name = "tomli-w", specifier = "==1.2.0" },
@@ -890,6 +894,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/52/b8/c63995bebbb9ac9c059350e0fb8c82c2420c85aeca7d34e40aecf3df9281/more_itertools-11.2.1.tar.gz", hash = "sha256:cbf08fd0af284dc69718b9b76a8e6203df624d70209ea511e4219d350c856f63", size = 154133, upload-time = "2026-10-14T18:50:30.407Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5d/57/3c4b1c6f2e0cc29ba023802458ea3d2a996f87085559e4a5f2192d549532/more_itertools-11.2.1-py3-none-any.whl", hash = "sha256:35a7377edd1dd6608dcb2cdf534ded55ea32d49448875ad042cd3f879fb1ded0", size = 74405, upload-time = "2026-10-14T18:50:29.116Z" },
+]
+
+[[package]]
+name = "msal"
+version = "1.39.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bb/85/747d28986a44b715cc51cf57aa021c8fd94e9614064261ceec77320e8b0b/msal-1.39.0.tar.gz", hash = "sha256:6ab7de335e6d7f5717e2c7e1dbf86e4dda2f6acf3c56773b78dc53ebc6395b5f", size = 205360, upload-time = "2026-09-17T16:07:45.1Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a4/32/178457385925ce301c7b3232bd85665d4df57da39568b62dcfc74031873f/msal-1.39.0-py3-none-any.whl", hash = "sha256:2d2577886906cd7293850dffa2da29119966c213bfc6ec0cecf8bf7621e1ca77", size = 131629, upload-time = "2026-09-17T16:07:46.722Z" },
 ]
 
 [[package]]
