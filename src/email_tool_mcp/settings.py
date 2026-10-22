@@ -81,6 +81,11 @@ class Mailbox:
     cloud: CloudName = "commercial"
     account: str = ""
 
+    @property
+    def keeps_sign_in(self) -> bool:
+        """True when it logs in with a kept (encrypted) sign-in rather than a keyring password."""
+        return self.auth != "password"
+
 
 def settings_path() -> Path:
     """Return the settings file for this user on this OS."""

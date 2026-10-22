@@ -4,7 +4,9 @@ Standard: the stdlib `ssl` module: `ssl.create_default_context()` (certificate a
 hostname verification, SNI) with the floor raised explicitly to TLS 1.2, as NIST
 SP 800-52 Rev. 2 requires; the default floor is whatever the OS OpenSSL allows.
 FIPS state comes from CPython's `_hashlib.get_fips_mode()`, which reports whether
-the OpenSSL it is linked to runs its FIPS provider.
+the OpenSSL it is linked to runs its FIPS provider, and, for the kept sign-ins that
+`cryptography` encrypts, from that package's own OpenSSL binding (its wheels bundle
+their own OpenSSL, separate from Python's).
 Placement: tls.py; imap_session.py and mailbox_book.py take every context from here.
 """
 
@@ -27,6 +29,18 @@ def fips_enabled() -> bool:
 
         return bool(_hashlib.get_fips_mode())
     except (ImportError, AttributeError, ValueError):
+        return False
+
+
+def sign_in_storage_fips_enabled() -> bool:
+    """True when `cryptography`, which encrypts kept sign-ins, runs on a FIPS provider."""
+    try:
+        # The binding cryptography's own `backend._fips_enabled` reads; it has no public name.
+        from cryptography.hazmat.bindings._rust import openssl
+
+        return bool(openssl.is_fips_enabled())
+    except Exception:
+        # Moved or failing private binding: fail closed, so require_fips refuses rather than trusts.
         return False
 
 

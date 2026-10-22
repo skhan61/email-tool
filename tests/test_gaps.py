@@ -43,8 +43,8 @@ def test_a_rule_keyed_by_address_binds_under_any_name(tmp_path: Path) -> None:
     rules: Policy = policy_file(tmp_path, '[mailboxes."ME@example.com"]\nread_only = true\n')
     for name in ("work", "work2", "anything"):
         with pytest.raises(PolicyRefusal, match="read_only"):
-            rules.check_call(name, "me@example.com", "send_email", True, TOOLS)
-    rules.check_call("work", "someone@else.com", "send_email", True, TOOLS)
+            rules.check_call(name, "me@example.com", "send_email", True, TOOLS, keeps_sign_in=False)
+    rules.check_call("work", "someone@else.com", "send_email", True, TOOLS, keeps_sign_in=False)
 
 
 def test_the_environment_mailbox_never_replaces_an_enrolled_one(
@@ -108,7 +108,7 @@ def test_a_uid_without_a_passwd_entry_is_still_recorded(monkeypatch: pytest.Monk
 def test_names_match_case_insensitively(tmp_path: Path) -> None:
     rules: Policy = policy_file(tmp_path, "[mailboxes.work]\nread_only = true\n")
     with pytest.raises(PolicyRefusal):
-        rules.check_call("Work", "", "send_email", True, TOOLS)
+        rules.check_call("Work", "", "send_email", True, TOOLS, keeps_sign_in=False)
 
 
 def test_the_syslog_copy_reconnects_when_the_target_comes_back(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

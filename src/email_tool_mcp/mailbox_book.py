@@ -23,7 +23,7 @@ from email_tool_mcp.cui import message_markings
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.message_compose import envelope_recipients
 from email_tool_mcp.passwords import MissingPassword, delete_password, environment_password, read_password
-from email_tool_mcp.policy import Policy
+from email_tool_mcp.policy import Policy, PolicyRefusal
 from email_tool_mcp.settings import (
     ENV_PASSWORD,
     NETWORK_TIMEOUT_SECONDS,
@@ -163,7 +163,11 @@ class MailboxBook:
         if source is None:
             return f"{mailbox.auth} sign-in is not available in this version"
         try:
+            # Reading the sign-in decrypts it, so require_fips applies before that too.
+            self.policy.check_fips(mailbox.name, mailbox.address, keeps_sign_in=True)
             return "" if source.is_signed_in(mailbox) else f"not signed in to {mailbox.auth}"
+        except PolicyRefusal as refusal:
+            return f"refused: {refusal}"
         except Exception as error:
             return f"cannot read the {mailbox.auth} sign-in: {type(error).__name__}"
 
@@ -191,7 +195,7 @@ class MailboxBook:
 
     def imap(self, mailbox: Mailbox) -> ImapSession:
         """Return an unopened IMAP session for `mailbox`; refused first if FIPS is required and absent."""
-        self.policy.check_fips(mailbox.name, mailbox.address)
+        self.policy.check_fips(mailbox.name, mailbox.address, keeps_sign_in=mailbox.keeps_sign_in)
         return self._session_factory(mailbox, self.credential(mailbox))
 
     def approve(self, mailbox: Mailbox, message: EmailMessage) -> list[str]:
@@ -205,7 +209,7 @@ class MailboxBook:
 
     def smtp(self, mailbox: Mailbox) -> smtplib.SMTP:
         """Return an unauthenticated SMTP connection for `mailbox`; refused first if FIPS is required and absent."""
-        self.policy.check_fips(mailbox.name, mailbox.address)
+        self.policy.check_fips(mailbox.name, mailbox.address, keeps_sign_in=mailbox.keeps_sign_in)
         return self._smtp_factory(mailbox)
 
     def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:

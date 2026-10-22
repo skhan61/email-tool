@@ -104,7 +104,8 @@ class Cli:
 
     def list(self) -> str:
         """Show every mailbox on this machine."""
-        return describe_mailboxes(open_book(os.environ, with_policy=False), settings_path())
+        # With policy: require_fips decides whether a kept sign-in may even be read.
+        return describe_mailboxes(open_book(os.environ, with_policy=True), settings_path())
 
     def serve(self) -> None:
         """Run the MCP server on stdio (what an AI agent launches)."""
