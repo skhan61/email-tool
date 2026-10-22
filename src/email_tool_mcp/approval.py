@@ -24,6 +24,7 @@ from mcp.server.mcpserver import Context, Elicit, ElicitationResult
 from mcp_types import ClientCapabilities, ElicitationCapability
 from pydantic import BaseModel, Field
 
+from email_tool_mcp.attachments import Attachment, SensitiveFile, load, sensitive
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose
 from email_tool_mcp.message_render import MessageSummary, every_text, parse_message, summarize
@@ -31,7 +32,18 @@ from email_tool_mcp.policy import PolicyRefusal
 from email_tool_mcp.settings import Mailbox
 
 # Tool arguments the question may read; a resolver takes only those its tool has.
-_QUESTION_ARGUMENTS: Final[tuple[str, ...]] = ("mailbox", "to", "cc", "subject", "body", "html", "folder", "uid")
+_QUESTION_ARGUMENTS: Final[tuple[str, ...]] = (
+    "mailbox",
+    "to",
+    "cc",
+    "subject",
+    "body",
+    "html",
+    "folder",
+    "uid",
+    "attachments",
+    "confirm_sensitive",
+)
 
 
 class Approval(BaseModel):
@@ -72,6 +84,8 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
         verb: str = "permanently delete" if tool == "delete_email" else "replace"
         lines += [f"It will {verb} this message in {arguments['folder']!r}:", removed.render()]
     if "to" in arguments:
+        paths: list[str] = attachment_paths(arguments)
+        files: list[Attachment] = load(paths)
         message: EmailMessage = compose(
             mailbox.address,
             str(arguments.get("to", "")),
@@ -79,15 +93,29 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
             str(arguments.get("body", "")),
             str(arguments.get("cc", "")),
             str(arguments.get("html", "")),
+            files,
         )
         recipients: list[str] = book.approve(mailbox, message)
-        lines += [
-            f"Delivered to: {', '.join(recipients)}",
-            f"Subject: {message.get('Subject', '')}",
-            "Full text (every part, as the recipient's mail program shows it):",
-            every_text(message),
-        ]
+        lines += [f"Delivered to: {', '.join(recipients)}", f"Subject: {message.get('Subject', '')}"]
+        if files:
+            lines.append("Attachments: " + ", ".join(attachment.label() for attachment in files))
+            lines += [f"WARNING: {found.render()}." for found in sensitive(paths, files)]
+        lines += ["Full text (every part, as the recipient's mail program shows it):", every_text(message)]
     return "\n".join(lines)
+
+
+def attachment_paths(arguments: Mapping[str, Any]) -> list[str]:
+    """The `attachments` argument as a list of paths."""
+    given: object = arguments.get("attachments")
+    return [str(path) for path in given] if isinstance(given, list) else []
+
+
+def sensitive_sends(tool: str, arguments: Mapping[str, Any]) -> list[SensitiveFile]:
+    """The attachments of a send that look sensitive; drafts are only warned about, never stopped."""
+    paths: list[str] = attachment_paths(arguments)
+    if tool != "send_email" or not paths:
+        return []
+    return sensitive(paths, load(paths))
 
 
 def approval_resolver(
@@ -102,11 +130,26 @@ def approval_resolver(
             book.policy.check_call(
                 mailbox.name, mailbox.address, tool, True, known_tools, keeps_sign_in=mailbox.keeps_sign_in
             )
-            if not book.policy.rules_for(mailbox.name, mailbox.address).require_approval:
+            required: bool = book.policy.rules_for(mailbox.name, mailbox.address).require_approval
+            # A sensitive-looking attachment makes the app ask even without required approval.
+            flagged: list[SensitiveFile] = sensitive_sends(tool, arguments)
+            if not required and not flagged:
                 return Decision(required=False)
-            if not can_ask(ctx.client_capabilities):
+            if can_ask(ctx.client_capabilities):
+                return Elicit(describe(tool, book, mailbox, arguments), Approval)
+            if required:
                 return Decision(required=True)
-            return Elicit(describe(tool, book, mailbox, arguments), Approval)
+            if arguments.get("confirm_sensitive") is True:
+                return Decision(required=False)
+            return Decision(
+                required=True,
+                refusal=(
+                    "nothing was sent: "
+                    + "; ".join(found.render() for found in flagged)
+                    + ". Ask the user whether to send it anyway, then call send_email again with "
+                    "confirm_sensitive=true only if they agree"
+                ),
+            )
         except Exception as error:
             # Reported by the audited wrapper, never as a bare SDK error.
             return Decision(required=True, refusal=f"{type(error).__name__}: {error}")

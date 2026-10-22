@@ -20,6 +20,7 @@ import inspect
 import typing
 from collections.abc import Awaitable, Callable
 from importlib.metadata import version
+from pathlib import Path
 from typing import Annotated, Any, Final
 
 import anyio
@@ -28,6 +29,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 
 from email_tool_mcp.approval import Approval, approval_resolver, enforce
+from email_tool_mcp.attachments import Attachment, load
 from email_tool_mcp.audit import AuditError, AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.settings import Mailbox
@@ -41,6 +43,10 @@ _READ_ONLY: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=True, open_w
 _WRITES: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
 _DESTRUCTIVE: Final[ToolAnnotations] = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, open_world_hint=False
+)
+# Writes a file on this computer and changes no mail, so a read-only mailbox allows it.
+_SAVES: Final[ToolAnnotations] = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
 )
 _SENDS: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True)
 
@@ -57,6 +63,18 @@ def broken_text_arguments(kwargs: dict[str, Any]) -> list[str]:
             except UnicodeEncodeError:
                 broken.append(key)
     return broken
+
+
+def attachment_record(paths: object) -> object:
+    """What the audit log keeps of attachments: name, size and SHA-256 of each, never the contents."""
+    if not isinstance(paths, list):
+        return paths
+    try:
+        files: list[Attachment] = load([str(path) for path in paths])
+    except (OSError, ValueError):
+        # The tool refuses these; the log keeps the names it was given.
+        return [Path(str(path)).name for path in paths]
+    return [{"name": file.name, "size": file.size, "sha256": file.sha256} for file in files]
 
 
 def escaped(value: object) -> object:
@@ -79,7 +97,7 @@ def reported(
     never stalls the server's event loop.
     """
     name: str = tool.__name__
-    changes_mail: bool = not hints.read_only_hint
+    changes_mail: bool = not hints.read_only_hint and hints is not _SAVES
     destructive: bool = bool(hints.destructive_hint)
     signature: inspect.Signature = inspect.signature(tool, eval_str=True)
     takes_mailbox: bool = "mailbox" in signature.parameters
@@ -88,6 +106,8 @@ def reported(
         broken: list[str] = broken_text_arguments(kwargs)
         # Logged escaped: the audit log is UTF-8, which an unpaired surrogate is not.
         logged: dict[str, object] = {key: escaped(value) if key in broken else value for key, value in kwargs.items()}
+        if logged.get("attachments") and "attachments" not in broken:
+            logged["attachments"] = attachment_record(logged["attachments"])
         given: str = str(logged.get("mailbox", ""))
         target: Mailbox | None = None
         unresolved: Exception | None = None
@@ -163,6 +183,7 @@ def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
         (reading.list_emails, _READ_ONLY),
         (reading.search_emails, _READ_ONLY),
         (reading.get_email, _READ_ONLY),
+        (reading.save_attachment, _SAVES),
         (reading.delete_email, _DESTRUCTIVE),
         (drafts.create_draft, _WRITES),
         (drafts.list_drafts, _READ_ONLY),

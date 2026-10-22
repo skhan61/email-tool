@@ -23,6 +23,7 @@ from tests.fakes import FakeMailServer
 pytestmark: pytest.MarkDecorator = pytest.mark.anyio
 
 TOOL_NAMES: set[str] = {
+    "save_attachment",
     "list_mailboxes",
     "list_folders",
     "list_emails",

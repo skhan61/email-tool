@@ -6,12 +6,17 @@ composed by exactly one piece of code.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from email.message import EmailMessage
 from email.utils import formatdate, getaddresses, make_msgid
 
+from email_tool_mcp.attachments import Attachment, attach
 
-def compose(sender: str, to: str, subject: str, body: str, cc: str, html: str) -> EmailMessage:
-    """Build a message from `sender`; with `html` it becomes multipart/alternative.
+
+def compose(
+    sender: str, to: str, subject: str, body: str, cc: str, html: str, attachments: Sequence[Attachment] = ()
+) -> EmailMessage:
+    """Build a message from `sender`; with `html` it becomes multipart/alternative, with attachments multipart/mixed.
 
     multipart/alternative makes mail clients show the HTML part and open a saved
     draft in rich-text mode, with `body` as the plain-text fallback.
@@ -36,6 +41,7 @@ def compose(sender: str, to: str, subject: str, body: str, cc: str, html: str) -
     message.set_content(body)
     if html:
         message.add_alternative(html, subtype="html")
+    attach(message, attachments)
     return message
 
 

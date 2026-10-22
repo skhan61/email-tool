@@ -146,11 +146,11 @@ def every_text(message: Message) -> str:
     return "\n".join(chunks)
 
 
+def attached_parts(message: Message) -> list[Message]:
+    """Every attached part (a part with a file name), in message order: attachment 1, 2, ..."""
+    return [part for part in message.walk() if part.get_filename()]
+
+
 def attachment_names(message: Message) -> list[str]:
     """Return the filenames of every attached part."""
-    names: list[str] = []
-    for part in message.walk():
-        filename: str | None = part.get_filename()
-        if filename:
-            names.append(decode_header_value(filename))
-    return names
+    return [decode_header_value(part.get_filename()) for part in attached_parts(message)]

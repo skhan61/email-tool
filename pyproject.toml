@@ -16,6 +16,7 @@ dependencies = [
     "imapclient==4.1.0",
     "keyring==25.7.0",
     "msal==1.39.0",
+    "pypdf==6.19.0",
     "mcp==2.3.0",
     "mcp-types==2.3.0",
     "platformdirs==4.12.4",

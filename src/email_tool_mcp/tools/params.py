@@ -23,3 +23,18 @@ Cc = Annotated[str, Field(description="Comma-separated Cc addresses.")]
 Subject = Annotated[str, Field(description="Subject line.")]
 Body = Annotated[str, Field(description="Plain text body; the fallback when `html` is also given.")]
 Html = Annotated[str, Field(description="Optional HTML body for links and formatting, sent alongside `body`.")]
+Attachments = Annotated[
+    list[str] | None,
+    Field(description="Paths of files to attach, from any folder the user named. Up to 25 MB in total."),
+]
+ConfirmSensitive = Annotated[
+    bool,
+    Field(
+        description=(
+            "Set true only after the user, in this conversation, confirmed sending the attachments an "
+            "earlier refusal named as sensitive. Never set it on your own."
+        )
+    ),
+]
+Index = Annotated[int, Field(description="Number of the attachment, as listed by get_email (1 for the first).", ge=1)]
+Directory = Annotated[str, Field(description="Folder to save into, as the user named it; created if missing.")]

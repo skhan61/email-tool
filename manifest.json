@@ -118,6 +118,10 @@
       "description": "One message in full, without marking it read"
     },
     {
+      "name": "save_attachment",
+      "description": "Save one attachment of a message into a folder you name"
+    },
+    {
       "name": "delete_email",
       "description": "Delete a message permanently"
     },

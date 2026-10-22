@@ -44,6 +44,10 @@ Key rules by address (`[mailboxes."you@example.com"]`): a rule keyed by name sto
 if the user adds the same account under another name. If an existing policy file cannot be
 read, every action is refused.
 
+`cui_recipient_domains` also reads attachments: text, CSV, Markdown, HTML, Word (.docx) and
+PDF files. The audit log records each attachment's name, size and SHA-256 fingerprint, never
+its contents. Saving an attachment changes no mail, so `read_only` allows it.
+
 Every refusal names the rule and is recorded in the audit log. Recipients are checked on the
 finished message, which is the list the mail server receives.
 
