@@ -3,11 +3,21 @@
 # Sigstore (`*.sigstore.json`), plus SLSA build provenance (`*.intoto.jsonl`).
 # With the repository variable PYPI_PUBLISH set to "true", the wheel and sdist
 # also go to PyPI by trusted publishing (no token stored anywhere).
+#
+# A pull request that changes this workflow runs it as a dry run: GitHub checks every job,
+# skipped ones included (their permissions, the workflows they call), when the run starts,
+# so a mistake fails the pull request instead of the release. The dry run builds and packs;
+# it does not check a tag, sign, generate provenance or publish.
 name: release
 
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/actions/agent-cli/**
+      - .github/tools/mcpb/**
 
 permissions:
   contents: read
@@ -25,8 +35,10 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       # main only takes merged PRs that passed the full CI matrix.
       - name: Tag is on main
+        if: github.event_name == 'push'
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Tag matches the package version
+        if: github.event_name == 'push'
         run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
       - run: uv run --locked pytest -q
       - run: uv build
@@ -34,7 +46,7 @@ jobs:
         with:
           tool: mcpb
           scripts: "false"
-      - run: mcpb pack . "dist/email-tool-${GITHUB_REF_NAME#v}.mcpb"
+      - run: mcpb pack . "dist/email-tool-$(uv version --short).mcpb"
       # What the provenance vouches for: the SHA-256 of every file released.
       - id: hashes
         run: echo "hashes=$(cd dist && sha256sum * | base64 -w0)" >> "$GITHUB_OUTPUT"
@@ -45,6 +57,7 @@ jobs:
 
   # Provenance first, so the release is published once, with every file attached.
   provenance:
+    if: github.event_name == 'push'
     needs: build
     # The generator's own upload job declares contents: write even with upload-assets
     # off, and a called workflow may not ask for more than this job grants. That write
@@ -63,6 +76,7 @@ jobs:
       upload-assets: false
 
   github-release:
+    if: github.event_name == 'push'
     needs: [build, provenance]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -95,7 +109,7 @@ jobs:
   pypi:
     needs: github-release
     # Off until the PyPI trusted publisher exists (#31); then set the variable to "true".
-    if: vars.PYPI_PUBLISH == 'true'
+    if: github.event_name == 'push' && vars.PYPI_PUBLISH == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment:
