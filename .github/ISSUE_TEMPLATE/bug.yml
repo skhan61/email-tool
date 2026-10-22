@@ -39,7 +39,7 @@ body:
     id: environment
     attributes:
       label: OS, Python and email-tool version
-      placeholder: macOS 15.6, Python 3.13.2, email-tool 5.0.0 (version from `claude plugin list` or the release page)
+      placeholder: macOS 15.6, Python 3.13.2, email-tool 5.1.0 (version from `claude plugin list` or the release page)
     validations:
       required: true
   - type: textarea

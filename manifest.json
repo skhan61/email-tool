@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "email-tool",
   "display_name": "Email (IMAP/SMTP)",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "Read, search, draft and send email over IMAP/SMTP.",
   "long_description": "One server for all your mailboxes. Fill in one mailbox below, or leave everything blank and add mailboxes in a terminal (see the README); their passwords stay in the OS keyring.",
   "author": {
@@ -80,10 +80,10 @@
     },
     "smtp_port": {
       "type": "number",
-      "title": "SMTP port (TLS)",
+      "title": "SMTP port",
       "default": 465,
       "required": false,
-      "description": "Implicit TLS, normally 465.",
+      "description": "465 (direct TLS) or 587 (STARTTLS); always encrypted",
       "min": 1,
       "max": 65535
     },
