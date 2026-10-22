@@ -858,6 +858,8 @@ def test_the_real_credential_chain_writes_no_file(monkeypatch: pytest.MonkeyPatc
         # Explicit, so a runner that already exports GIT_CONFIG_GLOBAL cannot
         # quietly hide the `helper = store` this test needs to be meaningful.
         "GIT_CONFIG_GLOBAL": str(home / ".gitconfig"),
+        # And no system file: macOS's adds the keychain helper, which waits for a password on CI.
+        "GIT_CONFIG_NOSYSTEM": "1",
         "GH_BOT_TOKEN": TOKEN,
     }
     _REAL_RUN(
