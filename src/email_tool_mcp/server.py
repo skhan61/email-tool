@@ -45,6 +45,25 @@ _DESTRUCTIVE: Final[ToolAnnotations] = ToolAnnotations(
 _SENDS: Final[ToolAnnotations] = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True)
 
 
+def broken_text_arguments(kwargs: dict[str, Any]) -> list[str]:
+    """The text arguments that are not valid Unicode (JSON can carry a lone surrogate such as \\ud800)."""
+    broken: list[str] = []
+    key: str
+    value: Any
+    for key, value in kwargs.items():
+        if isinstance(value, str):
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError:
+                broken.append(key)
+    return broken
+
+
+def escaped(value: object) -> object:
+    """`value` safe to write as UTF-8: broken characters shown as `\\udXXX` escapes."""
+    return value.encode("utf-8", "backslashreplace").decode("utf-8") if isinstance(value, str) else value
+
+
 def reported(
     tool: Callable[..., str],
     hints: ToolAnnotations,
@@ -66,7 +85,10 @@ def reported(
     takes_mailbox: bool = "mailbox" in signature.parameters
 
     def execute(args: tuple[Any, ...], kwargs: dict[str, Any], approval: ElicitationResult[Any] | None) -> str:
-        given: str = str(kwargs.get("mailbox", ""))
+        broken: list[str] = broken_text_arguments(kwargs)
+        # Logged escaped: the audit log is UTF-8, which an unpaired surrogate is not.
+        logged: dict[str, object] = {key: escaped(value) if key in broken else value for key, value in kwargs.items()}
+        given: str = str(logged.get("mailbox", ""))
         target: Mailbox | None = None
         unresolved: Exception | None = None
         if takes_mailbox:
@@ -76,11 +98,15 @@ def reported(
                 unresolved = error
         mailbox: str = target.name if target is not None else given
         try:
-            call: str = audit.started(mailbox, name, kwargs)
+            call: str = audit.started(mailbox, name, logged)
         except AuditError as error:
             raise ToolError(f"Refused, nothing was done: {error}") from error
         approved: bool = False
         try:
+            if broken:
+                raise ValueError(
+                    f"{', '.join(broken)} contains invalid text (a broken Unicode character); nothing was done"
+                )
             if unresolved is not None:
                 # Never check policy without the address: a mailbox that cannot be resolved does not run.
                 raise unresolved

@@ -6,6 +6,7 @@ Placement: tests/test_server.py, beside the module it tests (pytest's tests/ lay
 
 from __future__ import annotations
 
+import json
 from email.message import EmailMessage
 
 import pytest
@@ -116,3 +117,18 @@ async def test_update_draft_with_a_wrong_uid_changes_nothing(
     )
     assert result.is_error
     assert list(mail_server.folders["Drafts"]) == [1]
+
+
+async def test_broken_unicode_is_refused_by_name_and_still_audited(book: MailboxBook, audit: AuditLog) -> None:
+    """JSON can carry an unpaired surrogate; it used to escape as a raw UnicodeEncodeError (found by fuzzing)."""
+    store_password("work", "secret")
+    result: CallToolResult = await call(book, audit, "search_emails", {"mailbox": "work", "subject": "\ud800"})
+    assert result.is_error
+    assert "subject contains invalid text" in text_of(result)
+    finished: list[dict[str, object]] = [
+        record
+        for record in map(json.loads, audit.path.read_text(encoding="utf-8").splitlines())
+        if record.get("phase") == "finished"
+    ]
+    assert finished[-1]["tool"] == "search_emails"
+    assert "subject contains invalid text" in str(finished[-1]["outcome"])

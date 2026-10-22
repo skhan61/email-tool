@@ -1,0 +1,26 @@
+---
+# One agent CLI from its hash-locked package-lock (.github/tools/<tool>), on PATH.
+# Install scripts run only where the CLI needs them (its native binary); the release
+# build passes scripts: "false", so nothing but the locked files runs there.
+name: agent-cli
+description: Install one agent CLI with npm ci from its locked folder
+inputs:
+  tool:
+    description: Folder under .github/tools (mcpb, codex, claude-code)
+    required: true
+  scripts:
+    description: Run the package's install scripts
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TOOL: ${{ inputs.tool }}
+        SCRIPTS: ${{ inputs.scripts }}
+      run: |
+        set -euo pipefail
+        flags=(--no-audit --no-fund)
+        if [ "$SCRIPTS" != "true" ]; then flags+=(--ignore-scripts); fi
+        npm ci --prefix "$GITHUB_WORKSPACE/.github/tools/$TOOL" "${flags[@]}"
+        echo "$GITHUB_WORKSPACE/.github/tools/$TOOL/node_modules/.bin" >> "$GITHUB_PATH"

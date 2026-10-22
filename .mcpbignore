@@ -16,3 +16,4 @@ skills/
 *.mcpb
 .codex-plugin/
 .codex-mcp.json
+.hypothesis/

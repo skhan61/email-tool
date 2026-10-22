@@ -18,9 +18,16 @@ def compose(sender: str, to: str, subject: str, body: str, cc: str, html: str) -
     """
     message: EmailMessage = EmailMessage()
     message["From"] = sender
-    message["To"] = to
-    if cc:
-        message["Cc"] = cc
+    header: str
+    value: str
+    for header, value in (("To", to), ("Cc", cc)):
+        if not value and header == "Cc":
+            continue
+        try:
+            message[header] = value
+        except IndexError as error:
+            # Python 3.11/3.12's header parser crashes on a lone quote (`"`); 3.13 fixed it.
+            raise ValueError(f"{header.lower()} is not a valid address list: {value!r}") from error
     message["Subject"] = subject
     message["Date"] = formatdate(localtime=True)
     # The sender's own domain: the default looks up this machine's network name (a

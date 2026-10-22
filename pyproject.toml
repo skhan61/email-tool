@@ -36,6 +36,8 @@ packages = ["src/email_tool_mcp"]
 [dependency-groups]
 # The pre-commit hooks run these exact versions.
 dev = [
+    # Property-based (fuzz) tests in tests/test_fuzz.py.
+    "hypothesis==6.168.5",
     "mypy==2.4.0",
     "pre-commit==4.6.2",
     # `tools.bot_pr` signs in as the GitHub App that opens this repository's issues and PRs.

@@ -32,4 +32,24 @@ uv run python -m tools.bot_pr ready --pr=N   # after the code review is posted
    Add the version's section to `CHANGELOG.md`, including behaviour changes.
 2. Merge, then tag `main` at once: `git tag vX.Y.Z && git push origin vX.Y.Z`
    (the Codex plugin points at that tag, so it must exist as soon as the bump lands).
-3. The release workflow tests, builds the wheel, sdist and `.mcpb` bundle, and publishes a GitHub release.
+3. The release workflow tests, builds the wheel, sdist and `.mcpb` bundle, signs each with
+   Sigstore (`*.sigstore.json`), adds SLSA build provenance (`*.intoto.jsonl`) and publishes a
+   GitHub release. With the repository variable `PYPI_PUBLISH` set to `true` (after the PyPI
+   trusted publisher exists, #31), it also publishes the wheel and sdist to PyPI.
+   Verify a download (X.Y.Z the version): it must be signed by release.yml on that tag:
+   ```bash
+   uvx sigstore==4.5.0 verify identity <file> \
+     --cert-identity https://github.com/skhan61/email-tool/.github/workflows/release.yml@refs/tags/vX.Y.Z \
+     --cert-oidc-issuer https://token.actions.githubusercontent.com
+   ```
+
+## OpenSSF Scorecard token
+
+Scorecard needs to read branch protection, which the workflow's own token cannot.
+Once a year: GitHub > Settings > Developer settings > Fine-grained tokens > Generate:
+repository access "Only select repositories" > email-tool; permissions
+"Administration: Read-only" (Metadata read-only is added by GitHub); expiry one year.
+Then store it without it ever being shown:
+```bash
+gh secret set SCORECARD_TOKEN --repo skhan61/email-tool
+```
