@@ -1,7 +1,8 @@
 # OpenSSF Scorecard: supply-chain security checks (pinned actions, token
 # permissions, dependency updates, code review, ...). Results feed the README
-# badge and the Security tab. Branch protection is scored only partly: reading
-# classic protection needs an admin token, which this workflow does not hold.
+# badge and the Security tab. Reading branch protection needs a token with
+# "Administration: read-only" on this repository, kept as the SCORECARD_TOKEN
+# secret (CONTRIBUTING.md); without it, that one check is skipped.
 name: scorecard
 
 on:
@@ -32,6 +33,7 @@ jobs:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
+          repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scorecard

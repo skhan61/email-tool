@@ -15,6 +15,15 @@ updates:
         dependency-type: production
       dev:
         dependency-type: development
+  - package-ecosystem: npm
+    directory: /.github/tools
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      agent-clis:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

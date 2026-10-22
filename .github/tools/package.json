@@ -1,0 +1,10 @@
+{
+  "name": "email-tool-ci-tools",
+  "private": true,
+  "description": "The agent CLIs CI installs, locked by hash in package-lock.json (installed with npm ci).",
+  "devDependencies": {
+    "@anthropic-ai/claude-code": "2.1.292",
+    "@anthropic-ai/mcpb": "2.1.2",
+    "@openai/codex": "0.160.1"
+  }
+}
