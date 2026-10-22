@@ -41,7 +41,7 @@ dev = [
     "mypy==2.4.0",
     "pre-commit==4.6.2",
     # `tools.bot_pr` signs in as the GitHub App that opens this repository's issues and PRs.
-    "pygithub==2.8.1",
+    "pygithub==2.10.0",
     "requests==2.34.2",
     "pytest==9.1.1",
     "pytest-timeout==2.5.0",
