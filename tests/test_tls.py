@@ -93,6 +93,7 @@ def test_require_fips_also_guards_add_and_check(
                 ask_secret=lambda _: "pw",
                 login_check=lambda mailbox, password: None,
                 policy=rules,
+                forget=lambda mailbox: True,
             )
 
 
