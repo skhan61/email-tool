@@ -99,6 +99,17 @@ def test_a_header_value_with_a_line_break_never_reaches_the_message(value: str) 
     assert all("\r" not in address and "\n" not in address for address in envelope_recipients(message))
 
 
+@pytest.mark.parametrize("value", ['"', ', "'])
+def test_a_lone_quote_never_crashes_and_delivers_nowhere(value: str) -> None:
+    """Found by fuzzing: Python 3.11/3.12's header parser raised IndexError here; 3.13 reads no address."""
+    try:
+        message: EmailMessage = compose("me@example.com", value, "s", "b", "", "")
+    except ValueError as refused:
+        assert "not a valid address list" in str(refused)
+        return
+    assert envelope_recipients(message) == []
+
+
 RECIPIENT: st.SearchStrategy[str] = st.builds(
     "{}@{}".format,
     st.from_regex(r"[a-z][a-z0-9.]{0,10}", fullmatch=True),
