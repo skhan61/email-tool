@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "email-tool",
   "display_name": "Email (IMAP/SMTP)",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "description": "Read, search, draft and send email over IMAP/SMTP.",
   "long_description": "One server for all your mailboxes. Fill in one mailbox below, or leave everything blank and add mailboxes in a terminal (see the README); their passwords stay in the OS keyring.",
   "author": {
