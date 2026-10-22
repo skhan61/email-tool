@@ -191,7 +191,7 @@ class MailboxBook:
 
     def imap(self, mailbox: Mailbox) -> ImapSession:
         """Return an unopened IMAP session for `mailbox`; refused first if FIPS is required and absent."""
-        self.policy.check_fips(mailbox.name, mailbox.address)
+        self.policy.check_fips(mailbox.name, mailbox.address, sign_in=mailbox.auth != "password")
         return self._session_factory(mailbox, self.credential(mailbox))
 
     def approve(self, mailbox: Mailbox, message: EmailMessage) -> list[str]:
@@ -205,7 +205,7 @@ class MailboxBook:
 
     def smtp(self, mailbox: Mailbox) -> smtplib.SMTP:
         """Return an unauthenticated SMTP connection for `mailbox`; refused first if FIPS is required and absent."""
-        self.policy.check_fips(mailbox.name, mailbox.address)
+        self.policy.check_fips(mailbox.name, mailbox.address, sign_in=mailbox.auth != "password")
         return self._smtp_factory(mailbox)
 
     def send(self, mailbox: Mailbox, message: EmailMessage) -> dict[str, tuple[int, bytes]]:

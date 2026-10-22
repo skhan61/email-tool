@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import ssl
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Literal
 
 import pytest
 
@@ -17,12 +19,15 @@ from email_tool_mcp import policy as policy_module
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.diagnose import check_mailbox
-from email_tool_mcp.enrol import add_mailbox
+from email_tool_mcp.enrol import add_mailbox, add_microsoft_mailbox
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import MailboxBook
+from email_tool_mcp.microsoft import MicrosoftTokens, SignIn
 from email_tool_mcp.passwords import store_password
 from email_tool_mcp.policy import Policy, PolicyRefusal
-from email_tool_mcp.tls import client_context, describe_context, fips_enabled
+from email_tool_mcp.settings import Mailbox
+from email_tool_mcp.tls import client_context, describe_context, fips_enabled, sign_in_storage_fips_enabled
+from email_tool_mcp.token_store import TokenStore
 from tests.conftest import WORK
 from tests.fakes import FakeMailServer
 
@@ -142,3 +147,68 @@ def test_fips_enabled_reads_openssl_and_falls_back(
 ) -> None:
     monkeypatch.setitem(sys.modules, "_hashlib", module)
     assert fips_enabled() is expected
+
+
+@pytest.mark.parametrize(
+    ("auth", "storage_fips", "refused"),
+    [
+        ("password", False, False),
+        ("microsoft", False, True),
+        ("microsoft", True, False),
+    ],
+)
+def test_require_fips_also_covers_a_kept_sign_in(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    auth: Literal["password", "microsoft"],
+    storage_fips: bool,
+    refused: bool,
+) -> None:
+    monkeypatch.setattr(policy_module, "fips_enabled", lambda: True)
+    monkeypatch.setattr(policy_module, "sign_in_storage_fips_enabled", lambda: storage_fips)
+    policy_file: Path = tmp_path / "admin.toml"
+    policy_file.write_text("[default]\nrequire_fips = true\n", encoding="utf-8")
+    book: MailboxBook = MailboxBook(tmp_path / "m.toml", {}, policy=Policy([policy_file]))
+    mailbox: Mailbox = Mailbox("work", "me@example.com", "i", 993, "s", 587, auth=auth, client_id="c")
+    if refused:
+        with pytest.raises(PolicyRefusal, match="cryptography"):
+            book.smtp(mailbox)
+    else:
+        book.policy.check_fips(mailbox.name, mailbox.address, sign_in=auth != "password")
+
+
+def test_require_fips_refuses_a_microsoft_add_before_any_sign_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(policy_module, "fips_enabled", lambda: True)
+    monkeypatch.setattr(policy_module, "sign_in_storage_fips_enabled", lambda: False)
+    policy_file: Path = tmp_path / "admin.toml"
+    policy_file.write_text("[default]\nrequire_fips = true\n", encoding="utf-8")
+
+    class NoSignIn(MicrosoftTokens):
+        def sign_in(self, mailbox: Mailbox, device_code: bool, show: Callable[[str], None]) -> SignIn:
+            raise AssertionError("refused before the browser opens")
+
+    with pytest.raises(PolicyRefusal, match="cryptography"):
+        add_microsoft_mailbox(
+            "o",
+            tmp_path / "m.toml",
+            NoSignIn(TokenStore(tmp_path / "s")),
+            "me@outlook.com",
+            "",
+            policy=Policy([policy_file]),
+            forget=lambda mailbox: True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("binding", "expected"),
+    [(SimpleNamespace(is_fips_enabled=lambda: True), True), (SimpleNamespace(), False)],
+)
+def test_sign_in_storage_fips_reads_cryptography_and_falls_back(
+    monkeypatch: pytest.MonkeyPatch, binding: object, expected: bool
+) -> None:
+    import cryptography.hazmat.bindings._rust as rust
+
+    monkeypatch.setattr(rust, "openssl", binding)
+    assert sign_in_storage_fips_enabled() is expected

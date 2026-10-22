@@ -145,7 +145,7 @@ def add_microsoft_mailbox(
         )
     client_id = client_id or DEFAULT_CLIENT_ID
     provisional: Mailbox = microsoft_preset(name, address, client_id, tenant, cloud)
-    (policy if policy is not None else Policy(policy_paths())).check_fips(name, address)
+    (policy if policy is not None else Policy(policy_paths())).check_fips(name, address, sign_in=True)
     signed: SignIn = tokens.sign_in(provisional, device_code, show)
     mailbox: Mailbox = signed.complete(provisional)
     # The real login decides: a Microsoft 365 user name may differ from the address it opens.

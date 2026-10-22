@@ -40,7 +40,7 @@ from pydantic import ConfigDict, ValidationError
 from pydantic.dataclasses import dataclass
 
 from email_tool_mcp.settings import APP_NAME, SettingsError
-from email_tool_mcp.tls import fips_enabled
+from email_tool_mcp.tls import fips_enabled, sign_in_storage_fips_enabled
 
 POLICY_FILE: Final[str] = "policy.toml"
 # Fixed, not $XDG_CONFIG_DIRS: whoever launches the server must not choose the administrator's file.
@@ -169,10 +169,20 @@ class Policy:
             layers.extend(rules for key, rules in mailboxes.items() if key.lower() in keys)
         return combine(layers)
 
-    def check_fips(self, mailbox: str, address: str) -> None:
-        """Raise PolicyRefusal before any connection when `require_fips` is set and OpenSSL is not in FIPS mode."""
-        if self.rules_for(mailbox, address).require_fips and not fips_enabled():
+    def check_fips(self, mailbox: str, address: str, sign_in: bool = False) -> None:
+        """Raise PolicyRefusal before any connection when `require_fips` is set and OpenSSL is not in FIPS mode.
+
+        `sign_in`: the mailbox logs in with a kept sign-in, whose encryption must be FIPS too.
+        """
+        if not self.rules_for(mailbox, address).require_fips:
+            return
+        if not fips_enabled():
             raise PolicyRefusal("policy: require_fips is set but Python's OpenSSL is not in FIPS mode")
+        if sign_in and not sign_in_storage_fips_enabled():
+            raise PolicyRefusal(
+                "policy: require_fips is set but the `cryptography` package that encrypts the kept "
+                "sign-in is not on a FIPS provider; use a password mailbox"
+            )
 
     def check_call(
         self, mailbox: str, address: str, tool: str, changes_mail: bool, known_tools: frozenset[str]
