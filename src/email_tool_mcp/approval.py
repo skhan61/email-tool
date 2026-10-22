@@ -14,20 +14,43 @@ removes. Nothing here is logged.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import inspect
+import secrets
+import threading
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from email.message import EmailMessage
+from email.message import EmailMessage, Message
+from pathlib import Path
 from typing import Any, Final
 
 from mcp.server.mcpserver import Context, Elicit, ElicitationResult
 from mcp_types import ClientCapabilities, ElicitationCapability
 from pydantic import BaseModel, Field
 
-from email_tool_mcp.attachments import Attachment, SensitiveFile, load, sensitive
+from email_tool_mcp.attachments import (
+    Attachment,
+    SensitiveFile,
+    attachment_bytes,
+    human_size,
+    load,
+    risky_save,
+    safe_file_name,
+    save_directory,
+    sensitive,
+)
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose
-from email_tool_mcp.message_render import MessageSummary, every_text, parse_message, summarize
+from email_tool_mcp.message_render import (
+    MessageSummary,
+    attached_parts,
+    decode_header_value,
+    every_text,
+    parse_message,
+    summarize,
+)
 from email_tool_mcp.policy import PolicyRefusal
 from email_tool_mcp.settings import Mailbox
 
@@ -42,8 +65,12 @@ _QUESTION_ARGUMENTS: Final[tuple[str, ...]] = (
     "folder",
     "uid",
     "attachments",
+    "index",
+    "directory",
     "confirm_sensitive",
 )
+# How long a confirmation code from a refusal stays valid.
+CODE_SECONDS: Final[float] = 600.0
 
 
 class Approval(BaseModel):
@@ -79,6 +106,13 @@ def target_summary(book: MailboxBook, mailbox: Mailbox, folder: str, uid: int) -
 def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[str, Any]) -> str:
     """The full text the human reads; runs the recipient check first, so a refused send is never shown."""
     lines: list[str] = [f"The assistant wants to run {tool} on mailbox {mailbox.name!r} ({mailbox.address})."]
+    if tool == "save_attachment":
+        name: str
+        size: int
+        name, size = saved_attachment(book, mailbox, arguments)
+        directory: Path = save_directory(str(arguments.get("directory", "")))
+        lines.append(f"It will save {name} ({human_size(size)}) from message uid {arguments['uid']} into {directory}.")
+        return "\n".join(lines + [f"WARNING: {reason}." for reason in risky_save(directory, name)])
     if "uid" in arguments:
         removed: MessageSummary = target_summary(book, mailbox, str(arguments["folder"]), int(arguments["uid"]))
         verb: str = "permanently delete" if tool == "delete_email" else "replace"
@@ -118,8 +152,80 @@ def sensitive_sends(tool: str, arguments: Mapping[str, Any]) -> list[SensitiveFi
     return sensitive(paths, load(paths))
 
 
+def saved_attachment(book: MailboxBook, mailbox: Mailbox, arguments: Mapping[str, Any]) -> tuple[str, int]:
+    """The name and size of the attachment a save would write; LookupError when there is none."""
+    folder: str = str(arguments.get("folder", "INBOX"))
+    uid: int = int(arguments["uid"])
+    with book.imap(mailbox) as session:
+        session.select(folder, readonly=True)
+        raw: bytes | None = session.fetch_message(uid)
+    if raw is None:
+        raise LookupError(f"no message with uid {uid} in folder {folder!r}")
+    parts: list[Message] = attached_parts(parse_message(raw))
+    index: int = int(arguments["index"])
+    if not 1 <= index <= len(parts):
+        raise LookupError(f"message uid {uid} has no attachment {index}")
+    part: Message = parts[index - 1]
+    return safe_file_name(decode_header_value(part.get_filename())), len(attachment_bytes(part))
+
+
+def warnings_for(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[str, Any]) -> list[str]:
+    """What the user should hear before `tool` runs: sensitive attachments, or a risky place to save."""
+    if tool == "save_attachment":
+        name: str = saved_attachment(book, mailbox, arguments)[0]
+        return risky_save(save_directory(str(arguments.get("directory", ""))), name)
+    return [found.render() for found in sensitive_sends(tool, arguments)]
+
+
+def fingerprint(tool: str, mailbox: Mailbox, arguments: Mapping[str, Any]) -> str:
+    """What a confirmation code is bound to: these exact files and recipients, or this exact save."""
+    if tool == "save_attachment":
+        parts: list[str] = [
+            str(arguments.get("folder", "INBOX")),
+            str(arguments.get("uid")),
+            str(arguments.get("index")),
+            str(save_directory(str(arguments.get("directory", "")))),
+        ]
+    else:
+        files: list[Attachment] = load(attachment_paths(arguments))
+        parts = [str(arguments.get("to", "")), str(arguments.get("cc", "")), *(file.sha256 for file in files)]
+    return hashlib.sha256("\x00".join([tool, mailbox.name, *parts]).encode("utf-8")).hexdigest()
+
+
+class ConfirmationCodes:
+    """One-time codes a refusal hands out when the app cannot ask the user.
+
+    A code proves only that the warning was given for these exact files and recipients
+    (or this save) within the last ten minutes; whether the user agreed rests on the
+    assistant asking them, which is why apps that can show a question always get one.
+    """
+
+    def __init__(self) -> None:
+        self._codes: dict[str, tuple[float, str]] = {}
+        self._lock: threading.Lock = threading.Lock()
+
+    def issue(self, bound_to: str) -> str:
+        code: str = secrets.token_hex(4)
+        now: float = time.monotonic()
+        with self._lock:
+            self._codes = {key: entry for key, entry in self._codes.items() if entry[0] > now}
+            self._codes[code] = (now + CODE_SECONDS, bound_to)
+        return code
+
+    def redeem(self, code: str, bound_to: str) -> bool:
+        """True once for a live code issued for `bound_to`; any use spends it."""
+        with self._lock:
+            entry: tuple[float, str] | None = self._codes.pop(code, None)
+        return entry is not None and entry[0] > time.monotonic() and hmac.compare_digest(entry[1], bound_to)
+
+
 def approval_resolver(
-    tool: str, tool_arguments: set[str], known_tools: frozenset[str], book: MailboxBook
+    tool: str,
+    tool_arguments: set[str],
+    known_tools: frozenset[str],
+    book: MailboxBook,
+    changes_mail: bool,
+    codes: ConfirmationCodes,
 ) -> Callable[..., Any]:
     """Build the resolver that checks policy, then decides whether and how to ask before `tool` runs."""
     names: list[str] = [name for name in _QUESTION_ARGUMENTS if name in tool_arguments]
@@ -128,26 +234,29 @@ def approval_resolver(
         try:
             mailbox: Mailbox = book.resolve(str(arguments.get("mailbox", "")))
             book.policy.check_call(
-                mailbox.name, mailbox.address, tool, True, known_tools, keeps_sign_in=mailbox.keeps_sign_in
+                mailbox.name, mailbox.address, tool, changes_mail, known_tools, keeps_sign_in=mailbox.keeps_sign_in
             )
-            required: bool = book.policy.rules_for(mailbox.name, mailbox.address).require_approval
-            # A sensitive-looking attachment makes the app ask even without required approval.
-            flagged: list[SensitiveFile] = sensitive_sends(tool, arguments)
-            if not required and not flagged:
+            # require_approval covers what changes mail; a warning makes the app ask regardless.
+            required: bool = changes_mail and book.policy.rules_for(mailbox.name, mailbox.address).require_approval
+            warnings: list[str] = warnings_for(tool, book, mailbox, arguments)
+            if not required and not warnings:
                 return Decision(required=False)
             if can_ask(ctx.client_capabilities):
                 return Elicit(describe(tool, book, mailbox, arguments), Approval)
             if required:
                 return Decision(required=True)
-            if arguments.get("confirm_sensitive") is True:
+            bound_to: str = fingerprint(tool, mailbox, arguments)
+            given: str = str(arguments.get("confirm_sensitive") or "")
+            if given and codes.redeem(given, bound_to):
                 return Decision(required=False)
+            code: str = codes.issue(bound_to)
             return Decision(
                 required=True,
                 refusal=(
-                    "nothing was sent: "
-                    + "; ".join(found.render() for found in flagged)
-                    + ". Ask the user whether to send it anyway, then call send_email again with "
-                    "confirm_sensitive=true only if they agree"
+                    "nothing was done: "
+                    + "; ".join(warnings)
+                    + f". Tell the user exactly this and ask whether to go ahead. Only if they agree, call {tool} "
+                    f'again with the same arguments and confirm_sensitive="{code}" (one use, ten minutes)'
                 ),
             )
         except Exception as error:

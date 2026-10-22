@@ -42,6 +42,7 @@ _SENSITIVE_NAMES: Final[dict[str, str]] = {
     "credentials": "a credentials file",
     "credentials.json": "a credentials file",
     "wallet.dat": "a cryptocurrency wallet",
+    "secring.gpg": "a PGP secret keyring",
 }
 _SENSITIVE_SUFFIXES: Final[dict[str, str]] = {
     ".pem": "a key or certificate file",
@@ -63,11 +64,64 @@ _SENSITIVE_FOLDERS: Final[dict[str, str]] = {
     "keyrings": "it is in a keyring folder",
 }
 _SENSITIVE_TEXT: Final[tuple[tuple[re.Pattern[bytes], str], ...]] = (
-    (re.compile(rb"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "it contains a private key"),
+    (re.compile(rb"-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----"), "it contains a private key"),
     (re.compile(rb"aws_secret_access_key", re.IGNORECASE), "it contains an AWS secret key"),
     (re.compile(rb"\bAKIA[0-9A-Z]{16}\b"), "it contains an AWS access key ID"),
 )
 _XML_TAG: Final[re.Pattern[str]] = re.compile(r"<[^>]+>")
+# Paragraph and line ends in Office XML; every other tag joins its runs without a break.
+_XML_BREAK: Final[re.Pattern[str]] = re.compile(r"</(?:w:p|a:p|w:tr|row)>|<(?:w:br|w:tab|a:br)\b[^>]*/>")
+# Office files (zip of XML) and where their text lives: body, headers, footers, cells, slides.
+_OFFICE_TEXT: Final[dict[str, re.Pattern[str]]] = {
+    ".docx": re.compile(r"^word/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$"),
+    ".docm": re.compile(r"^word/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$"),
+    ".xlsx": re.compile(r"^xl/(sharedStrings|worksheets/sheet\d+)\.xml$"),
+    ".xlsm": re.compile(r"^xl/(sharedStrings|worksheets/sheet\d+)\.xml$"),
+    ".pptx": re.compile(r"^ppt/(slides/slide\d+|notesSlides/notesSlide\d+)\.xml$"),
+    ".pptm": re.compile(r"^ppt/(slides/slide\d+|notesSlides/notesSlide\d+)\.xml$"),
+}
+# Compressed files are sent as such, never under the type of what they contain.
+_COMPRESSED: Final[dict[str, str]] = {
+    "gzip": "application/gzip",
+    "bzip2": "application/x-bzip2",
+    "xz": "application/x-xz",
+}
+# Saving into these folders or under these names can make a file run, or let someone in.
+_RISKY_FOLDERS: Final[dict[str, str]] = {
+    ".ssh": "the SSH folder, where a file can grant someone access",
+    "autostart": "a folder whose files run at login",
+    "startup": "a folder whose files run at login",
+    "launchagents": "a folder whose files run at login",
+    "launchdaemons": "a folder whose files run at startup",
+    "hooks": "a folder of scripts that run on their own",
+    "init.d": "a folder of scripts that run at startup",
+    "systemd": "a folder of services that run on their own",
+    "bin": "a folder of programs that run by name",
+}
+_RISKY_NAMES: Final[frozenset[str]] = frozenset(
+    {"authorized_keys", ".bashrc", ".bash_profile", ".profile", ".zshrc", ".zprofile", "crontab"}
+)
+_RUNNABLE_SUFFIXES: Final[frozenset[str]] = frozenset(
+    {
+        ".desktop",
+        ".sh",
+        ".bash",
+        ".command",
+        ".exe",
+        ".bat",
+        ".cmd",
+        ".ps1",
+        ".vbs",
+        ".wsf",
+        ".msi",
+        ".lnk",
+        ".scr",
+        ".plist",
+        ".service",
+        ".jar",
+        ".app",
+    }
+)
 _UNSAFE_NAME: Final[re.Pattern[str]] = re.compile(r'[\x00-\x1f\x7f/\\:*?"<>|]')
 
 
@@ -114,25 +168,41 @@ def human_size(size: int) -> str:
 
 def load(paths: Sequence[str]) -> list[Attachment]:
     """Read every file in `paths` (any folder, `~` allowed); ValueError for a missing file or too much in total."""
-    loaded: list[Attachment] = []
-    raw: str
-    for raw in paths:
-        path: Path = Path(raw).expanduser()
+    files: list[Path] = [Path(raw).expanduser() for raw in paths]
+    path: Path
+    for path in files:
         if not path.is_file():
-            raise ValueError(f"cannot attach {raw!r}: no such file")
-        guessed: str | None = mimetypes.guess_type(path.name)[0]
-        maintype: str
-        subtype: str
-        maintype, _, subtype = (guessed or "application/octet-stream").partition("/")
-        content: bytes = path.read_bytes()
-        loaded.append(Attachment(path.name, len(content), content, maintype, subtype))
-    total: int = sum(attachment.size for attachment in loaded)
+            raise ValueError(f"cannot attach {str(path)!r}: no such file")
+    # Sizes first, so a huge file is refused before it is read.
+    total: int = sum(path.stat().st_size for path in files)
     if total > MAX_TOTAL_BYTES:
         raise ValueError(
             f"the attachments add up to {human_size(total)}; mail servers refuse more than "
             f"{human_size(MAX_TOTAL_BYTES)} per message"
         )
+    loaded: list[Attachment] = []
+    for path in files:
+        maintype: str
+        subtype: str
+        maintype, _, subtype = attachment_type(path.name).partition("/")
+        content: bytes = path.read_bytes()
+        loaded.append(Attachment(path.name, len(content), content, maintype, subtype))
     return loaded
+
+
+def attachment_type(name: str) -> str:
+    """The MIME type to send a file as: guessed from its name, compressed files as such.
+
+    message/* is sent as a plain file: those types may not be base64-encoded (RFC 2046).
+    """
+    guessed: str | None
+    encoding: str | None
+    guessed, encoding = mimetypes.guess_type(name)
+    if encoding is not None:
+        return _COMPRESSED.get(encoding, "application/octet-stream")
+    if guessed is None or guessed.startswith("message/"):
+        return "application/octet-stream"
+    return guessed
 
 
 def sensitive(paths: Sequence[str], attachments: Sequence[Attachment]) -> list[SensitiveFile]:
@@ -172,27 +242,65 @@ def attach(message: EmailMessage, attachments: Sequence[Attachment]) -> None:
         )
 
 
-def attachment_text(part: Message) -> str:
-    """Readable text of one attached part (text, Word, PDF), for the CUI check; "" when there is none."""
-    name: str = (part.get_filename() or "").lower()
+def attachment_bytes(part: Message) -> bytes:
+    """The file an attached part carries; a forwarded email (message/rfc822) as its own bytes."""
     payload: object = part.get_payload(decode=True)
-    if not isinstance(payload, bytes):
-        return ""
+    if isinstance(payload, bytes):
+        return payload
+    inner: object = part.get_payload()
+    if isinstance(inner, list) and inner and isinstance(inner[0], Message):
+        return inner[0].as_bytes()
+    return b""
+
+
+def office_text(name: str, content: bytes) -> str:
+    """The text of a Word, Excel or PowerPoint file, from every part that holds text."""
+    wanted: re.Pattern[str] = _OFFICE_TEXT[Path(name).suffix.lower()]
+    archive: zipfile.ZipFile
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        parts: list[str] = sorted(member for member in archive.namelist() if wanted.match(member))
+        xml: str = "\n".join(archive.read(member).decode("utf-8", "replace") for member in parts)
+    return _XML_TAG.sub("", _XML_BREAK.sub("\n", xml))
+
+
+def attachment_text(part: Message) -> str:
+    """Readable text of one attached part (text, Office, PDF), for the CUI check; "" when there is none."""
+    name: str = (part.get_filename() or "").lower()
+    content: bytes = attachment_bytes(part)
     try:
-        if name.endswith(".docx"):
-            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-                xml: str = archive.read("word/document.xml").decode("utf-8", "replace")
-            return _XML_TAG.sub("\n", xml)[:_TEXT_LIMIT]
+        if Path(name).suffix in _OFFICE_TEXT:
+            return office_text(name, content)[:_TEXT_LIMIT]
         if name.endswith(".pdf"):
-            reader: PdfReader = PdfReader(io.BytesIO(payload))
+            reader: PdfReader = PdfReader(io.BytesIO(content))
             return "\n".join(page.extract_text() or "" for page in reader.pages)[:_TEXT_LIMIT]
     except Exception:
         # An unreadable file has no markings this check can read; the policy still applies to the rest.
         return ""
     if part.get_content_maintype() == "text" or name.endswith((".csv", ".md", ".txt", ".html", ".htm")):
         charset: str = part.get_content_charset() or "utf-8"
-        return payload.decode(charset, "replace")[:_TEXT_LIMIT]
+        return content.decode(charset, "replace")[:_TEXT_LIMIT]
     return ""
+
+
+def save_directory(given: str) -> Path:
+    """Where to save: `~` expanded, and a relative folder taken from the user's home, as people say it."""
+    folder: Path = Path(given).expanduser()
+    return folder if folder.is_absolute() else Path.home() / folder
+
+
+def risky_save(directory: Path, name: str) -> list[str]:
+    """Why saving `name` into `directory` could make it run or let someone in; [] when it cannot."""
+    reasons: list[str] = []
+    folder: str
+    for folder in directory.parts:
+        if folder.lower() in _RISKY_FOLDERS:
+            reasons.append(f"{directory} is {_RISKY_FOLDERS[folder.lower()]}")
+            break
+    if name.lower() in _RISKY_NAMES:
+        reasons.append(f"{name} is a file the system reads to run commands or grant access")
+    if Path(name).suffix.lower() in _RUNNABLE_SUFFIXES:
+        reasons.append(f"{name} is a program or a file that runs when opened")
+    return reasons
 
 
 def safe_file_name(name: str) -> str:

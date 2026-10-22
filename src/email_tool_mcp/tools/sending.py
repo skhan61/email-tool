@@ -30,7 +30,7 @@ class SendingTools:
         cc: Cc = "",
         html: Html = "",
         attachments: Attachments = None,
-        confirm_sensitive: ConfirmSensitive = False,
+        confirm_sensitive: ConfirmSensitive = "",
     ) -> str:
         """Send an email immediately from this mailbox, with any attachments. This is not reversible.
 

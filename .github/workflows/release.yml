@@ -18,6 +18,8 @@ on:
       - .github/workflows/release.yml
       - .github/actions/agent-cli/**
       - .github/tools/mcpb/**
+      - pyproject.toml
+      - manifest.json
 
 permissions:
   contents: read

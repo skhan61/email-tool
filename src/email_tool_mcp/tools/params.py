@@ -28,11 +28,11 @@ Attachments = Annotated[
     Field(description="Paths of files to attach, from any folder the user named. Up to 25 MB in total."),
 ]
 ConfirmSensitive = Annotated[
-    bool,
+    str,
     Field(
         description=(
-            "Set true only after the user, in this conversation, confirmed sending the attachments an "
-            "earlier refusal named as sensitive. Never set it on your own."
+            "The code from an earlier refusal that named sensitive attachments or a risky place to save. "
+            "Pass it only after the user, in this conversation, agreed to go ahead. Leave empty otherwise."
         )
     ),
 ]

@@ -52,10 +52,14 @@ such as `.ssh` or `.aws`, and files with CUI markings. Select **Accept** to send
 the decision is yours.
 
 If your app cannot show that question, the assistant tells you which files it found and
-sends them only after you confirm in the conversation. A draft with such a file is saved,
-with the same warning.
+sends them only after you confirm in the conversation. The confirmation works once, for
+those files and recipients, within ten minutes. A draft with such a file is saved, with the
+same warning.
 
-Saved attachments get a safe file name and never replace an existing file.
+Saved attachments go into the folder you name ("Downloads" means the Downloads folder in
+your home folder), get a safe file name, and never replace an existing file. Saving into a
+place where a file can run on its own (for example a startup folder or `.ssh`), or saving a
+program, asks you first in the same way.
 
 ## Your mail and the assistant
 

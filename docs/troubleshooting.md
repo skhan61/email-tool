@@ -52,7 +52,7 @@ assistant, which can tell you the same.
 | A message that starts with `policy:` | Your organization's policy refused the action. The message names the rule. See [For administrators](administrators.md#policy). |
 | `Refused, nothing was done: ...` | The audit log could not be written, so nothing ran. Check that the log's folder exists and has space (`email-tool-mcp audit path`). |
 | `the log does not match its keyring anchor` | The log was changed or replaced. Run `email-tool-mcp audit verify` and report the result to your security team. |
-| `nothing was sent: ... looks sensitive` | An attachment looks like a key, credential or CUI file, and your app cannot ask you. Tell the assistant whether to send it anyway. |
+| `nothing was done: ... looks sensitive` or `... is a folder whose files run at login` | An attachment looks like a key, credential or CUI file, or the save could make a file run, and your app cannot ask you. Tell the assistant whether to go ahead. |
 | `the attachments add up to ...` | Mail servers refuse more than 25 MB per message. Send fewer or smaller files, or share a link. |
 | `... contains invalid text (a broken Unicode character)` | The assistant sent text that is not valid. Ask it to try again. |
 

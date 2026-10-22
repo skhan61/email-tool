@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import zipfile
 from email.message import EmailMessage
 from pathlib import Path
@@ -189,8 +190,14 @@ async def test_a_sensitive_attachment_asks_the_user_even_without_required_approv
     assert len(mail_server.sent) == 1
 
 
+def code_in(refusal: CallToolResult) -> str:
+    found: re.Match[str] | None = re.search(r'confirm_sensitive="([0-9a-f]+)"', text_of(refusal))
+    assert found is not None, text_of(refusal)
+    return found.group(1)
+
+
 @pytest.mark.anyio
-async def test_without_a_prompt_a_sensitive_send_waits_for_the_users_word(
+async def test_without_a_prompt_a_sensitive_send_needs_the_code_from_the_warning(
     book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer, private_key: Path
 ) -> None:
     store_password("work", "pw")
@@ -201,12 +208,30 @@ async def test_without_a_prompt_a_sensitive_send_waits_for_the_users_word(
         "body": "Here.",
         "attachments": [str(private_key)],
     }
-    refused: CallToolResult = await call(book, audit, "send_email", arguments)
-    assert refused.is_error and mail_server.sent == []
-    assert "id_ed25519 looks sensitive" in text_of(refused) and "confirm_sensitive=true" in text_of(refused)
-    confirmed: CallToolResult = await call(book, audit, "send_email", {**arguments, "confirm_sensitive": True})
-    assert not confirmed.is_error, text_of(confirmed)
-    assert len(mail_server.sent) == 1
+    async with Client(build_server(book, audit)) as client:
+        made_up: CallToolResult = await client.call_tool("send_email", {**arguments, "confirm_sensitive": "deadbeef"})
+        assert made_up.is_error and mail_server.sent == []
+        assert "id_ed25519 looks sensitive" in text_of(made_up)
+        other_recipient: CallToolResult = await client.call_tool(
+            "send_email", {**arguments, "to": "b@example.com", "confirm_sensitive": code_in(made_up)}
+        )
+        assert other_recipient.is_error and mail_server.sent == []
+        code: str = code_in(other_recipient)
+        private_key.write_text(private_key.read_text() + "changed\n")
+        changed_file: CallToolResult = await client.call_tool(
+            "send_email", {**arguments, "to": "b@example.com", "confirm_sensitive": code}
+        )
+        assert changed_file.is_error and mail_server.sent == []
+        confirmed: CallToolResult = await client.call_tool(
+            "send_email", {**arguments, "confirm_sensitive": code_in(changed_file)}
+        )
+        assert confirmed.is_error, "a code is bound to its own recipients"
+        fresh: str = code_in(confirmed)
+        sent: CallToolResult = await client.call_tool("send_email", {**arguments, "confirm_sensitive": fresh})
+        assert not sent.is_error, text_of(sent)
+        assert len(mail_server.sent) == 1
+        again: CallToolResult = await client.call_tool("send_email", {**arguments, "confirm_sensitive": fresh})
+        assert again.is_error and len(mail_server.sent) == 1, "a code works once"
 
 
 @pytest.mark.anyio
@@ -324,7 +349,7 @@ async def test_get_email_lists_attachments_and_save_attachment_keeps_every_copy(
     missing: CallToolResult = await call(
         book, audit, "save_attachment", {"mailbox": "work", "uid": uid, "index": 2, "directory": str(downloads)}
     )
-    assert "there is no attachment 2" in text_of(missing)
+    assert "has no attachment 2" in text_of(missing)
 
 
 @pytest.mark.parametrize(
@@ -358,3 +383,128 @@ async def test_saving_an_attachment_is_allowed_on_a_read_only_mailbox(
         book, audit, "save_attachment", {"mailbox": "work", "uid": uid, "index": 1, "directory": str(tmp_path / "d")}
     )
     assert not result.is_error, text_of(result)
+
+
+def message_with(name: str, content: bytes, subtype: str = "octet-stream") -> EmailMessage:
+    message: EmailMessage = compose("x@example.com", "me@example.com", "Files", "Attached.", "", "")
+    message.add_attachment(content, maintype="application", subtype=subtype, filename=name)
+    return message
+
+
+@pytest.mark.parametrize(
+    ("directory", "name"),
+    [(".config/autostart", "update.desktop"), ("~/.ssh", "authorized_keys"), ("~/Documents", "setup.exe")],
+)
+@pytest.mark.anyio
+async def test_saving_where_a_file_can_run_asks_first(
+    book: MailboxBook,
+    audit: AuditLog,
+    mail_server: FakeMailServer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    directory: str,
+    name: str,
+) -> None:
+    store_password("work", "pw")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    uid: int = mail_server.add("INBOX", message_with(name, b"payload").as_bytes())
+    arguments: dict[str, Any] = {"mailbox": "work", "uid": uid, "index": 1, "directory": directory}
+    declining: Person = Person("decline", False)
+    refused: CallToolResult = await call(book, audit, "save_attachment", arguments, declining)
+    assert refused.is_error and "WARNING:" in declining.shown[0]
+    assert not any(tmp_path.rglob(name))
+    accepting: Person = Person("accept", True)
+    saved: CallToolResult = await call(book, audit, "save_attachment", arguments, accepting)
+    assert not saved.is_error, text_of(saved)
+    assert len(list(tmp_path.rglob(name))) == 1
+
+
+@pytest.mark.anyio
+async def test_a_relative_folder_means_the_users_home(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store_password("work", "pw")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    uid: int = mail_server.add("INBOX", message_with("notes.txt", b"hello").as_bytes())
+    result: CallToolResult = await call(
+        book, audit, "save_attachment", {"mailbox": "work", "uid": uid, "index": 1, "directory": "Downloads"}
+    )
+    assert not result.is_error, text_of(result)
+    assert (tmp_path / "Downloads" / "notes.txt").read_bytes() == b"hello"
+
+
+@pytest.mark.anyio
+async def test_a_forwarded_email_is_saved_with_its_content(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer, tmp_path: Path
+) -> None:
+    store_password("work", "pw")
+    inner: EmailMessage = compose("a@example.com", "b@example.com", "Original", "The original text.", "", "")
+    outer: EmailMessage = compose("x@example.com", "me@example.com", "Fwd", "See below.", "", "")
+    outer.add_attachment(inner, filename="original.eml")
+    uid: int = mail_server.add("INBOX", outer.as_bytes())
+    result: CallToolResult = await call(
+        book, audit, "save_attachment", {"mailbox": "work", "uid": uid, "index": 1, "directory": str(tmp_path)}
+    )
+    assert not result.is_error, text_of(result)
+    assert b"The original text." in (tmp_path / "original.eml").read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("name", "content_type"),
+    [("saved.eml", "application/octet-stream"), ("logs.tar.gz", "application/gzip"), ("a.pdf", "application/pdf")],
+)
+def test_files_are_sent_under_a_type_mail_allows(tmp_path: Path, name: str, content_type: str) -> None:
+    path: Path = tmp_path / name
+    path.write_bytes(b"data")
+    message: EmailMessage = compose("me@example.com", "you@example.com", "s", "b", "", "", load([str(path)]))
+    assert next(iter(message.iter_attachments())).get_content_type() == content_type
+
+
+def test_an_armored_pgp_secret_key_is_sensitive(tmp_path: Path) -> None:
+    path: Path = tmp_path / "mykey.asc"
+    path.write_text("-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\nabc\n")
+    assert sensitive([str(path)], load([str(path)]))
+
+
+def test_the_size_is_checked_before_any_file_is_read(
+    tmp_path: Path, report: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(attachments_module, "MAX_TOTAL_BYTES", 10)
+    monkeypatch.setattr(Path, "read_bytes", lambda self: pytest.fail("read before the size check"))
+    with pytest.raises(ValueError, match="refuse more than"):
+        load([str(report)])
+
+
+def office_file(parts: dict[str, str]) -> bytes:
+    buffer: io.BytesIO = io.BytesIO()
+    archive: zipfile.ZipFile
+    with zipfile.ZipFile(buffer, "w") as archive:
+        member: str
+        xml: str
+        for member, xml in parts.items():
+            archive.writestr(member, xml)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("name", "parts", "marking"),
+    [
+        (
+            "memo.docx",
+            {"word/document.xml": "<w:p><w:t>Hi</w:t></w:p>", "word/header1.xml": "<w:p><w:t>CUI//SP-CTI</w:t></w:p>"},
+            "CUI//SP-CTI",
+        ),
+        (
+            "memo.docx",
+            {"word/document.xml": "<w:p><w:r><w:t>(</w:t></w:r><w:r><w:t>CUI)</w:t></w:r> Plan</w:p>"},
+            "(CUI)",
+        ),
+        ("prices.xlsx", {"xl/sharedStrings.xml": "<si><t>CUI//SP-PROPIN</t></si>"}, "CUI//SP-PROPIN"),
+        ("brief.pptx", {"ppt/slides/slide1.xml": "<a:p><a:t>CUI</a:t></a:p>"}, "CUI"),
+    ],
+)
+def test_cui_is_read_from_every_office_part(tmp_path: Path, name: str, parts: dict[str, str], marking: str) -> None:
+    path: Path = tmp_path / name
+    path.write_bytes(office_file(parts))
+    message: EmailMessage = compose("me@example.com", "you@example.com", "s", "b", "", "", load([str(path)]))
+    assert any(marking in found for found in message_markings(message))
