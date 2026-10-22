@@ -46,10 +46,12 @@ jobs:
   # Provenance first, so the release is published once, with every file attached.
   provenance:
     needs: build
+    # The generator's own upload job declares contents: write even with upload-assets
+    # off, and a called workflow may not ask for more than this job grants.
     permissions:
       actions: read
       id-token: write
-      contents: read
+      contents: write
     # Referenced by tag, not hash: the generator verifies its own ref (SLSA's documented use).
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
