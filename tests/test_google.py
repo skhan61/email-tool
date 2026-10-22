@@ -19,9 +19,10 @@ from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import WSGITimeoutError
 
+from email_tool_mcp.browser import browser_available
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.enrol import add_google_mailbox
-from email_tool_mcp.google import GoogleTokens, SignIn, SignInRequired, browser_available, preset
+from email_tool_mcp.google import GoogleTokens, SignIn, SignInRequired, preset
 from email_tool_mcp.settings import Mailbox, load_mailboxes
 from email_tool_mcp.token_store import TokenStore
 

@@ -30,7 +30,7 @@ assistant, which can tell you the same.
 | `Need admin approval` (AADSTS90094 or AADSTS65001) | Your IT department must approve email-tool. Ask them to grant admin consent to application ID `82731d7a-ac7f-4a5e-88d3-acce522f85ce`, or to give you their own app's ID for `--client-id`. |
 | `work needs a new Microsoft sign-in` | Run the command in the message. It signs you in again. |
 | The sign-in works but the login check fails | IMAP or authenticated SMTP is turned off for your mailbox. Ask your IT department to turn them on. |
-| No browser opens | Add `--device-code` and enter the code it shows at microsoft.com/devicelogin. |
+| No browser opens | Open the sign-in address the terminal prints, then paste back the address the browser ends on. Or use `--device-code`. |
 
 ## Google sign-in
 

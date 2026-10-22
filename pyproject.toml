@@ -69,7 +69,7 @@ files = ["src", "tests", "tools"]
 
 [[tool.mypy.overrides]]
 # None of these ships type information.
-module = ["fire", "google_auth_oauthlib", "google_auth_oauthlib.*", "imapclient", "imapclient.*", "msal"]
+module = ["fire", "google_auth_oauthlib", "google_auth_oauthlib.*", "imapclient", "imapclient.*", "msal", "msal.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

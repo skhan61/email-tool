@@ -10,7 +10,6 @@ Placement: google.py, beside microsoft.py; MailboxBook asks it for tokens, enrol
 from __future__ import annotations
 
 import json
-import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -24,6 +23,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from email_tool_mcp import credentials
+from email_tool_mcp.browser import browser_available, pasted_address
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
     DEFAULT_SMTP_PORT,
@@ -97,19 +97,6 @@ def refresh(google_credentials: Credentials) -> None:
     """Refresh through the project's TLS context and timeout."""
     with https_session() as session:
         google_credentials.refresh(Request(session=session))
-
-
-def browser_available() -> bool:
-    """True when Python can open a graphical browser from here; otherwise the address is printed.
-
-    A plain `GenericBrowser` is a console one (lynx, w3m) run in the foreground of the
-    terminal, where Google's sign-in does not work; graphical ones are its subclasses.
-    """
-    try:
-        browser: webbrowser.BaseBrowser = webbrowser.get()
-    except webbrowser.Error:
-        return False
-    return type(browser) is not webbrowser.GenericBrowser
 
 
 def preset(name: str, address: str) -> Mailbox:
@@ -189,14 +176,7 @@ def _pasted_sign_in(
     """A browser anywhere: the user pastes back the address it ends on."""
     flow.redirect_uri = PASTE_REDIRECT
     address: str = flow.authorization_url(login_hint=mailbox.address, **AUTHORIZATION_OPTIONS)[0]
-    show(f"Open this address in a browser on any computer, sign in and allow access:\n{address}\n")
-    answer: str = paste(
-        f'The browser then shows "site can\'t be reached". Paste its whole address (it starts with {PASTE_REDIRECT}): '
-    ).strip()
-    if not answer.startswith(PASTE_REDIRECT) or "code=" not in answer:
-        raise ValueError(
-            f"that is not the address the browser ended on (it starts with {PASTE_REDIRECT}); nothing saved"
-        )
+    answer: str = pasted_address("Google", address, PASTE_REDIRECT, show, paste)
     # oauthlib takes only https responses; the loopback answer is http by design (RFC 8252 7.3).
     try:
         flow.fetch_token(authorization_response=answer.replace("http://", "https://", 1))

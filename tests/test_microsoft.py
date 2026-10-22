@@ -8,6 +8,7 @@ Placement: tests/test_microsoft.py, beside microsoft.py, token_store.py and the 
 from __future__ import annotations
 
 import ssl
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -15,10 +16,13 @@ from typing import Any
 import msal
 import pytest
 import requests
+from msal.oauth2cli.oauth2 import BrowserInteractionTimeoutError
 from requests.adapters import HTTPAdapter
 
+from email_tool_mcp import enrol
 from email_tool_mcp.credentials import Credential
-from email_tool_mcp.enrol import add_microsoft_mailbox, describe_mailboxes, remove_mailbox, save_mailbox
+from email_tool_mcp.enrol import add_by_auth, add_microsoft_mailbox, describe_mailboxes, remove_mailbox, save_mailbox
+from email_tool_mcp.google import GoogleTokens
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.microsoft import (
     DEFAULT_CLIENT_ID,
@@ -94,6 +98,17 @@ class FakeMsal:
         return {"user_code": "ABCD", "message": "Go to https://microsoft.com/devicelogin and enter ABCD"}
 
     def acquire_token_by_device_flow(self, flow: dict[str, Any]) -> dict[str, Any]:
+        return self._signed_in(self.scopes)
+
+    def initiate_auth_code_flow(self, scopes: list[str], **options: Any) -> dict[str, Any]:
+        self.scopes = scopes
+        self.code_flow_options: dict[str, Any] = options
+        return {"auth_uri": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?x=1", "state": "s"}
+
+    def acquire_token_by_auth_code_flow(
+        self, auth_code_flow: dict[str, Any], auth_response: dict[str, str]
+    ) -> dict[str, Any]:
+        self.auth_response: dict[str, str] = auth_response
         return self._signed_in(self.scopes)
 
 
@@ -347,10 +362,89 @@ def test_admin_approval_says_what_to_ask_it_for(tmp_path: Path) -> None:
 class NoBrowserAnswer(FakeMsal):
     def acquire_token_interactive(self, scopes: list[str], **options: Any) -> dict[str, Any]:
         assert options["timeout"] == 300
-        raise RuntimeError("Timeout")
+        # MSAL's own error, a RuntimeError; its message wrongly reads "timeout setting is None".
+        raise BrowserInteractionTimeoutError("User did not complete the flow in time")
 
 
 def test_a_browser_that_never_answers_gives_up(tmp_path: Path) -> None:
     tokens: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "s"), NoBrowserAnswer)
     with pytest.raises(RuntimeError, match="no answer from the browser within 5 minutes"):
         tokens.sign_in(OUTLOOK, False, print)
+
+
+def test_a_pasted_address_finishes_the_sign_in(tokens: MicrosoftTokens) -> None:
+    shown: list[str] = []
+    asked: list[str] = []
+
+    def paste(prompt: str) -> str:
+        asked.append(prompt)
+        return "http://localhost/?code=one-time&state=s&session_state=x\n"
+
+    signed: SignIn = tokens.sign_in(OUTLOOK, False, shown.append, paste)
+    app: FakeMsal = FakeMsal.instances[-1]
+    assert signed.username == ADDRESS
+    assert app.code_flow_options["redirect_uri"] == "http://localhost"
+    assert app.auth_response == {"code": "one-time", "state": "s", "session_state": "x"}
+    assert shown[0].startswith("Microsoft sign-in address.") and "authorize?x=1" in shown[0]
+    assert "site can't be reached" in asked[0]
+
+
+def test_a_pasted_address_without_a_code_is_refused(tokens: MicrosoftTokens) -> None:
+    with pytest.raises(ValueError, match="not the address the browser ended on"):
+        tokens.sign_in(OUTLOOK, False, print, lambda prompt: "https://login.microsoftonline.com/common")
+
+
+class Recording(MicrosoftTokens):
+    def sign_in(
+        self,
+        mailbox: Mailbox,
+        device_code: bool,
+        show: Callable[[str], None],
+        paste: Callable[[str], str] | None = None,
+    ) -> SignIn:
+        self.pasting: bool = paste is not None
+        raise RuntimeError("stop after choosing the mode")
+
+
+@pytest.mark.parametrize(
+    ("browser", "paste_address", "device_code", "pasting"),
+    [(True, False, False, False), (False, False, False, True), (True, True, False, True), (False, False, True, False)],
+)
+def test_the_sign_in_mode_follows_the_browser_and_the_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    browser: bool,
+    paste_address: bool,
+    device_code: bool,
+    pasting: bool,
+) -> None:
+    monkeypatch.setattr(enrol, "browser_available", lambda: browser)
+    tokens: Recording = Recording(TokenStore(tmp_path / "s"), FakeMsal)
+    with pytest.raises(RuntimeError, match="stop after choosing the mode"):
+        add_by_auth(
+            "outlook",
+            tmp_path / "m.toml",
+            "microsoft",
+            tokens,
+            GoogleTokens(TokenStore(tmp_path / "g")),
+            nothing_to_forget,
+            address=ADDRESS,
+            device_code=device_code,
+            paste_address=paste_address,
+        )
+    assert tokens.pasting is pasting
+
+
+def test_device_code_and_paste_address_together_are_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="choose one"):
+        add_by_auth(
+            "outlook",
+            tmp_path / "m.toml",
+            "microsoft",
+            MicrosoftTokens(TokenStore(tmp_path / "s"), FakeMsal),
+            GoogleTokens(TokenStore(tmp_path / "g")),
+            nothing_to_forget,
+            address=ADDRESS,
+            device_code=True,
+            paste_address=True,
+        )

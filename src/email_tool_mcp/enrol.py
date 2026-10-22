@@ -14,6 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
+from email_tool_mcp.browser import browser_available
 from email_tool_mcp.credentials import Credential, smtp_login
 from email_tool_mcp.google import GoogleTokens
 from email_tool_mcp.google import SignIn as GoogleSignIn
@@ -155,6 +156,7 @@ def add_microsoft_mailbox(
     policy: Policy | None = None,
     *,
     forget: Forget,
+    paste: Ask | None = None,
 ) -> str:
     """Sign in with Microsoft, check IMAP and SMTP with the token, then keep the sign-in and save.
 
@@ -171,7 +173,7 @@ def add_microsoft_mailbox(
     client_id = client_id or DEFAULT_CLIENT_ID
     provisional: Mailbox = microsoft_preset(name, address, client_id, tenant, cloud)
     (policy if policy is not None else Policy(policy_paths())).check_fips(name, address, keeps_sign_in=True)
-    signed: SignIn = tokens.sign_in(provisional, device_code, show)
+    signed: SignIn = tokens.sign_in(provisional, device_code, show, paste)
     mailbox: Mailbox = signed.complete(provisional)
     # The real login decides: a Microsoft 365 user name may differ from the address it opens.
     show(f"Signed in as {signed.username}; checking IMAP and SMTP for {address}.")
@@ -254,11 +256,26 @@ def add_by_auth(
         raise ValueError(f"--auth {auth} sets the servers itself; drop --imap-*/--smtp-*")
     if auth != "microsoft" and microsoft_options:
         raise ValueError("--client-id, --tenant, --cloud and --device-code need --auth microsoft")
-    if auth != "google" and (client_secrets or paste_address):
-        raise ValueError("--client-secrets and --paste-address need --auth google")
+    if auth != "google" and client_secrets:
+        raise ValueError("--client-secrets needs --auth google")
+    if auth == "password" and paste_address:
+        raise ValueError("--paste-address needs --auth microsoft or --auth google")
+    if device_code and paste_address:
+        raise ValueError("choose one: --device-code or --paste-address")
     if auth == "microsoft":
+        # No browser here: paste back the address, unless the device code was chosen.
+        pasting: bool = paste_address or (not device_code and not browser_available())
         return add_microsoft_mailbox(
-            name, settings_file, microsoft, address, client_id, tenant, cloud, device_code, forget=forget
+            name,
+            settings_file,
+            microsoft,
+            address,
+            client_id,
+            tenant,
+            cloud,
+            device_code,
+            forget=forget,
+            paste=input if pasting else None,
         )
     if auth == "google":
         return add_google_mailbox(

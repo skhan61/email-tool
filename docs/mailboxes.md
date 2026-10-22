@@ -86,8 +86,10 @@ assistant tells you the command to run again.
 `--tenant <directory ID>` to sign in to one of them. Your IT department can give you the
 directory (tenant) ID.
 
-**On a computer without a browser**, add `--device-code`: the terminal shows a code to enter
-at microsoft.com/devicelogin from any device.
+**If no browser opens**, the terminal prints the Microsoft sign-in address instead. Open it in
+a browser on any computer, sign in, and paste back the address the browser ends on (it shows
+"This site can't be reached"). Add `--paste-address` to work this way from the start, or
+`--device-code` to sign in with a code at microsoft.com/devicelogin.
 
 **If you see "Need admin approval"**, your organization lets only IT approve apps. Ask your
 IT department to grant admin consent to email-tool, application ID

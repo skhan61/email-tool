@@ -212,7 +212,13 @@ def test_require_fips_refuses_a_microsoft_add_before_any_sign_in(
     policy_file.write_text("[default]\nrequire_fips = true\n", encoding="utf-8")
 
     class NoSignIn(MicrosoftTokens):
-        def sign_in(self, mailbox: Mailbox, device_code: bool, show: Callable[[str], None]) -> SignIn:
+        def sign_in(
+            self,
+            mailbox: Mailbox,
+            device_code: bool,
+            show: Callable[[str], None],
+            paste: Callable[[str], str] | None = None,
+        ) -> SignIn:
             raise AssertionError("refused before the browser opens")
 
     with pytest.raises(PolicyRefusal, match="cryptography"):
