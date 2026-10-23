@@ -11,7 +11,8 @@ import io
 import json
 import re
 import zipfile
-from email.message import EmailMessage
+from email import message_from_bytes
+from email.message import EmailMessage, Message
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,7 @@ from mcp import Client
 from mcp_types import CallToolResult, TextContent
 
 from email_tool_mcp import attachments as attachments_module
-from email_tool_mcp.attachments import Attachment, load, safe_file_name, sensitive
+from email_tool_mcp.attachments import Attachment, attachment_text, load, safe_file_name, sensitive
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.cui import message_markings
 from email_tool_mcp.mailbox_book import MailboxBook
@@ -514,3 +515,12 @@ def test_cui_is_read_from_every_office_part(tmp_path: Path, name: str, parts: di
     path.write_bytes(office_file(parts))
     message: EmailMessage = compose("me@example.com", "you@example.com", "s", "b", "", "", load([str(path)]))
     assert any(marking in found for found in message_markings(message))
+
+
+def test_an_attachment_in_an_unknown_charset_is_still_read() -> None:
+    """The charset comes from the sender; an unknown one must not hide a CUI banner or crash the check."""
+    part: Message = message_from_bytes(
+        b'Content-Type: text/plain; charset=bogus\r\nContent-Disposition: attachment; filename="notes.txt"\r\n\r\n'
+        b"CUI//SP-PROPIN\r\nPrices inside.\r\n"
+    )
+    assert "CUI//SP-PROPIN" in attachment_text(part)

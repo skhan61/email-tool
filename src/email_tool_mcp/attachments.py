@@ -24,6 +24,8 @@ from typing import Final
 
 from pypdf import PdfReader
 
+from email_tool_mcp.message_render import decode_text
+
 # Gmail and Outlook both refuse messages much above 25 MB.
 MAX_TOTAL_BYTES: Final[int] = 25 * 1024 * 1024
 # Text read from one attachment for the CUI check; enough for any banner or portion mark.
@@ -277,8 +279,7 @@ def attachment_text(part: Message) -> str:
         # An unreadable file has no markings this check can read; the policy still applies to the rest.
         return ""
     if part.get_content_maintype() == "text" or name.endswith((".csv", ".md", ".txt", ".html", ".htm")):
-        charset: str = part.get_content_charset() or "utf-8"
-        return content.decode(charset, "replace")[:_TEXT_LIMIT]
+        return decode_text(content, part.get_content_charset())[:_TEXT_LIMIT]
     return ""
 
 

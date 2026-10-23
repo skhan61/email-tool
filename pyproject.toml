@@ -16,7 +16,7 @@ dependencies = [
     "imapclient==4.1.0",
     "keyring==25.7.0",
     "msal==1.39.0",
-    "pypdf==6.19.0",
+    "pypdf==6.21.1",
     "mcp==2.3.0",
     "mcp-types==2.3.0",
     "platformdirs==4.12.4",
@@ -53,6 +53,12 @@ dev = [
     "ruff==0.16.10",
 ]
 
+# Coverage-guided fuzzing of the mail and file parsers (fuzz/, .github/workflows/fuzz.yml).
+# Atheris 3.0.0 ships wheels for Python 3.11 to 3.13.
+fuzz = [
+    "atheris==3.0.0",
+]
+
 # The documentation site (mkdocs.yml, docs/): `uv run --group docs mkdocs serve`.
 docs = [
     "mkdocs==1.6.1",
@@ -69,11 +75,11 @@ select = ["E", "F", "W", "I", "UP", "B", "T201"]
 [tool.mypy]
 strict = true
 python_version = "3.11"
-files = ["src", "tests", "tools"]
+files = ["src", "tests", "tools", "fuzz"]
 
 [[tool.mypy.overrides]]
 # None of these ships type information.
-module = ["fire", "google_auth_oauthlib", "google_auth_oauthlib.*", "imapclient", "imapclient.*", "msal", "msal.*"]
+module = ["atheris", "fire", "google_auth_oauthlib", "google_auth_oauthlib.*", "imapclient", "imapclient.*", "msal", "msal.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
