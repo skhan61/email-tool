@@ -50,6 +50,22 @@ EMAIL_TOOL_LIVE=1 uv run pytest tests/live -q
 EMAIL_TOOL_LIVE=1 EMAIL_TOOL_LIVE_FROM=work EMAIL_TOOL_LIVE_TO=home uv run pytest tests/live -q
 ```
 
+## Problem reports
+
+`report_problem` emails a report with a subject starting `email-tool problem report:`. On the
+maintainer's own computer (never in the cloud, so no mailbox password leaves it), turn each new
+one into a `user-report` issue opened by the bot:
+
+```bash
+uv run python -m tools.report_bridge run --mailbox=NAME --dry-run   # show what it would open
+uv run python -m tools.report_bridge run --mailbox=NAME [--folder=INBOX]
+```
+
+It reads the mailbox through this computer's email-tool settings and sign-in, and opens issues with
+the bot's key (as `tools.bot_pr` does). Every address is removed from the title and body. Each issue
+carries a hash of the report's Message-ID, so running it again opens nothing twice. Mail is never
+deleted or moved.
+
 ## Releasing
 
 A pull request that changes `.github/workflows/release.yml` runs it as a dry run (build and
