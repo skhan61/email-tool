@@ -7,7 +7,8 @@ Placement: tests/test_server.py, beside the module it tests (pytest's tests/ lay
 from __future__ import annotations
 
 import json
-from email.message import EmailMessage
+from email import message_from_bytes
+from email.message import EmailMessage, Message
 
 import pytest
 from mcp import Client
@@ -117,6 +118,62 @@ async def test_update_draft_with_a_wrong_uid_changes_nothing(
     )
     assert result.is_error
     assert list(mail_server.folders["Drafts"]) == [1]
+
+
+PARENT_ID: str = "<parent@example.com>"
+
+
+def add_parent(mail_server: FakeMailServer) -> int:
+    parent: EmailMessage = compose("jane@example.com", "me@example.com", "Plan", "Thoughts?", "", "")
+    parent.replace_header("Message-ID", PARENT_ID)
+    return mail_server.add("INBOX", parent.as_bytes())
+
+
+def saved_draft(mail_server: FakeMailServer) -> Message:
+    return message_from_bytes(list(mail_server.folders["Drafts"].values())[-1])
+
+
+async def test_a_reply_draft_joins_the_parents_thread(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    store_password("work", "secret")
+    uid: int = add_parent(mail_server)
+    reply: dict[str, object] = {"mailbox": "work", "folder": "Drafts", "to": "jane@example.com", "in_reply_to_uid": uid}
+    assert not (await call(book, audit, "create_draft", reply)).is_error
+    assert saved_draft(mail_server)["In-Reply-To"] == PARENT_ID
+    without_parent: dict[str, object] = {key: value for key, value in reply.items() if key != "in_reply_to_uid"}
+    assert not (await call(book, audit, "update_draft", {**without_parent, "uid": 1, "body": "typo"})).is_error
+    assert list(mail_server.folders["Drafts"]) == [2]
+    assert saved_draft(mail_server)["References"] == PARENT_ID
+
+
+async def test_a_sent_reply_joins_the_parents_thread(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    store_password("work", "secret")
+    uid: int = add_parent(mail_server)
+    arguments: dict[str, object] = {
+        "mailbox": "work",
+        "to": "jane@example.com",
+        "subject": "Re: Plan",
+        "body": "Yes.",
+        "in_reply_to_uid": uid,
+    }
+    assert not (await call(book, audit, "send_email", arguments)).is_error
+    assert mail_server.sent[0][0]["In-Reply-To"] == PARENT_ID
+
+
+@pytest.mark.parametrize("tool", ["create_draft", "send_email"])
+async def test_a_reply_to_a_missing_message_saves_and_sends_nothing(
+    tool: str, book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    store_password("work", "secret")
+    arguments: dict[str, object] = {"mailbox": "work", "to": "a@x.com", "subject": "Re", "in_reply_to_uid": 42}
+    arguments.update({"folder": "Drafts"} if tool == "create_draft" else {"body": "x"})
+    result: CallToolResult = await call(book, audit, tool, arguments)
+    assert result.is_error
+    assert "no message with uid 42" in text_of(result)
+    assert not mail_server.folders.get("Drafts") and mail_server.sent == []
 
 
 async def test_broken_unicode_is_refused_by_name_and_still_audited(book: MailboxBook, audit: AuditLog) -> None:

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Replies join their conversation: `create_draft`, `update_draft` and `send_email` take
+  `in_reply_to_uid` (and `in_reply_to_folder`, default `INBOX`) and set `In-Reply-To` and
+  `References` from that message. Only well-formed message IDs are copied from it, and the
+  approval question shows the message being answered.
+
 ## 5.1.0
 
 Documentation: https://skhan61.github.io/email-tool/

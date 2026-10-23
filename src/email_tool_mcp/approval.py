@@ -17,7 +17,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from email.message import EmailMessage
+from email.message import EmailMessage, Message
 from typing import Any, Final
 
 from mcp.server.mcpserver import Context, Elicit, ElicitationResult
@@ -26,12 +26,23 @@ from pydantic import BaseModel, Field
 
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose
-from email_tool_mcp.message_render import MessageSummary, every_text, parse_message, summarize
+from email_tool_mcp.message_render import MessageSummary, every_text, read_headers, summarize
 from email_tool_mcp.policy import PolicyRefusal
 from email_tool_mcp.settings import Mailbox
 
 # Tool arguments the question may read; a resolver takes only those its tool has.
-_QUESTION_ARGUMENTS: Final[tuple[str, ...]] = ("mailbox", "to", "cc", "subject", "body", "html", "folder", "uid")
+_QUESTION_ARGUMENTS: Final[tuple[str, ...]] = (
+    "mailbox",
+    "to",
+    "cc",
+    "subject",
+    "body",
+    "html",
+    "folder",
+    "uid",
+    "in_reply_to_uid",
+    "in_reply_to_folder",
+)
 
 
 class Approval(BaseModel):
@@ -57,11 +68,7 @@ def can_ask(capabilities: ClientCapabilities | None) -> bool:
 def target_summary(book: MailboxBook, mailbox: Mailbox, folder: str, uid: int) -> MessageSummary:
     """The headers of the message a delete or replacement would remove; LookupError if absent."""
     with book.imap(mailbox) as session:
-        session.select(folder, readonly=True)
-        headers: dict[int, bytes] = session.fetch_headers([uid])
-    if uid not in headers:
-        raise LookupError(f"no message with uid {uid} in folder {folder!r}")
-    return summarize(uid, parse_message(headers[uid]))
+        return summarize(uid, read_headers(session, folder, uid))
 
 
 def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[str, Any]) -> str:
@@ -72,6 +79,11 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
         verb: str = "permanently delete" if tool == "delete_email" else "replace"
         lines += [f"It will {verb} this message in {arguments['folder']!r}:", removed.render()]
     if "to" in arguments:
+        parent_uid: int = int(arguments.get("in_reply_to_uid", 0))
+        parent: Message | None = None
+        if parent_uid:
+            with book.imap(mailbox) as session:
+                parent = read_headers(session, str(arguments.get("in_reply_to_folder", "INBOX")), parent_uid)
         message: EmailMessage = compose(
             mailbox.address,
             str(arguments.get("to", "")),
@@ -79,8 +91,11 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
             str(arguments.get("body", "")),
             str(arguments.get("cc", "")),
             str(arguments.get("html", "")),
+            parent,
         )
         recipients: list[str] = book.approve(mailbox, message)
+        if parent is not None:
+            lines += ["In reply to:", summarize(parent_uid, parent).render()]
         lines += [
             f"Delivered to: {', '.join(recipients)}",
             f"Subject: {message.get('Subject', '')}",

@@ -6,12 +6,13 @@ Placement: tools/sending.py, one module per tool group.
 
 from __future__ import annotations
 
-from email.message import EmailMessage
+from email.message import EmailMessage, Message
 
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose, envelope_recipients
+from email_tool_mcp.message_render import read_headers
 from email_tool_mcp.settings import Mailbox
-from email_tool_mcp.tools.params import Body, Cc, Html, MailboxName, Subject, To
+from email_tool_mcp.tools.params import Body, Cc, Html, InReplyToFolder, InReplyToUid, MailboxName, Subject, To
 
 
 class SendingTools:
@@ -28,10 +29,19 @@ class SendingTools:
         mailbox: MailboxName = "",
         cc: Cc = "",
         html: Html = "",
+        in_reply_to_uid: InReplyToUid = 0,
+        in_reply_to_folder: InReplyToFolder = "INBOX",
     ) -> str:
-        """Send an email immediately from this mailbox. This is not reversible."""
+        """Send an email immediately from this mailbox. This is not reversible.
+
+        For a reply, `in_reply_to_uid` names the message answered, so the reply joins its conversation.
+        """
         sender: Mailbox = self._book.resolve(mailbox)
-        message: EmailMessage = compose(sender.address, to, subject, body, cc, html)
+        parent: Message | None = None
+        if in_reply_to_uid:
+            with self._book.imap(sender) as session:
+                parent = read_headers(session, in_reply_to_folder, in_reply_to_uid)
+        message: EmailMessage = compose(sender.address, to, subject, body, cc, html, parent)
         refused: dict[str, tuple[int, bytes]] = self._book.send(sender, message)
         if refused:
             return f"Sent, but {len(refused)} recipient(s) were refused: {sorted(refused)}"

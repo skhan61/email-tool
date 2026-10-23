@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from email.header import decode_header, make_header
 from email.message import Message
 from html.parser import HTMLParser
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from email_tool_mcp.imap_session import ImapSession
 
 _HEADER_FIELDS: Final[tuple[str, ...]] = ("Date", "From", "To", "Cc", "Subject")
 _DROPPED_HTML_TAGS: Final[frozenset[str]] = frozenset({"script", "style", "head", "title"})
@@ -77,6 +80,15 @@ def decode_header_value(raw: str | None) -> str:
 def parse_message(raw_bytes: bytes) -> Message:
     """Parse raw RFC-822 bytes into a Message."""
     return email.message_from_bytes(raw_bytes)
+
+
+def read_headers(session: ImapSession, folder: str, uid: int) -> Message:
+    """The parsed headers of message `uid` in `folder`, without marking it read; LookupError if absent."""
+    session.select(folder, readonly=True)
+    headers: dict[int, bytes] = session.fetch_headers([uid])
+    if uid not in headers:
+        raise LookupError(f"no message with uid {uid} in folder {folder!r}; nothing was done")
+    return parse_message(headers[uid])
 
 
 def summarize(uid: int, message: Message) -> MessageSummary:
