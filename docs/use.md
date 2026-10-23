@@ -9,10 +9,12 @@ Talk to your assistant in plain language. Name the mailbox when you have more th
 | "Which mailboxes do I have?" | Lists your mailboxes and whether each can log in. |
 | "Summarize today's mail in my work inbox." | Lists the newest messages and summarizes them. |
 | "Find Dana's message about the invoice from last week." | Searches by sender, subject, text and date. |
+| "In my Gmail, find unread mail from Dana with attachments." | Uses Gmail's own search, the same as the search box in Gmail. |
 | "Show me that message." | Opens the whole message. It stays unread in your mail app. |
 | "Draft a reply saying I agree, and save it." | Saves a draft. Nothing is sent. |
 | "Change the draft: add Lee in Cc." | Replaces the draft with the new version. |
 | "Send it." | Sends the message. Sending cannot be undone. |
+| "Write it as a formatted email, with a short list and a link." | Sends formatted mail, with a plain-text copy for mail programs that show only text. |
 | "Send the report in ~/Documents/q3.pdf to Lee." | Sends the message with that file attached. |
 | "Save the invoice attached to Dana's message in ~/Downloads." | Saves the attachment there. It is never opened. |
 | "Delete the newsletter from this morning." | Deletes that message permanently. |
@@ -31,7 +33,7 @@ In Claude Code, the plugin also adds three commands: `/inbox`, `/email-search` a
 | `get_email` | Opens one message in full, with its attachments listed |
 | `save_attachment` | Saves one attachment into a folder you name |
 | `create_draft`, `list_drafts`, `get_draft`, `update_draft` | Works with drafts |
-| `send_email` | Sends a message, with any attachments |
+| `send_email` | Sends a message, plain or formatted, with any attachments |
 | `add_mailbox` | Opens a page in your browser to add a mailbox |
 | `delete_email` | Deletes a message permanently |
 
