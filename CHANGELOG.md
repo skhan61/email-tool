@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 5.5.0
+
 ### Added
 - Report a problem from your app: `report_problem` builds a report for the maintainer (versions,
   app, kinds of mailbox, the last few errors) with addresses, subjects, quoted text, home-folder
