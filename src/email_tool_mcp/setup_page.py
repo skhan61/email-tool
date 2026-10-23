@@ -57,7 +57,7 @@ from email_tool_mcp.enrol import (
     check_login,
 )
 from email_tool_mcp.google import GoogleTokens
-from email_tool_mcp.microsoft import MicrosoftTokens
+from email_tool_mcp.microsoft import MicrosoftTokens, check_directory, pasted_id
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, Mailbox, load_mailboxes
 
 LIFETIME_SECONDS: Final[float] = 600.0
@@ -65,9 +65,6 @@ LIFETIME_SECONDS: Final[float] = 600.0
 _SIGN_IN_START_SECONDS: Final[float] = 60.0
 _NAME: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
 _KINDS: Final[tuple[str, ...]] = ("gmail", "microsoft", "google", "password")
-# A Microsoft directory or app ID, or a directory's domain: both go into the sign-in address.
-_GUID: Final[re.Pattern[str]] = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
-_DOMAIN: Final[re.Pattern[str]] = re.compile(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}")
 _TOOL: Final[str] = "add_mailbox"
 # Same-origin: the browser keeps sending Origin on this page's form posts, and sends no Referer
 # (which would carry the token) to Microsoft or Google.
@@ -234,11 +231,15 @@ class SetupPage:
             return self._again(problem)
         if kind in ("gmail", "password"):
             return await self._add_with_password(form, kind, name, address)
-        tenant: str = str(form.get("tenant", "")).strip() if kind == "microsoft" else ""
-        client_id: str = str(form.get("client_id", "")).strip() if kind == "microsoft" else ""
-        problem = _invalid_directory(tenant, client_id)
-        if problem:
-            return self._again(problem)
+        tenant: str = ""
+        client_id: str = ""
+        if kind == "microsoft":
+            tenant = pasted_id(str(form.get("tenant", "")))
+            client_id = pasted_id(str(form.get("client_id", "")))
+            try:
+                check_directory(tenant, client_id)
+            except ValueError as wrong:
+                return self._again(str(wrong))
         upload: object = form.get("client_file")
         return await self._start_sign_in(
             kind, name, address, upload if isinstance(upload, UploadFile) else None, tenant, client_id
@@ -286,7 +287,7 @@ class SetupPage:
         return self._shown("Mailbox added", _done(done))
 
     async def _start_sign_in(
-        self, kind: str, name: str, address: str, upload: UploadFile | None, tenant: str = "", client_id: str = ""
+        self, kind: str, name: str, address: str, upload: UploadFile | None, tenant: str, client_id: str
     ) -> Response:
         if kind == "google" and (upload is None or not upload.filename):
             return self._again("Choose your Google client file (client_secret_….json).")
@@ -517,15 +518,6 @@ def _done(message: str) -> str:
         f"<p class='ok'>{html.escape(message)}</p>"
         "<p>You can close this page and go back to your assistant. To add another mailbox, ask it again.</p>"
     )
-
-
-def _invalid_directory(tenant: str, client_id: str) -> str:
-    """What is wrong with an optional Microsoft directory or app ID, or "" (both go into Microsoft's address)."""
-    if client_id and not _GUID.fullmatch(client_id):
-        return "The App (client) ID looks like 12345678-abcd-1234-abcd-1234567890ab. Check it with your IT department."
-    if tenant and not (_GUID.fullmatch(tenant) or _DOMAIN.fullmatch(tenant)):
-        return "The Directory (tenant) ID is an ID like the App ID, or a domain such as your-school.edu."
-    return ""
 
 
 def _form(token: str, problem: str) -> str:

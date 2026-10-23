@@ -113,7 +113,7 @@ class FakeMsal:
         return self._signed_in(self.scopes)
 
 
-OUTLOOK: Mailbox = preset("outlook", ADDRESS, "client-123", "", "commercial")
+OUTLOOK: Mailbox = preset("outlook", ADDRESS, "00000000-0000-0000-0000-000000000123", "", "commercial")
 
 
 @pytest.fixture
@@ -265,7 +265,7 @@ def test_an_undecryptable_sign_in_asks_for_a_new_one(tokens: MicrosoftTokens, tm
     stored: Path = next((tmp_path / "sign-ins").glob("*.bin"))
     stored.write_bytes(b"garbage")
     assert not tokens.is_signed_in(OUTLOOK)
-    with pytest.raises(SignInRequired, match="--client-id client-123"):
+    with pytest.raises(SignInRequired, match="--client-id 00000000-0000-0000-0000-000000000123"):
         tokens.access_token(OUTLOOK)
 
 
@@ -282,7 +282,14 @@ def test_the_stored_sign_in_is_encrypted_and_named_apart(tokens: MicrosoftTokens
 def test_add_signs_in_checks_and_saves_without_a_password(tokens: MicrosoftTokens, tmp_path: Path) -> None:
     settings: Path = tmp_path / "mailboxes.toml"
     message: str = add_microsoft_mailbox(
-        "outlook", settings, tokens, ADDRESS, "client-123", show=print, login_check=accept, forget=nothing_to_forget
+        "outlook",
+        settings,
+        tokens,
+        ADDRESS,
+        "00000000-0000-0000-0000-000000000123",
+        show=print,
+        login_check=accept,
+        forget=nothing_to_forget,
     )
     assert "No password stored" in message
     saved: Mailbox = load_mailboxes(settings)["outlook"]
@@ -299,18 +306,36 @@ def test_a_failed_check_keeps_the_earlier_sign_in(tokens: MicrosoftTokens, tmp_p
 
     settings: Path = tmp_path / "m.toml"
     add_microsoft_mailbox(
-        "outlook", settings, tokens, ADDRESS, "client-123", login_check=accept, forget=nothing_to_forget
+        "outlook",
+        settings,
+        tokens,
+        ADDRESS,
+        "00000000-0000-0000-0000-000000000123",
+        login_check=accept,
+        forget=nothing_to_forget,
     )
     before: bytes = next((tmp_path / "sign-ins").glob("*.bin")).read_bytes()
     with pytest.raises(OSError):
         add_microsoft_mailbox(
-            "outlook", settings, tokens, ADDRESS, "client-123", login_check=refuse, forget=nothing_to_forget
+            "outlook",
+            settings,
+            tokens,
+            ADDRESS,
+            "00000000-0000-0000-0000-000000000123",
+            login_check=refuse,
+            forget=nothing_to_forget,
         )
     assert next((tmp_path / "sign-ins").glob("*.bin")).read_bytes() == before
     assert tokens.is_signed_in(load_mailboxes(settings)["outlook"])
     with pytest.raises(OSError):
         add_microsoft_mailbox(
-            "other", tmp_path / "n.toml", tokens, ADDRESS, "client-123", login_check=refuse, forget=nothing_to_forget
+            "other",
+            tmp_path / "n.toml",
+            tokens,
+            ADDRESS,
+            "00000000-0000-0000-0000-000000000123",
+            login_check=refuse,
+            forget=nothing_to_forget,
         )
     assert not (tmp_path / "n.toml").exists()
 
@@ -320,7 +345,15 @@ def test_switching_a_mailbox_to_microsoft_deletes_its_password(tokens: Microsoft
     book: MailboxBook = MailboxBook(settings, {}, token_sources={"microsoft": tokens})
     save_mailbox(settings, Mailbox("outlook", ADDRESS, "imap.x", 993, "smtp.x", 465), book.forget)
     store_password("outlook", "old-password")
-    add_microsoft_mailbox("outlook", settings, tokens, ADDRESS, "client-123", login_check=accept, forget=book.forget)
+    add_microsoft_mailbox(
+        "outlook",
+        settings,
+        tokens,
+        ADDRESS,
+        "00000000-0000-0000-0000-000000000123",
+        login_check=accept,
+        forget=book.forget,
+    )
     assert not has_password("outlook")
     save_mailbox(settings, Mailbox("outlook", ADDRESS, "imap.x", 993, "smtp.x", 465), book.forget)
     assert not tokens.is_signed_in(OUTLOOK)
@@ -357,7 +390,7 @@ def test_admin_approval_says_what_to_ask_it_for(tmp_path: Path) -> None:
         tokens.sign_in(OUTLOOK, False, print)
     message: str = str(raised.value)
     assert "AADSTS90094" in message and "Trace ID" not in message
-    assert "admin consent to the application ID client-123" in message
+    assert "admin consent to the application ID 00000000-0000-0000-0000-000000000123" in message
 
 
 class NoBrowserAnswer(FakeMsal):
@@ -451,3 +484,10 @@ def test_device_code_and_paste_address_together_are_refused(tmp_path: Path) -> N
             device_code=True,
             paste_address=True,
         )
+
+
+def test_a_directory_of_the_wrong_shape_is_refused_before_signing_in(tokens: MicrosoftTokens, tmp_path: Path) -> None:
+    """The terminal and the setup page share one rule: the value goes into Microsoft's sign-in address."""
+    with pytest.raises(ValueError, match="Directory"):
+        add_microsoft_mailbox("w", tmp_path / "m.toml", tokens, ADDRESS, "", "x/../evil", forget=nothing_to_forget)
+    assert not (tmp_path / "m.toml").exists()

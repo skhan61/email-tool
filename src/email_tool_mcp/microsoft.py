@@ -9,6 +9,7 @@ Placement: microsoft.py; MailboxBook asks it for tokens, enrol.py for the first 
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -143,6 +144,31 @@ def authority_of(mailbox: Mailbox) -> str:
 def scopes_for(cloud: Cloud) -> list[str]:
     """The delegated IMAP and SMTP scopes in one cloud (offline_access is added by MSAL)."""
     return [f"https://{cloud.resource}/IMAP.AccessAsUser.All", f"https://{cloud.resource}/SMTP.Send"]
+
+
+# Microsoft's own directory names: any work or school account, any account, personal accounts.
+_TENANT_ALIASES: Final[frozenset[str]] = frozenset({"organizations", "common", "consumers"})
+_GUID: Final[re.Pattern[str]] = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
+_DOMAIN: Final[re.Pattern[str]] = re.compile(
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59})"
+)
+
+
+def pasted_id(value: str) -> str:
+    """An ID as people paste it, without spaces, quotes or the braces PowerShell prints around a GUID."""
+    return value.strip().strip("{}\"'").strip()
+
+
+def check_directory(tenant: str, client_id: str) -> None:
+    """Refuse a directory or app ID of the wrong shape: both go into Microsoft's sign-in address."""
+    if client_id and not _GUID.fullmatch(client_id):
+        raise ValueError(
+            "The App (client) ID looks like 12345678-abcd-1234-abcd-1234567890ab. Check it with your IT department."
+        )
+    if tenant and not (tenant in _TENANT_ALIASES or _GUID.fullmatch(tenant) or _DOMAIN.fullmatch(tenant)):
+        raise ValueError(
+            "The Directory (tenant) ID is an ID like the App ID, a domain such as your-school.edu, or organizations."
+        )
 
 
 def preset(name: str, address: str, client_id: str, tenant: str, cloud: str) -> Mailbox:

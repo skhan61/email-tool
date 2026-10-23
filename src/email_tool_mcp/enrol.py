@@ -22,7 +22,7 @@ from email_tool_mcp.google import SignIn as GoogleSignIn
 from email_tool_mcp.google import preset as google_preset
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import MailboxBook, open_smtp
-from email_tool_mcp.microsoft import DEFAULT_CLIENT_ID, MicrosoftTokens, SignIn
+from email_tool_mcp.microsoft import DEFAULT_CLIENT_ID, MicrosoftTokens, SignIn, check_directory, pasted_id
 from email_tool_mcp.microsoft import REDIRECT as MICROSOFT_REDIRECT
 from email_tool_mcp.microsoft import preset as microsoft_preset
 from email_tool_mcp.passwords import normalize_password, store_password
@@ -169,6 +169,9 @@ def add_microsoft_mailbox(
     """
     if not address:
         raise ValueError("give the mailbox address with --address")
+    tenant = pasted_id(tenant)
+    client_id = pasted_id(client_id)
+    check_directory(tenant, client_id)
     if not client_id and cloud != "commercial":
         raise ValueError(
             "GCC High needs an app registered in GCC High: give its Application (client) ID with "

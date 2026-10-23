@@ -25,7 +25,7 @@ from email_tool_mcp import setup_page as setup_page_module
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.microsoft import MicrosoftTokens
+from email_tool_mcp.microsoft import DEFAULT_CLIENT_ID, MicrosoftTokens
 from email_tool_mcp.passwords import read_password
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import Mailbox, load_mailboxes
@@ -198,6 +198,35 @@ def test_a_university_directory_and_app_from_it_reach_microsoft_and_are_kept(pag
     assert back.status == 200, back.read()
     kept: Mailbox = load_mailboxes(tmp_path / "mailboxes.toml")["uni"]
     assert (kept.tenant, kept.client_id) == ("school.edu", app)
+
+
+@pytest.mark.parametrize(
+    ("tenant", "pasted_app", "app", "authority"),
+    [
+        ("11111111-2222-3333-4444-555555555555", "", "", "11111111-2222-3333-4444-555555555555"),
+        (
+            "organizations",
+            "{12345678-abcd-1234-abcd-1234567890ab}",
+            "12345678-abcd-1234-abcd-1234567890ab",
+            "organizations",
+        ),
+    ],
+    ids=["directory ID alone", "Microsoft's own name and an app ID pasted in braces"],
+)
+def test_either_value_alone_and_as_pasted_reaches_microsoft(
+    page: SetupPage, tenant: str, pasted_app: str, app: str, authority: str
+) -> None:
+    page.start()
+    form: dict[str, str] = {
+        "kind": "microsoft",
+        "name": "uni",
+        "address": ADDRESS,
+        "tenant": tenant,
+        "client_id": pasted_app,
+    }
+    assert request(page, "POST", add_path(page), form).status == 303
+    assert FakeMsal.instances[-1].client_id == (app or DEFAULT_CLIENT_ID)
+    assert FakeMsal.instances[-1].authority == f"https://login.microsoftonline.com/{authority}"
 
 
 def test_a_cancelled_sign_in_saves_nothing(page: SetupPage, tmp_path: Path) -> None:
