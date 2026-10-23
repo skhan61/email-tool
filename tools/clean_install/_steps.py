@@ -38,9 +38,9 @@ class StepFailed(RuntimeError):
     """A documented command failed on a clean machine."""
 
 
-def steps(source: str) -> list[Step]:
+def steps(source: str, with_claude: bool) -> list[Step]:
     """The steps in the order the docs give them; `source` is what `uv tool install` installs."""
-    return [
+    found: list[Step] = [
         Step(
             "uv-install",
             "Install uv",
@@ -54,31 +54,44 @@ def steps(source: str) -> list[Step]:
             f"uv tool install {_REPOSITORY}",
             f"uv tool install {source}",
         ),
-        Step("tool-help", "See the commands", "email-tool-mcp --help", "PAGER=cat email-tool-mcp --help"),
+        # Run exactly as documented: with no terminal attached, fire prints help instead of paging it.
+        Step("tool-help", "See the commands", "email-tool-mcp --help", "email-tool-mcp --help"),
         Step("tool-list", "List your mailboxes", "email-tool-mcp list", "email-tool-mcp list"),
-        Step(
-            "claude-marketplace",
-            "Add the marketplace in Claude Code",
-            "claude plugin marketplace add skhan61/email-tool",
-            "claude plugin marketplace add skhan61/email-tool",
-        ),
-        Step(
-            "claude-install",
-            "Install the plugin in Claude Code",
-            "claude plugin install email-tool@email-tool",
-            "claude plugin install email-tool@email-tool",
-        ),
     ]
+    if with_claude:
+        found += [
+            Step(
+                "claude-marketplace",
+                "Add the marketplace in Claude Code",
+                "claude plugin marketplace add skhan61/email-tool",
+                "claude plugin marketplace add skhan61/email-tool",
+            ),
+            Step(
+                "claude-install",
+                "Install the plugin in Claude Code",
+                "claude plugin install email-tool@email-tool",
+                "claude plugin install email-tool@email-tool",
+            ),
+        ]
+    return found
+
+
+def _install_source(source: str) -> str:
+    """`source` as uv receives it: the repository address, or an absolute local checkout."""
+    return source if source.startswith("git+") else str(Path(source).resolve())
 
 
 def _readable(output: str, home: Path, source: str) -> str:
-    # A local checkout under test is shown as the address the docs give.
+    """The output a reader sees: the temporary home as `~`, a local checkout as the documented
+    address, and the long list of installed packages as one line."""
     shown: str = output.replace(f"file://{source}", _REPOSITORY) if source != _REPOSITORY else output
     lines: list[str] = shown.replace(str(home), "~").splitlines()
-    packages: int = sum(1 for line in lines if line.startswith(_PACKAGE_LINE))
-    kept: list[str] = [line for line in lines if not line.startswith(_PACKAGE_LINE)]
-    if packages:
-        kept.insert(len(kept) - 1, f" + ... {packages} packages")
+    packages: list[int] = [index for index, line in enumerate(lines) if line.startswith(_PACKAGE_LINE)]
+    if not packages:
+        return "\n".join(lines)
+    summary: str = f" + ... {len(packages)} packages"
+    kept: list[str] = [line for line in lines[: packages[0]]] + [summary]
+    kept += [line for line in lines[packages[0] :] if not line.startswith(_PACKAGE_LINE)]
     return "\n".join(kept)
 
 
@@ -107,21 +120,40 @@ def _execute(step: Step, home: Path, tools: Path) -> str:
     return output
 
 
-def run(source: str = _REPOSITORY, out: str = "docs/assets/screens") -> str:
-    """Run every step in a fresh empty home and save `<out>/<step>.svg`; stop at the first failure."""
+def _link_tools(tools: Path) -> bool:
+    """Put only `claude` (and `node`, which an npm install of it needs) on the clean PATH.
+
+    The rest of this user's tool folders stays out, so nothing already installed here leaks in.
+    Return False when Claude Code is not installed.
+    """
     claude: str | None = shutil.which("claude")
     if claude is None:
-        raise StepFailed("the Claude Code steps need `claude` installed on this machine")
+        return False
+    (tools / "claude").symlink_to(claude)
+    node: str | None = shutil.which("node")
+    if node is not None:
+        (tools / "node").symlink_to(node)
+    return True
+
+
+def run(source: str = _REPOSITORY, out: str = "docs/assets/screens") -> str:
+    """Run every step in a fresh empty home and save `<out>/<step>.svg`; stop at the first failure.
+
+    Without Claude Code on this machine, its two steps are skipped and their SVGs left as they are.
+    """
+    installed: str = _install_source(source)
     with tempfile.TemporaryDirectory(prefix="clean-home-") as directory:
         home: Path = Path(directory) / "home"
         home.mkdir()
-        # Only `claude` itself joins the clean PATH, never the rest of this user's tool folder.
         tools: Path = Path(directory) / "tools"
         tools.mkdir()
-        (tools / "claude").symlink_to(claude)
+        with_claude: bool = _link_tools(tools)
+        if not with_claude:
+            log.warning("claude is not installed here: skipping the Claude Code steps")
+        planned: list[Step] = steps(installed, with_claude)
         step: Step
-        for step in steps(source):
+        for step in planned:
             output: str = _execute(step, home, tools)
-            save_svg(Path(out) / f"{step.name}.svg", step.title, step.shown, _readable(output, home, source))
+            save_svg(Path(out) / f"{step.name}.svg", step.title, step.shown, _readable(output, home, installed))
             log.info("ok: %s", step.shown)
-    return f"all {len(steps(source))} steps passed on a clean home; SVGs in {out}"
+    return f"all {len(planned)} steps passed on a clean home; SVGs in {out}"

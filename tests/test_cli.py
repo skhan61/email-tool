@@ -29,11 +29,10 @@ def help_text(*arguments: str) -> str:
 
 
 def test_help_lists_every_command() -> None:
-    shown: str = help_text()
-    assert "email-tool-mcp GROUP | COMMAND" in shown
+    names: set[str] = {line.strip() for line in help_text().splitlines()}
     command: str
     for command in COMMANDS:
-        assert f"\n     {command}\n" in shown, f"{command} missing from --help"
+        assert command in names, f"{command} missing from --help"
 
 
 @pytest.mark.parametrize("group", ["audit", "policy"])

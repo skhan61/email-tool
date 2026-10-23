@@ -21,7 +21,8 @@ send before it saves anything, so a typo never leaves a half-working mailbox beh
     email-tool-mcp --help
     ```
 
-    You see every command, such as **add**, **check** and **list**:
+    You see every command, such as **add**, **check** and **list**. If the help fills the
+    window, scroll with the arrow keys and press **q** to close it:
 
     ![email-tool-mcp --help lists the commands](assets/screens/tool-help.svg)
 

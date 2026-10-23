@@ -43,9 +43,10 @@ uvx --version
 
 ![uvx --version prints the uv version](assets/screens/uv-check.svg)
 
-If you see `uvx: command not found`, the terminal has not picked up the new folder yet. Close
-every terminal window and open a new one. On macOS and Linux you can instead run
-`source $HOME/.local/bin/env` in the open terminal.
+If the terminal says it cannot find `uvx` (`command not found`, or on Windows
+`The term 'uvx' is not recognized`), it has not picked up the new folder yet. Close every
+terminal window and open a new one. On macOS and Linux you can instead run
+`source $HOME/.local/bin/env` in the open terminal (`source $HOME/.local/bin/env.fish` in fish).
 
 !!! note "Desktop apps on macOS"
     Apps you open from the Dock do not see your terminal's settings, so they may not find

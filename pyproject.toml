@@ -54,7 +54,11 @@ dev = [
 docs = [
     "mkdocs==1.6.1",
     "mkdocs-material==9.7.7",
-    # `tools.clean_install` saves each install step's real terminal output as SVG for docs/.
+]
+
+# `uv run --group screens python -m tools.clean_install run`: checks the install steps on a
+# clean home and saves each one's real terminal output as SVG for docs/.
+screens = [
     "rich==13.9.4",
 ]
 
