@@ -25,7 +25,8 @@ class MissingPassword(LookupError):
     def __init__(self, mailbox_name: str) -> None:
         super().__init__(
             f"No password for mailbox {mailbox_name!r} on this machine. "
-            f"Run `{SETUP_COMMAND} {mailbox_name}` in a terminal, then try again."
+            "Call add_mailbox to open a setup page, or run "
+            f"`{SETUP_COMMAND} {mailbox_name}` in a terminal, then try again."
         )
 
 

@@ -36,6 +36,7 @@ TOOL_NAMES: set[str] = {
     "get_draft",
     "update_draft",
     "send_email",
+    "add_mailbox",
 }
 
 
