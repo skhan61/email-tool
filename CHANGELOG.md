@@ -102,7 +102,7 @@ Documentation: https://skhan61.github.io/email-tool/
   provenance (`*.intoto.jsonl`).
 
 ### Changed
-- The project contact and package maintainer is sayem.eee.kuet@gmail.com.
+- The project contact and package maintainer is s.khan at alchlight.com.
 - Runtime dependencies: pydantic 2.14.0, platformdirs 4.12.4, and `requests` 2.34.2
   pinned directly (sign-in traffic uses it).
 

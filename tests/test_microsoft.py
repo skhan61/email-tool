@@ -42,7 +42,7 @@ from email_tool_mcp.settings import NETWORK_TIMEOUT_SECONDS, Mailbox, load_mailb
 from email_tool_mcp.tls import https_session
 from email_tool_mcp.token_store import TokenStore
 
-ADDRESS: str = "sayem@outlook.com"
+ADDRESS: str = "someone@outlook.com"
 
 
 class FakeMsal:
@@ -162,7 +162,7 @@ class Regional(FakeMsal):
 
     def __init__(self, client_id: str, authority: str, cache: msal.SerializableTokenCache) -> None:
         super().__init__(client_id, authority, cache)
-        self.signed_in_as = "sayem@hotmail.co.uk"
+        self.signed_in_as = "someone@hotmail.co.uk"
 
 
 class Work(FakeMsal):
@@ -175,7 +175,7 @@ class Work(FakeMsal):
 
 
 def test_the_account_kind_comes_from_microsoft_not_the_domain(tmp_path: Path) -> None:
-    regional: Mailbox = preset("uk", "sayem@hotmail.co.uk", "c", "", "commercial")
+    regional: Mailbox = preset("uk", "someone@hotmail.co.uk", "c", "", "commercial")
     personal: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "a"), Regional)
     assert tokens_complete(personal, regional).smtp_host == PERSONAL_SMTP_HOST
     work: Mailbox = preset("w", "s.khan@contoso.com", "c", "", "commercial")

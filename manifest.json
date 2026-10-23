@@ -7,7 +7,7 @@
   "long_description": "Lets Claude read, search, draft and send email in your own mailboxes. Leave every field below blank and select Install. Then ask Claude: \"add my mailbox\". A page opens in your browser where you choose Gmail, Outlook or another mailbox and sign in. Your password never passes through Claude.",
   "author": {
     "name": "Sayem Khan",
-    "email": "sayem.eee.kuet@gmail.com",
+    "email": "s.khan@alchlight.com",
     "url": "https://github.com/skhan61"
   },
   "repository": {

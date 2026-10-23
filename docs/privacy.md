@@ -36,5 +36,5 @@ including the Limited Use requirements.
 
 ## Contact
 
-Sayem Khan, sayem.eee.kuet@gmail.com, or an issue at
+Sayem Khan, s.khan at alchlight.com, or an issue at
 [github.com/skhan61/email-tool](https://github.com/skhan61/email-tool/issues).
