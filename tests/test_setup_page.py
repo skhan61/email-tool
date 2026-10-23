@@ -13,6 +13,7 @@ import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode, urlsplit
 
 import pytest
@@ -21,6 +22,7 @@ from mcp.client.context import ClientRequestContext
 from mcp.shared.exceptions import UrlElicitationRequiredError
 from mcp_types import CallToolResult, ElicitRequestParams, ElicitResult, TextContent
 
+from email_tool_mcp import server as server_module
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.mailbox_book import MailboxBook
@@ -345,3 +347,19 @@ def test_each_mailbox_added_on_the_page_is_audited_without_its_password(audited:
     logged: str = audit.path.read_text(encoding="utf-8")
     assert '"kind": "gmail"' in logged and '"address": "me@gmail.com"' in logged and '"outcome": "ok"' in logged
     assert APP_PASSWORD not in logged and APP_PASSWORD.replace(" ", "") not in logged
+
+
+def test_the_servers_own_setup_page_writes_to_the_audit_log(
+    book: MailboxBook, audit: AuditLog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Found live (#87): the server built its page without the audit log, so page adds went unrecorded."""
+    built: list[SetupPage] = []
+
+    class Recorded(SetupPage):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            built.append(self)
+
+    monkeypatch.setattr(server_module, "SetupPage", Recorded)
+    build_server(book, audit)
+    assert built and built[0]._audit is audit
