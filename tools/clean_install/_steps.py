@@ -18,7 +18,7 @@ from tools.clean_install._render import save_svg
 
 log: Final[logging.Logger] = logging.getLogger(__name__)
 
-_REPOSITORY: Final[str] = "email-tool-mcp"
+_REPOSITORY: Final[str] = "git+https://github.com/skhan61/email-tool"
 _SYSTEM_PATH: Final[str] = "/usr/local/bin:/usr/bin:/bin"
 # A long package list adds nothing a reader acts on.
 _PACKAGE_LINE: Final[str] = " + "

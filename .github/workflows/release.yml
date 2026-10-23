@@ -2,7 +2,8 @@
 # carrying the wheel, the sdist and the Claude Desktop bundle, each signed with
 # Sigstore (`*.sigstore.json`), plus SLSA build provenance (`*.intoto.jsonl`).
 # With the repository variable PYPI_PUBLISH set to "true", the wheel and sdist
-# also go to PyPI by trusted publishing (no token stored anywhere).
+# also go to PyPI by trusted publishing (no token stored anywhere), then server.json
+# to the official MCP Registry (GitHub OIDC, no secret).
 #
 # A pull request that changes this workflow runs it as a dry run: GitHub checks every job,
 # skipped ones included (their permissions, the workflows they call), when the run starts,
@@ -20,6 +21,7 @@ on:
       - .github/tools/mcpb/**
       - pyproject.toml
       - manifest.json
+      - server.json
 
 permissions:
   contents: read
@@ -155,4 +157,29 @@ jobs:
           echo "$PUBLISHER_SHA256  publisher.tar.gz" | sha256sum --check
           tar xzf publisher.tar.gz mcp-publisher
       - run: ./mcp-publisher login github-oidc
-      - run: ./mcp-publisher publish
+      # The registry reads the new version from PyPI, which can lag the upload by a minute or two.
+      - run: |
+          for attempt in 1 2 3 4 5 6; do
+            ./mcp-publisher publish && exit 0
+            echo "attempt $attempt failed; PyPI may not serve the new version yet"
+            sleep 30
+          done
+          exit 1
+
+  # On a pull request, the registry checks server.json as it would at release.
+  registry-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PUBLISHER: https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
+      PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: |
+          curl -sSfL "$PUBLISHER" -o publisher.tar.gz
+          echo "$PUBLISHER_SHA256  publisher.tar.gz" | sha256sum --check
+          tar xzf publisher.tar.gz mcp-publisher
+      - run: ./mcp-publisher validate
