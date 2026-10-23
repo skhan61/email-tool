@@ -1,8 +1,9 @@
 # email-tool
 
-email-tool lets an AI assistant read, search, draft and send your email. It works with
-Claude Code, Claude Desktop, Claude Cowork, ChatGPT desktop, Codex and any other app that
-supports the Model Context Protocol (MCP).
+email-tool lets an AI assistant read, search, draft and send your email, with attachments:
+it sends the files you name and saves the attachments you receive. It works with Claude Code,
+Claude Desktop, Claude Cowork, ChatGPT desktop, Codex and any other app that supports the
+Model Context Protocol (MCP).
 
 It runs on your own computer and keeps your passwords in your operating system's keyring.
 It is built for organizations that handle Controlled Unclassified Information (CUI) under
@@ -15,6 +16,10 @@ approval, and CUI-marked mail stays inside the domains you allow.
 - "Find the invoice Dana sent last week and show it to me."
 - "Draft a reply to that message, and keep it in my drafts."
 - "Send the draft to the whole project team."
+- "Send the report in my Documents folder to Lee."
+- "Save the invoice attached to Dana's message in my Downloads."
+
+Files you send and attachments you save are covered in [Attachments](use.md#attachments).
 
 ## Get started
 
