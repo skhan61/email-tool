@@ -108,7 +108,12 @@ For Outlook.com, Hotmail, Live and Microsoft 365. No password is stored.
     email-tool-mcp add work --auth microsoft --address you@company.com
     ```
 
-2. Your browser opens on Microsoft's sign-in page. Sign in. Microsoft then asks
+2. Your browser opens on Microsoft's sign-in page. Sign in. Microsoft may first ask
+   **Are you trying to sign in to email-tool?** Select **Continue**, the blue button:
+
+    ![Microsoft asks whether you are trying to sign in to email-tool, with Cancel and Continue](assets/screens/microsoft-confirm-app.png){ width="440" }
+
+3. Microsoft then asks
    **Let this app access your info?** and lists what **email-tool** may do: read and write
    your mail, send mail, keep access, and see your basic profile. Microsoft marks the app
    **unverified** because no company publisher is registered for it; that is expected.
@@ -116,7 +121,9 @@ For Outlook.com, Hotmail, Live and Microsoft 365. No password is stored.
 
     ![Microsoft asks whether email-tool may access your mail, with Deny and Accept](assets/screens/microsoft-consent.png){ width="440" }
 
-3. Return to the terminal. It prints `Mailbox 'work' ... added` when both the reading and
+    If you approved email-tool before, Microsoft skips this screen.
+
+4. Return to the terminal. It prints `Mailbox 'work' ... added` when both the reading and
    the sending checks pass.
 
 The sign-in is kept encrypted on your computer and renews itself. If it ever expires, your
@@ -173,7 +180,14 @@ Use any Google account you own for these steps, for example a personal Gmail.
    account under **Test users**.
 4. Go to **Clients** > **Create client**, choose **Desktop app**, name it `email-tool`, and
    select **Create**.
-5. Select **Download JSON**. The file name starts with `client_secret_`. Keep it private.
+5. Select **Download JSON** right away. The file name starts with `client_secret_`. Keep it
+   private, and keep it: Google shows the secret and the download only once, when you
+   create the client.
+
+**If you lost the file**, open **Clients**, select your client, and select the **ⓘ** button
+(**Additional information**). Under **Client secrets**, select **Add secret**, then the
+download button next to the new secret. When email-tool works with the new file, select
+**Disable** and then the delete button next to the old secret.
 
 ### Sign in
 
@@ -184,11 +198,28 @@ Use any Google account you own for these steps, for example a personal Gmail.
     ```
 
 2. Your browser opens. Choose your account.
-3. For an External client, Google shows **Google hasn't verified this app**. It is your own
-   app, so select **Continue**.
-4. Allow every permission email-tool asks for. Reading and sending through IMAP and SMTP
-   needs full mail access.
-5. The browser shows "The authentication flow has completed". Return to the terminal, which
+3. For an External client, Google shows **Google hasn't verified this app**, with your own
+   address as the developer (hidden in the pictures below). It is your own app. Select
+   **Advanced**:
+
+    ![Google warns that it has not verified the app, with Advanced and Back to safety](assets/screens/google-unverified.png){ width="520" }
+
+    Then select **Go to email-tool (unsafe)**:
+
+    ![After Advanced, Google offers Go to email-tool (unsafe)](assets/screens/google-unverified-advanced.png){ width="520" }
+
+4. Google asks you to continue to email-tool: **Sign in to email-tool** the first time, or
+   **You're signing back in to email-tool**, as here, if you used it before. Select
+   **Continue**:
+
+    ![Google asks you to continue signing in to email-tool](assets/screens/google-sign-in.png){ width="600" }
+
+5. Google shows **email-tool wants access to your Google Account**. The first time, it lists
+   each permission: leave every one selected, because reading and sending through IMAP and
+   SMTP needs full mail access. If you signed in before, it says
+   **email-tool already has some access** instead. Select **Continue**.
+
+6. The browser shows "The authentication flow has completed". Return to the terminal, which
    prints `Mailbox 'work' ... added`.
 
 **If your browser is on another computer**, or shows "This site can't be reached" after you

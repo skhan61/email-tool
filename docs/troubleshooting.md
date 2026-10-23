@@ -36,7 +36,7 @@ assistant, which can tell you the same.
 
 | You see | Fix |
 |---|---|
-| `Google hasn't verified this app` | Expected for your own External client. Select **Continue**. |
+| `Google hasn't verified this app` | Expected for your own External client. Select **Advanced**, then **Go to email-tool (unsafe)**. |
 | `Access blocked: ... admin` | Your organization blocks apps it has not approved. Ask your IT department to allow your client, or to create an Internal one. |
 | `This site can't be reached` after you allow access | Run the command again with `--paste-address`, then paste back the address the browser ends on. |
 | `No browser can be opened from here` | Open the address the terminal prints in a browser on the same computer, or use `--paste-address`. |
