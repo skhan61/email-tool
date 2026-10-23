@@ -110,9 +110,12 @@ For Outlook.com, Hotmail, Live and Microsoft 365. No password is stored.
 
 2. Your browser opens on Microsoft's sign-in page. Sign in. Microsoft then asks
    **Let this app access your info?** and lists what **email-tool** may do: read and write
-   your mail, send mail, keep access, and see your basic profile. Select **Accept**:
+   your mail, send mail, keep access, and see your basic profile. Microsoft marks the app
+   **unverified** because no company publisher is registered for it; that is expected.
+   Select **Accept**:
 
     ![Microsoft asks whether email-tool may access your mail, with Deny and Accept](assets/screens/microsoft-consent.png){ width="440" }
+
 3. Return to the terminal. It prints `Mailbox 'work' ... added` when both the reading and
    the sending checks pass.
 
