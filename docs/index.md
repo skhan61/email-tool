@@ -14,10 +14,12 @@ approval, and CUI-marked mail stays inside the domains you allow.
 
 - "Summarize the unread mail in my work inbox."
 - "Find the invoice Dana sent last week and show it to me."
-- "Draft a reply to that message, and keep it in my drafts."
+- "Draft a reply to that message, and keep it in my drafts." The reply stays in the same
+  conversation.
 - "Send the draft to the whole project team."
 - "Send the report in my Documents folder to Lee."
 - "Save the invoice attached to Dana's message in my Downloads."
+- "Check my Gmail and my work mailbox for anything from Lee." Add as many mailboxes as you use.
 
 Files you send and attachments you save are covered in [Attachments](use.md#attachments).
 
