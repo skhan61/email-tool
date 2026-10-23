@@ -36,9 +36,10 @@ extra_css:
 
 nav:
   - Home: index.md
-  - Install: install.md
-  - Add your mailboxes: mailboxes.md
+  - Start here: start.md
   - Everyday use: use.md
+  - Mailbox details: mailboxes.md
+  - Advanced setup: install.md
   - Why CMMC: why-cmmc.md
   - CMMC control mapping: cmmc.md
   - For administrators: administrators.md

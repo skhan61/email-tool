@@ -57,6 +57,9 @@ RECORDED_ARGUMENTS: Final[tuple[str, ...]] = (
     "attachments",
     "index",
     "directory",
+    # add_mailbox's setup page: the kind of mailbox and the address it enrolls.
+    "kind",
+    "address",
 )
 
 

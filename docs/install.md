@@ -1,9 +1,13 @@
-# Install
+# Advanced setup
 
-Installing takes two parts: the **uv** tool, which runs email-tool, and the connection to
-your AI app. Then [add your mailboxes](mailboxes.md).
+For developers and IT. Most people need only [Start here](start.md), which installs
+email-tool in every app without a terminal.
 
-## Step 1: Install uv
+This page covers what Start here does not: installing **uv** by hand, connecting an app
+through its configuration file instead of a plugin, ChatGPT Business and Enterprise, other
+MCP apps, and updating or removing email-tool.
+
+## Install uv by hand
 
 uv is a free tool from Astral that downloads and runs Python programs. You install it once.
 
@@ -53,43 +57,12 @@ terminal window and open a new one. On macOS and Linux you can instead run
     `uvx`. Where a step below asks for the full path, run `which uvx` and use what it prints,
     usually `/Users/<you>/.local/bin/uvx`.
 
-## Step 2: Connect your AI app
+## Connect through a configuration file or command
 
-=== "Claude Code"
-
-    1. In a terminal, add the email-tool marketplace:
-
-        ```bash
-        claude plugin marketplace add skhan61/email-tool
-        ```
-
-        ![Claude Code adds the email-tool marketplace](assets/screens/claude-marketplace.svg)
-
-    2. Install the plugin:
-
-        ```bash
-        claude plugin install email-tool@email-tool
-        ```
-
-        ![Claude Code installs the email-tool plugin](assets/screens/claude-install.svg)
-
-    3. Close Claude Code and open it again. The email tools load only when Claude Code starts.
-
-    You can also type the same two commands inside Claude Code, as
-    `/plugin marketplace add skhan61/email-tool` and `/plugin install email-tool@email-tool`.
-    The plugin also adds the `/inbox`, `/email-search` and `/email-send` commands.
+Use these when a plugin or bundle is not an option, for example when IT manages the app's
+settings.
 
 === "Claude Desktop and Cowork"
-
-    **Option A: the bundle**
-
-    1. Download `email-tool-<version>.mcpb` from the
-       [latest release](https://github.com/skhan61/email-tool/releases/latest).
-    2. Open the file. Claude Desktop shows an install window.
-    3. Select **Install**. Leave the mailbox fields blank to use the mailboxes you add in
-       [Add your mailboxes](mailboxes.md), or fill in one mailbox there.
-
-    **Option B: the config file**
 
     1. In Claude Desktop, select **Settings** > **Developer** > **Edit Config**.
     2. Add this server, then save and restart Claude Desktop:
@@ -108,12 +81,7 @@ terminal window and open a new one. On macOS and Linux you can instead run
     On macOS, replace `uvx` with its full path. Claude Cowork uses the servers Claude Desktop
     runs, so it needs nothing more.
 
-=== "ChatGPT desktop and Codex"
-
-    **In the ChatGPT desktop app:** select **Plugins** > **Add Marketplace**, enter
-    `skhan61/email-tool`, then install **email-tool**.
-
-    **In a terminal (Codex CLI):**
+=== "Codex CLI"
 
     ```bash
     codex plugin marketplace add skhan61/email-tool
@@ -128,9 +96,6 @@ terminal window and open a new one. On macOS and Linux you can instead run
     command = "/Users/you/.local/bin/uvx"
     args = ["--from", "git+https://github.com/skhan61/email-tool", "email-tool-mcp", "serve"]
     ```
-
-    Local tools work in ChatGPT's **Work** and **Codex** modes. Normal **Chat** does not
-    reach them yet ([openai/codex#38162](https://github.com/openai/codex/issues/38162)).
 
 === "ChatGPT Business and Enterprise"
 
@@ -165,9 +130,8 @@ terminal window and open a new one. On macOS and Linux you can instead run
     uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve
     ```
 
-## Step 3: Add your mailboxes
-
-Continue with [Add your mailboxes](mailboxes.md).
+After connecting, ask your assistant to "add my mailbox", or add mailboxes from a terminal
+as in [Mailbox details](mailboxes.md#from-a-terminal).
 
 ## Update or remove
 

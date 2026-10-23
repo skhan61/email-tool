@@ -103,6 +103,11 @@ class MailboxBook:
             return None, f"The mailbox from the app's settings was ignored: {found.name!r} is already enrolled here."
         return found, ""
 
+    @property
+    def settings_file(self) -> Path:
+        """The settings file mailboxes are enrolled in."""
+        return self._settings_file
+
     def mailboxes(self) -> dict[str, Mailbox]:
         """Return every configured mailbox; an enrolled mailbox always wins a name clash."""
         known: dict[str, Mailbox] = load_mailboxes(self._settings_file)
@@ -121,7 +126,10 @@ class MailboxBook:
             return known[name] if name else next(iter(known.values()))
         problem: str = ""
         if not known:
-            problem = f"No mailbox is configured. Run `{SETUP_COMMAND} <name>` in a terminal."
+            problem = (
+                f"No mailbox is configured. Call add_mailbox to open a setup page, or run `{SETUP_COMMAND} <name>` "
+                "in a terminal."
+            )
         elif not name:
             problem = f"Several mailboxes are configured; name one of: {', '.join(sorted(known))}."
         else:

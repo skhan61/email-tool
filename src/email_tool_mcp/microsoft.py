@@ -294,8 +294,13 @@ class MicrosoftTokens:
         device_code: bool,
         show: Callable[[str], None],
         paste: Callable[[str], str] | None = None,
+        redirect: str = REDIRECT,
+        open_address: Callable[[str], None] | None = None,
     ) -> SignIn:
         """Sign in once in the browser, with a device code, or by pasting back the browser's address.
+
+        `redirect` is where a pasted sign-in ends: `http://localhost`, or the setup page's own
+        loopback address (Microsoft ignores the port of a localhost redirect, RFC 8252 7.3).
 
         Nothing is kept until `keep`. The sign-in goes into a new cache, so a sign-in kept
         earlier is untouched if this one, or the check after it, fails.
@@ -316,9 +321,9 @@ class MicrosoftTokens:
                 # needs it in the query, protected by PKCE as RFC 8252 prescribes for native apps.
                 warnings.filterwarnings("ignore", message="response_mode='form_post' is recommended")
                 code_flow: dict[str, Any] = app.initiate_auth_code_flow(
-                    scopes, redirect_uri=REDIRECT, login_hint=mailbox.address, prompt="select_account"
+                    scopes, redirect_uri=redirect, login_hint=mailbox.address, prompt="select_account"
                 )
-            answer: str = pasted_address("Microsoft", str(code_flow["auth_uri"]), REDIRECT, show, paste)
+            answer: str = pasted_address("Microsoft", str(code_flow["auth_uri"]), redirect, show, paste, open_address)
             pairs: list[tuple[str, str]] = parse_qsl(urlsplit(answer).query)
             result = app.acquire_token_by_auth_code_flow(code_flow, dict(pairs))
         else:

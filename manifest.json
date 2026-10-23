@@ -4,7 +4,7 @@
   "display_name": "Email (IMAP/SMTP)",
   "version": "5.2.1",
   "description": "Read, search, draft and send email over IMAP/SMTP.",
-  "long_description": "One server for all your mailboxes. Fill in one mailbox below, or leave everything blank and add mailboxes in a terminal (see the README); their passwords stay in the OS keyring.",
+  "long_description": "Lets Claude read, search, draft and send email in your own mailboxes. Leave every field below blank and select Install. Then ask Claude: \"add my mailbox\". A page opens in your browser where you choose Gmail, Outlook or another mailbox and sign in. Your password never passes through Claude.",
   "author": {
     "name": "Sayem Khan",
     "email": "sayem.eee.kuet@gmail.com",
@@ -44,21 +44,21 @@
     "name": {
       "type": "string",
       "title": "Mailbox name",
-      "description": "A short name the assistant uses for this mailbox. Pick one not used by a mailbox added in a terminal.",
+      "description": "Optional, for IT staff. Leave blank.",
       "default": "desktop",
       "required": false
     },
     "address": {
       "type": "string",
       "title": "Email address",
-      "description": "Leave blank to use only mailboxes added in a terminal.",
+      "description": "Optional, for IT staff. Leave blank and add mailboxes by asking Claude: \"add my mailbox\".",
       "required": false,
       "default": ""
     },
     "imap_host": {
       "type": "string",
       "title": "IMAP server",
-      "description": "For Gmail: imap.gmail.com",
+      "description": "Optional, for IT staff. Leave blank.",
       "required": false,
       "default": ""
     },
@@ -67,14 +67,14 @@
       "title": "IMAP port (TLS)",
       "default": 993,
       "required": false,
-      "description": "Implicit TLS, normally 993.",
+      "description": "Optional, for IT staff. Leave blank.",
       "min": 1,
       "max": 65535
     },
     "smtp_host": {
       "type": "string",
       "title": "SMTP server",
-      "description": "For Gmail: smtp.gmail.com",
+      "description": "Optional, for IT staff. Leave blank.",
       "required": false,
       "default": ""
     },
@@ -83,14 +83,14 @@
       "title": "SMTP port",
       "default": 465,
       "required": false,
-      "description": "465 for direct TLS, or 587 or 25 for STARTTLS. Always encrypted.",
+      "description": "Optional, for IT staff. Leave blank.",
       "min": 1,
       "max": 65535
     },
     "password": {
       "type": "string",
       "title": "Password",
-      "description": "For Gmail, an App Password. Claude Desktop keeps it in the OS keychain and hands it to the server as an environment variable.",
+      "description": "Optional, for IT staff. Leave blank.",
       "sensitive": true,
       "required": false,
       "default": ""
@@ -144,6 +144,10 @@
     {
       "name": "send_email",
       "description": "Send a message now"
+    },
+    {
+      "name": "add_mailbox",
+      "description": "Add a mailbox on a setup page in your browser, no terminal needed"
     }
   ],
   "compatibility": {

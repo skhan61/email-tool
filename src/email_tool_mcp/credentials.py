@@ -32,7 +32,10 @@ class SignInRequired(PermissionError):
 
     def __init__(self, name: str, provider: str, command: str, detail: str = "") -> None:
         reason: str = f" ({detail})" if detail else ""
-        super().__init__(f"{name} needs a new {provider} sign-in{reason}. Run `{command}` in a terminal.")
+        super().__init__(
+            f"{name} needs a new {provider} sign-in{reason}. Call add_mailbox to open a setup page, or run "
+            f"`{command}` in a terminal."
+        )
 
 
 class TokenSource(Protocol):

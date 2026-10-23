@@ -49,6 +49,13 @@ jobs:
           tool: mcpb
           scripts: "false"
       - run: mcpb pack . "dist/email-tool-$(uv version --short).mcpb"
+      # The same bundle under a fixed name, so one link always downloads the newest:
+      # https://github.com/skhan61/email-tool/releases/latest/download/email-tool.mcpb
+      - run: cp "dist/email-tool-$(uv version --short).mcpb" dist/email-tool.mcpb
+      # Double-click installers for ChatGPT desktop. The macOS one ships in a zip, which keeps
+      # its "can run" permission; a browser strips it from a bare .command download.
+      - run: cp install/Install-email-tool.cmd dist/
+      - run: cd install && zip -X ../dist/Install-email-tool-macOS.zip Install-email-tool.command
       # What the provenance vouches for: the SHA-256 of every file released.
       - id: hashes
         run: echo "hashes=$(cd dist && sha256sum * | base64 -w0)" >> "$GITHUB_OUTPUT"
@@ -101,7 +108,7 @@ jobs:
           path: dist/
       - uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.5.0
         with:
-          inputs: ./dist/*.whl ./dist/*.tar.gz ./dist/*.mcpb
+          inputs: ./dist/*.whl ./dist/*.tar.gz ./dist/*.mcpb ./dist/Install-email-tool.cmd ./dist/*.zip
       # The CHANGELOG section for this version, then GitHub's list of merged PRs.
       - run: awk -v v="## ${GITHUB_REF_NAME#v}" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
       - run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --notes-file notes.md --generate-notes

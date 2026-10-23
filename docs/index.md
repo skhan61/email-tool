@@ -18,9 +18,11 @@ approval, and CUI-marked mail stays inside the domains you allow.
 
 ## Get started
 
-1. [Install email-tool](install.md) for your AI app.
-2. [Add your mailboxes](mailboxes.md): Outlook, Microsoft 365, Gmail, Google Workspace or
-   any IMAP mailbox.
+[Start here](start.md): three steps for Claude Desktop, Cowork, ChatGPT desktop, Codex,
+Claude Code or any other MCP app. No terminal.
+
+1. Install email-tool in your app.
+2. Ask your assistant to "add my mailbox". A page opens in your browser.
 3. Ask your assistant to check your mail.
 
 ## Works with

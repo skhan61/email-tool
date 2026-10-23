@@ -1,9 +1,13 @@
-# Add your mailboxes
+# Mailbox details
+
+Most people add a mailbox on the setup page: ask your assistant to "add my mailbox"
+([Start here](start.md#2-add-your-mailbox), step 2). This page has what each kind of
+mailbox needs, which the setup page links to, and the same steps from a terminal.
 
 You add each mailbox once on each computer. email-tool checks that it can both read and
 send before it saves anything, so a typo never leaves a half-working mailbox behind.
 
-## Before you start
+## From a terminal
 
 1. Install the `email-tool-mcp` command once:
 

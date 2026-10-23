@@ -100,7 +100,10 @@ class ReadingTools:
             for name, mailbox in sorted(known.items())
         ]
         if not known:
-            lines.append(f"No mailbox is configured. Run `{SETUP_COMMAND} <name>` in a terminal.")
+            lines.append(
+                f"No mailbox is configured. Call add_mailbox to open a setup page, or run `{SETUP_COMMAND} <name>` "
+                "in a terminal."
+            )
         if self._book.environment_problem:
             lines.append(self._book.environment_problem)
         return "\n".join(lines)

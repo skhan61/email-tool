@@ -25,18 +25,22 @@ from pathlib import Path
 from typing import Annotated, Any, Final
 
 import anyio
-from mcp.server.mcpserver import ElicitationResult, MCPServer, Resolve
+from mcp.server.mcpserver import Context, ElicitationResult, MCPServer, Resolve
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp_types import ToolAnnotations
+from mcp.shared.exceptions import UrlElicitationRequiredError
+from mcp_types import ClientCapabilities, ElicitRequestURLParams, ToolAnnotations
 
 from email_tool_mcp.approval import Approval, ConfirmationCodes, approval_resolver, enforce
 from email_tool_mcp.attachments import Attachment, load
 from email_tool_mcp.audit import AuditError, AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
+from email_tool_mcp.providers import google_tokens, microsoft_tokens
 from email_tool_mcp.settings import Mailbox
+from email_tool_mcp.setup_page import SetupPage
 from email_tool_mcp.tools.drafts import DraftTools
 from email_tool_mcp.tools.reading import ReadingTools
 from email_tool_mcp.tools.sending import SendingTools
+from email_tool_mcp.tools.setup import SetupTools
 
 DISTRIBUTION: Final[str] = "email-tool-mcp"
 
@@ -187,11 +191,59 @@ def reported(
     return run
 
 
-def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
-    """Return a server exposing every mail tool over the mailboxes in `book`, audited to `audit`."""
+def can_open_pages(capabilities: ClientCapabilities | None) -> bool:
+    """True when the app can open a web page for the user (URL-mode elicitation)."""
+    elicitation: Any = capabilities.elicitation if capabilities is not None else None
+    return elicitation is not None and elicitation.url is not None
+
+
+def opening_page(run: Callable[..., Awaitable[str]], page: SetupPage) -> Callable[..., Awaitable[str]]:
+    """`add_mailbox` as the app sees it: the audited tool starts the page, then the app opens it.
+
+    An app that can open pages gets MCP's "URL elicitation required" error naming the page,
+    so the address, which carries the page's token, never reaches the assistant. Asked again
+    after the user added a mailbox there, the tool reports what was added. Any other app's
+    assistant gets the address to show as a link.
+    """
+
+    async def add_mailbox(ctx: Context) -> str:
+        added: str = page.take_result()
+        if added:
+            return added + " Call list_mailboxes to see every mailbox, or add_mailbox again to add another."
+        address: str = await run()
+        if can_open_pages(ctx.client_capabilities):
+            raise UrlElicitationRequiredError(
+                [
+                    ElicitRequestURLParams(
+                        message=(
+                            "Add a mailbox on this page. It runs on your computer only and closes after one "
+                            "mailbox or 10 minutes."
+                        ),
+                        url=address,
+                        elicitation_id=page.elicitation_id,
+                    )
+                ]
+            )
+        return (
+            f"Show the user this link and ask them to open it in their browser: {address}\n"
+            "It runs on their computer only and closes after one mailbox or 10 minutes. When they say they are "
+            "done, call add_mailbox again to see what was added. Never ask for a password in the chat."
+        )
+
+    add_mailbox.__doc__ = run.__doc__
+    return add_mailbox
+
+
+def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = None) -> MCPServer:
+    """Return a server exposing every mail tool over the mailboxes in `book`, audited to `audit`.
+
+    `page` is the setup page `add_mailbox` opens; by default one over `book`'s settings file.
+    """
     reading: ReadingTools = ReadingTools(book)
     drafts: DraftTools = DraftTools(book)
     sending: SendingTools = SendingTools(book)
+    setup_page: SetupPage = page or SetupPage(book.settings_file, book.forget, microsoft_tokens, google_tokens)
+    setup: SetupTools = SetupTools(setup_page)
     reads: ToolKind = ToolKind(_READ_ONLY, changes_mail=False, asks=False)
     tools: list[tuple[Callable[..., str], ToolKind]] = [
         (reading.list_mailboxes, reads),
@@ -207,6 +259,8 @@ def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
         (drafts.get_draft, reads),
         (drafts.update_draft, ToolKind(_DESTRUCTIVE, changes_mail=True, asks=True)),
         (sending.send_email, ToolKind(_SENDS, changes_mail=True, asks=True)),
+        # Changes no mail; the user adds the mailbox on the page, where policy's FIPS rule applies.
+        (setup.add_mailbox, ToolKind(_WRITES, changes_mail=False, asks=False)),
     ]
     server: MCPServer = MCPServer(
         name="email-tool",
@@ -222,8 +276,9 @@ def build_server(book: MailboxBook, audit: AuditLog) -> MCPServer:
     tool: Callable[..., str]
     kind: ToolKind
     for tool, kind in tools:
+        audited: Callable[..., Awaitable[str]] = reported(tool, kind, known_tools, audit, book, codes)
         server.add_tool(
-            reported(tool, kind, known_tools, audit, book, codes),
+            opening_page(audited, setup_page) if tool.__name__ == "add_mailbox" else audited,
             name=tool.__name__,
             annotations=kind.hints,
             structured_output=False,

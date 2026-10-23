@@ -28,6 +28,7 @@ from email_tool_mcp.microsoft import (
     DEFAULT_CLIENT_ID,
     PERSONAL_SMTP_HOST,
     PERSONAL_TENANT_ID,
+    REDIRECT,
     MicrosoftTokens,
     SignIn,
     SignInRequired,
@@ -401,6 +402,8 @@ class Recording(MicrosoftTokens):
         device_code: bool,
         show: Callable[[str], None],
         paste: Callable[[str], str] | None = None,
+        redirect: str = REDIRECT,
+        open_address: Callable[[str], None] | None = None,
     ) -> SignIn:
         self.pasting: bool = paste is not None
         raise RuntimeError("stop after choosing the mode")

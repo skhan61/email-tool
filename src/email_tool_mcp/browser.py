@@ -28,13 +28,25 @@ def browser_available() -> bool:
 
 
 def pasted_address(
-    provider: str, sign_in_address: str, redirect: str, show: Callable[[str], None], paste: Callable[[str], str]
+    provider: str,
+    sign_in_address: str,
+    redirect: str,
+    show: Callable[[str], None],
+    paste: Callable[[str], str],
+    open_address: Callable[[str], None] | None = None,
 ) -> str:
-    """Show the sign-in address, then return the address the browser ended on, as the user pasted it."""
-    show(
-        f"{provider} sign-in address. Open it in a browser on any computer, sign in and allow access:\n"
-        f"{sign_in_address}\n"
-    )
+    """Hand over the sign-in address, then return the address the browser ended on.
+
+    A person gets the address shown and pastes the answer; the setup page gets it through
+    `open_address` and sends the browser there itself.
+    """
+    if open_address is not None:
+        open_address(sign_in_address)
+    else:
+        show(
+            f"{provider} sign-in address. Open it in a browser on any computer, sign in and allow access:\n"
+            f"{sign_in_address}\n"
+        )
     answer: str = paste(
         f'The browser then shows "site can\'t be reached". Paste its whole address (it starts with {redirect}): '
     ).strip()

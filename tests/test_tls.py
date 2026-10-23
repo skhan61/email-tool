@@ -22,7 +22,7 @@ from email_tool_mcp.diagnose import check_mailbox
 from email_tool_mcp.enrol import add_mailbox, add_microsoft_mailbox
 from email_tool_mcp.imap_session import ImapSession
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.microsoft import MicrosoftTokens, SignIn
+from email_tool_mcp.microsoft import REDIRECT, MicrosoftTokens, SignIn
 from email_tool_mcp.passwords import store_password
 from email_tool_mcp.policy import Policy, PolicyRefusal
 from email_tool_mcp.settings import Mailbox
@@ -218,6 +218,8 @@ def test_require_fips_refuses_a_microsoft_add_before_any_sign_in(
             device_code: bool,
             show: Callable[[str], None],
             paste: Callable[[str], str] | None = None,
+            redirect: str = REDIRECT,
+            open_address: Callable[[str], None] | None = None,
         ) -> SignIn:
             raise AssertionError("refused before the browser opens")
 

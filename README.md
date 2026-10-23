@@ -53,6 +53,12 @@ wait for your approval, and CUI-marked mail stays inside the domains you allow.
 
 ## Quick start
 
+**No terminal, any app:** [Start here](https://skhan61.github.io/email-tool/start/).
+Install email-tool in your app (Claude Desktop and Cowork: one file to open; ChatGPT
+desktop and Codex: one installer to open), then ask your assistant to "add my mailbox".
+
+**From a terminal:**
+
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
 2. Connect your AI app. In Claude Code:
 
@@ -61,23 +67,24 @@ wait for your approval, and CUI-marked mail stays inside the domains you allow.
     /plugin install email-tool@email-tool
     ```
 
-    Other apps: [Install](https://skhan61.github.io/email-tool/install/).
-3. Add a mailbox:
+    Other apps: [Advanced setup](https://skhan61.github.io/email-tool/install/).
+3. Ask your assistant to "add my mailbox", or from a terminal:
 
     ```bash
     uv tool install git+https://github.com/skhan61/email-tool
     email-tool-mcp add work --auth microsoft --address you@company.com
     ```
 
-    Gmail, Google Workspace and other accounts: [Add your mailboxes](https://skhan61.github.io/email-tool/mailboxes/).
+    Gmail, Google Workspace and other accounts: [Mailbox details](https://skhan61.github.io/email-tool/mailboxes/).
 
 ## Documentation
 
 | Page | What it covers |
 |---|---|
-| [Install](https://skhan61.github.io/email-tool/install/) | uv, then Claude Code, Claude Desktop and Cowork, ChatGPT desktop and Codex, ChatGPT Business, any MCP app |
-| [Add your mailboxes](https://skhan61.github.io/email-tool/mailboxes/) | Outlook, Microsoft 365, GCC High, Gmail, Google Workspace and password mailboxes, step by step |
+| [Start here](https://skhan61.github.io/email-tool/start/) | Install in any app and add a mailbox, no terminal |
 | [Everyday use](https://skhan61.github.io/email-tool/use/) | What to ask, the tools, approving before sending |
+| [Mailbox details](https://skhan61.github.io/email-tool/mailboxes/) | What each mailbox needs (Gmail App Password, Microsoft, GCC High, Google Workspace, others), and the terminal steps |
+| [Advanced setup](https://skhan61.github.io/email-tool/install/) | uv by hand, configuration files, ChatGPT Business, other MCP apps, update or remove |
 | [Why CMMC](https://skhan61.github.io/email-tool/why-cmmc/) | Each protection, with examples |
 | [CMMC control mapping](https://skhan61.github.io/email-tool/cmmc/) | NIST SP 800-171 requirements, evidence and your part |
 | [For administrators](https://skhan61.github.io/email-tool/administrators/) | Policy, audit log, FIPS mode, your own Microsoft or Google app |

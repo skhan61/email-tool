@@ -21,6 +21,10 @@ A tool error saying there is no password means the user must run
 ## Available tools
 
 - `list_mailboxes`, the mailboxes on this machine.
+- `add_mailbox`, open a setup page in the user's browser to add a mailbox
+  (Gmail, Outlook / Microsoft 365, Google Workspace or any other). Call it when
+  no mailbox is configured or the user asks to add one. Never ask for a
+  password in the chat: the user types it on that page only.
 - `list_folders`, list mailbox folders (INBOX, Sent, Drafts, ...).
 - `list_emails`, list messages in a folder (most recent first).
 - `search_emails`, search by sender, subject, date range, or text.

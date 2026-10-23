@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Add a mailbox without a terminal: ask your assistant to "add my mailbox" (`add_mailbox`).
+  A one-time page opens in your browser, on this computer only, for Gmail, Outlook or
+  Microsoft 365, Google Workspace or any other mailbox. Passwords are typed only there.
+- Documentation starts with a three-step page for every app (Claude Desktop and Cowork,
+  ChatGPT desktop and Codex, Claude Code, others).
+- Releases include `email-tool.mcpb` under a fixed name, for a link that always downloads
+  the newest, and double-click uv installers for ChatGPT desktop (Windows, macOS).
+
+### Changed
+- The Claude Desktop install window says to leave every field blank and ask Claude to add
+  the mailbox; "no mailbox" messages point to `add_mailbox`.
+
 ## 5.2.1
 
 ### Security

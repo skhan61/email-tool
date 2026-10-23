@@ -171,12 +171,21 @@ def _browser_sign_in(flow: Flow, mailbox: Mailbox, show: Callable[[str], None]) 
 
 
 def _pasted_sign_in(
-    flow: Flow, mailbox: Mailbox, show: Callable[[str], None], paste: Callable[[str], str]
+    flow: Flow,
+    mailbox: Mailbox,
+    show: Callable[[str], None],
+    paste: Callable[[str], str],
+    redirect: str,
+    open_address: Callable[[str], None] | None,
 ) -> Credentials:
-    """A browser anywhere: the user pastes back the address it ends on."""
-    flow.redirect_uri = PASTE_REDIRECT
+    """A browser anywhere: the address it ends on comes back through `paste`.
+
+    `redirect` is `http://localhost/` when a person pastes it, or the setup page's own
+    loopback address when the page receives it.
+    """
+    flow.redirect_uri = redirect
     address: str = flow.authorization_url(login_hint=mailbox.address, **AUTHORIZATION_OPTIONS)[0]
-    answer: str = pasted_address("Google", address, PASTE_REDIRECT, show, paste)
+    answer: str = pasted_address("Google", address, redirect, show, paste, open_address)
     # oauthlib takes only https responses; the loopback answer is http by design (RFC 8252 7.3).
     try:
         flow.fetch_token(authorization_response=answer.replace("http://", "https://", 1))
@@ -255,6 +264,8 @@ class GoogleTokens:
         client_secrets: Path,
         show: Callable[[str], None],
         paste: Callable[[str], str] | None = None,
+        redirect: str = PASTE_REDIRECT,
+        open_address: Callable[[str], None] | None = None,
     ) -> SignIn:
         """Sign in once in the browser; nothing is kept until `keep`.
 
@@ -264,7 +275,9 @@ class GoogleTokens:
         """
         flow: Flow = self._flow_factory(client_secrets)
         signed: Credentials = (
-            _pasted_sign_in(flow, mailbox, show, paste) if paste is not None else _browser_sign_in(flow, mailbox, show)
+            _pasted_sign_in(flow, mailbox, show, paste, redirect, open_address)
+            if paste is not None
+            else _browser_sign_in(flow, mailbox, show)
         )
         email: str = signed_in_email(signed)
         if email.lower() != mailbox.address.lower():
