@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 5.3.0
 
 ### Added
 - Add a mailbox without a terminal: ask your assistant to "add my mailbox" (`add_mailbox`).
@@ -14,6 +14,10 @@
 ### Changed
 - The Claude Desktop install window says to leave every field blank and ask Claude to add
   the mailbox; "no mailbox" messages point to `add_mailbox`.
+- The audit log records each mailbox added on the setup page: its kind and address, and the
+  outcome (never a password). A mailbox whose audit record cannot be written is not added.
+- Documentation: Install is now Advanced setup, and Add your mailboxes is now Mailbox details.
+  Their addresses are unchanged.
 
 ## 5.2.1
 
