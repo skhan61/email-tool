@@ -78,6 +78,16 @@ async def test_bundle_lists_exactly_the_tools_the_server_registers(book: Mailbox
     assert declared_tool_names() == {tool.name for tool in listed.tools}
 
 
+def test_registry_entry_names_this_release_and_the_readme_proves_it() -> None:
+    """The MCP Registry checks the `mcp-name` marker in the PyPI description (the README)."""
+    server: dict[str, Any] = read_json("server.json")
+    package: dict[str, Any] = server["packages"][0]
+    assert server["version"] == package["version"] == package_version()
+    project: dict[str, Any] = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert package["identifier"] == project["name"]
+    assert f"<!-- mcp-name: {server['name']} -->" in (ROOT / "README.md").read_text(encoding="utf-8")
+
+
 def test_codex_plugin_runs_the_release_matching_its_version() -> None:
     arguments: list[str] = read_json(".codex-mcp.json")["mcpServers"]["email"]["args"]
     assert f"git+https://github.com/skhan61/email-tool@v{package_version()}" in arguments

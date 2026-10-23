@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 5.4.1
+
+### Added
+- Each release is published on PyPI (`email-tool-mcp`) and in the official MCP Registry
+  (`io.github.skhan61/email-tool`). Installs switch to PyPI in the next release, once this
+  one is there.
+- The project contact is s.khan at alchlight.com.
+
 ## 5.4.0
 
 ### Fixed

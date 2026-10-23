@@ -99,3 +99,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately as desc
 ## License
 
 [MIT](LICENSE)
+
+<!-- mcp-name: io.github.skhan61/email-tool -->
