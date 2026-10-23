@@ -148,6 +148,14 @@
     {
       "name": "add_mailbox",
       "description": "Add a mailbox on a setup page in your browser, no terminal needed"
+    },
+    {
+      "name": "report_problem",
+      "description": "Build a problem report for the maintainer, with nothing private in it; sends nothing"
+    },
+    {
+      "name": "email_problem_report",
+      "description": "Email a problem report to the maintainer, after you approve the exact text"
     }
   ],
   "compatibility": {

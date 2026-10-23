@@ -15,10 +15,11 @@ from github import GithubException
 
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.passwords import store_password
+from email_tool_mcp.problem_report import SUBJECT_PREFIX
 from tests.fakes import FakeMailServer
 from tools.bot_pr import BotError
 from tools.report_bridge._github import LABEL, BotTracker
-from tools.report_bridge._mail import SUBJECT_PREFIX, find_reports, redact
+from tools.report_bridge._mail import find_reports, redact
 from tools.report_bridge._run import bridge
 
 SENDER: str = "Pat User <pat.user@example.org>"

@@ -53,6 +53,7 @@ from email_tool_mcp.message_render import (
     summarize,
 )
 from email_tool_mcp.policy import PolicyRefusal
+from email_tool_mcp.problem_report import report_email
 from email_tool_mcp.settings import Mailbox
 
 # Tool arguments the question may read; a resolver takes only those its tool has.
@@ -71,6 +72,7 @@ _QUESTION_ARGUMENTS: Final[tuple[str, ...]] = (
     "confirm_sensitive",
     "in_reply_to_uid",
     "in_reply_to_folder",
+    "report",
 )
 # How long a confirmation code from a refusal stays valid.
 CODE_SECONDS: Final[float] = 600.0
@@ -105,6 +107,10 @@ def target_summary(book: MailboxBook, mailbox: Mailbox, folder: str, uid: int) -
 def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[str, Any]) -> str:
     """The full text the human reads; runs the recipient check first, so a refused send is never shown."""
     lines: list[str] = [f"The assistant wants to run {tool} on mailbox {mailbox.name!r} ({mailbox.address})."]
+    if tool == "email_problem_report":
+        # Shown as the email it sends, built by the same function the tool uses.
+        lines.append("It emails this problem report to the email-tool maintainer.")
+        arguments = {**arguments, **report_email(str(arguments.get("report", "")))}
     if tool == "save_attachment":
         name: str
         size: int
@@ -233,8 +239,13 @@ def approval_resolver(
     book: MailboxBook,
     changes_mail: bool,
     codes: ConfirmationCodes,
+    *,
+    always: bool = False,
 ) -> Callable[..., Any]:
-    """Build the resolver that checks policy, then decides whether and how to ask before `tool` runs."""
+    """Build the resolver that checks policy, then decides whether and how to ask before `tool` runs.
+
+    `always`: ask every time, whatever the policy; an app that cannot ask is refused.
+    """
     names: list[str] = [name for name in _QUESTION_ARGUMENTS if name in tool_arguments]
 
     def question(ctx: Context, **arguments: Any) -> Elicit[Approval] | Decision:
@@ -244,7 +255,9 @@ def approval_resolver(
                 mailbox.name, mailbox.address, tool, changes_mail, known_tools, keeps_sign_in=mailbox.keeps_sign_in
             )
             # require_approval covers what changes mail; a warning makes the app ask regardless.
-            required: bool = changes_mail and book.policy.rules_for(mailbox.name, mailbox.address).require_approval
+            required: bool = always or (
+                changes_mail and book.policy.rules_for(mailbox.name, mailbox.address).require_approval
+            )
             warnings: list[str] = warnings_for(tool, book, mailbox, arguments)
             if not required and not warnings:
                 return Decision(required=False)

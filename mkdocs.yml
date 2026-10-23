@@ -44,6 +44,7 @@ nav:
   - CMMC control mapping: cmmc.md
   - For administrators: administrators.md
   - Troubleshooting: troubleshooting.md
+  - Report a problem: report-a-problem.md
   - Privacy: privacy.md
 
 markdown_extensions:

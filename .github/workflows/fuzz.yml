@@ -1,7 +1,8 @@
 name: fuzz
 
 # Coverage-guided fuzzing (Atheris) of the parsers that read mail and files from strangers:
-# fuzz/fuzz_attachment_text.py and fuzz/fuzz_message.py. A crash, a hang over 10 s or more
+# fuzz/fuzz_attachment_text.py and fuzz/fuzz_message.py, and of the problem-report redaction
+# (fuzz/fuzz_report.py). A crash, a hang over 10 s or more
 # than 2 GB of memory fails the job and uploads the input that caused it.
 on:
   pull_request:
@@ -27,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [fuzz_attachment_text, fuzz_message]
+        target: [fuzz_attachment_text, fuzz_message, fuzz_report]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
