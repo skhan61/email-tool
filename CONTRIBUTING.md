@@ -50,34 +50,62 @@ EMAIL_TOOL_LIVE=1 uv run pytest tests/live -q
 EMAIL_TOOL_LIVE=1 EMAIL_TOOL_LIVE_FROM=work EMAIL_TOOL_LIVE_TO=home uv run pytest tests/live -q
 ```
 
+## Problem reports
+
+`report_problem` emails a report with a subject starting `email-tool problem report:`. On the
+maintainer's own computer (never in the cloud, so no mailbox password leaves it), turn each new
+one into a `user-report` issue opened by the bot:
+
+```bash
+uv run python -m tools.report_bridge run --mailbox=NAME --dry-run   # show what it would open
+uv run python -m tools.report_bridge run --mailbox=NAME [--folder=INBOX]
+```
+
+It reads the mailbox through this computer's email-tool settings and sign-in, and opens issues with
+the bot's key (as `tools.bot_pr` does). Every address is removed from the title and body. Each issue
+ends with a hash of the report's Message-ID, so running it again opens nothing twice, even after the
+issue is relabelled or closed; close a report rather than deleting or transferring it, or the next
+run files it again. A report GitHub refuses is reported and tried again next run. Mail is never
+deleted or moved.
+
 ## Releasing
 
-A pull request that changes `.github/workflows/release.yml` runs it as a dry run (build and
-pack, no signing or publishing), so a workflow error fails the pull request, not the release.
+Merging a release pull request publishes the release. A pull request that changes
+`.github/workflows/release.yml` runs it as a dry run (build and pack, no tag, signing or
+publishing), so a workflow error fails the pull request, not the release.
+Run the live tests on the maintainer's computer first; release only when they pass.
 
-Before step 1, run the live tests on the maintainer's computer; release only when they pass.
-
-1. Bump the version in `pyproject.toml`, `manifest.json`, `.claude-plugin/plugin.json`,
-   `.codex-plugin/plugin.json`, `.claude-plugin/marketplace.json`, both versions in
-   `server.json` and the `email-tool-mcp==X.Y.Z` pin in `.codex-mcp.json`
-   (`tests/test_manifests.py` fails if they differ), then `uv lock` with the
-   uv version CI uses.
-   Add the version's section to `CHANGELOG.md`, including behaviour changes.
-2. Merge, then tag `main` at once: `git tag vX.Y.Z && git push origin vX.Y.Z`
-   The Codex plugin installs that version from PyPI, which only the tag's release publishes,
-   so Codex installs fail until the release's `pypi` job succeeds: check
-   https://pypi.org/project/email-tool-mcp/ right after the release.
-3. The release workflow tests, builds the wheel, sdist and `.mcpb` bundle, signs each with
-   Sigstore (`*.sigstore.json`), adds SLSA build provenance (`*.intoto.jsonl`) and publishes a
-   GitHub release. With the repository variable `PYPI_PUBLISH` set to `true` (after the PyPI
-   trusted publisher exists, #31), it also publishes the wheel and sdist to PyPI,
-   then `server.json` to the official MCP Registry (GitHub sign-in by OIDC, no secret).
-   Verify a download (X.Y.Z the version): it must be signed by release.yml on that tag:
+1. On a branch from `main`, prepare the release and open its pull request:
    ```bash
-   uvx sigstore==4.5.0 verify identity <file> \
-     --cert-identity https://github.com/skhan61/email-tool/.github/workflows/release.yml@refs/tags/vX.Y.Z \
-     --cert-oidc-issuer https://token.actions.githubusercontent.com
+   uv run python -m tools.release prepare --part=patch   # or minor, major
+   git commit -am "Release X.Y.Z"
+   uv run python -m tools.bot_pr push --branch=release/X.Y.Z
+   uv run python -m tools.bot_pr open_pr --branch=release/X.Y.Z --title="Release X.Y.Z" --body_file=/path
    ```
+   `prepare` sets the next version in every file that carries it (`tests/test_manifests.py`
+   checks they agree), moves the `## Unreleased` entries of `CHANGELOG.md` under `## X.Y.Z`
+   (it refuses when there are none) and relocks with uv 0.13.5. If anything fails, it puts
+   every file back.
+2. Merge it. `release.yml` runs on `main`, finds no tag `vX.Y.Z`, tags the merge and, in the
+   same run, tests, builds the wheel, sdist and `.mcpb` bundle, signs each with Sigstore
+   (`*.sigstore.json`), adds SLSA build provenance (`*.intoto.jsonl`) and publishes a GitHub
+   release, then the wheel and sdist to PyPI by trusted publishing and `server.json` to the
+   official MCP Registry (both only with the repository variable `PYPI_PUBLISH` set to `true`).
+   A merge that keeps the version releases nothing. Codex installs the new version from PyPI
+   and fails until the `pypi` job succeeds: check https://pypi.org/project/email-tool-mcp/
+   after the run. If a job fails, re-run that run's failed jobs. If a fix must reach `main` first,
+   delete the tag after it merges and push it again by hand:
+   `git push origin :refs/tags/vX.Y.Z`, then `git tag vX.Y.Z && git push origin vX.Y.Z` on `main`.
+   A hand-pushed tag releases a version the same way.
+3. Verify a download: it must be signed by release.yml on `main`, at the commit tagged `vX.Y.Z`
+   (every release from `main` has the same identity; the commit ties it to one version):
+   ```bash
+   sha="$(git ls-remote https://github.com/skhan61/email-tool refs/tags/vX.Y.Z | cut -f1)"
+   uvx sigstore==4.5.0 verify github <file> --sha "$sha" \
+     --cert-identity https://github.com/skhan61/email-tool/.github/workflows/release.yml@refs/heads/main
+   ```
+   Releases up to 5.4.4, and a release made by pushing its tag by hand, are signed on the tag:
+   end the identity with `release.yml@refs/tags/vX.Y.Z` instead.
 
 ## OpenSSF Scorecard token
 
