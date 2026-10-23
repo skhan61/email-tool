@@ -53,12 +53,11 @@ wait for your approval, and CUI-marked mail stays inside the domains you allow.
 
 ## Quick start
 
-**Claude Desktop or Cowork, no terminal:**
-[download email-tool.mcpb](https://github.com/skhan61/email-tool/releases/latest/download/email-tool.mcpb),
-open it and select **Install**, then ask Claude to "add my mailbox".
-[Start here](https://skhan61.github.io/email-tool/start/).
+**No terminal, any app:** [Start here](https://skhan61.github.io/email-tool/start/).
+Install email-tool in your app (Claude Desktop and Cowork: one file to open; ChatGPT
+desktop and Codex: one installer to open), then ask your assistant to "add my mailbox".
 
-**Claude Code and other apps:**
+**From a terminal:**
 
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
 2. Connect your AI app. In Claude Code:

@@ -1,24 +1,58 @@
 # Start here
 
-For **Claude Desktop** and **Claude Cowork** on Windows and macOS. Three steps, no terminal.
+Three steps, for any AI app. No terminal.
 
-## 1. Download
+## 1. Install email-tool in your app
 
-[Download email-tool](https://github.com/skhan61/email-tool/releases/latest/download/email-tool.mcpb).
-You get one file, `email-tool.mcpb`.
+=== "Claude Desktop and Cowork"
 
-## 2. Install
+    1. [Download email-tool](https://github.com/skhan61/email-tool/releases/latest/download/email-tool.mcpb).
+       You get one file, `email-tool.mcpb`.
+    2. Open the file (double-click it). Claude Desktop shows an install window.
+    3. Leave every field blank and select **Install**.
 
-Open the file (double-click it). Claude Desktop shows an install window for **email-tool**.
-Leave every field blank and select **Install**.
+    Claude Cowork uses what Claude Desktop installs, so it needs nothing more.
 
-## 3. Add your mailbox
+=== "ChatGPT desktop and Codex"
 
-In Claude, type:
+    1. Download the installer for your computer and open it:
+        - **Windows:** [Install-email-tool.cmd](https://github.com/skhan61/email-tool/releases/latest/download/Install-email-tool.cmd).
+          If Windows warns about a downloaded file, select **Run**, or **More info** and then
+          **Run anyway**.
+        - **macOS:** [Install-email-tool-macOS.zip](https://github.com/skhan61/email-tool/releases/latest/download/Install-email-tool-macOS.zip).
+          Open the zip, then right-click **Install-email-tool.command** and select **Open**.
+          macOS asks once because the file comes from the internet.
+    2. When the installer says **Done**, open the ChatGPT desktop app and select **Plugins** >
+       **Add Marketplace**. Type `skhan61/email-tool` and install **email-tool**.
+    3. Close ChatGPT and open it again. Use **Work** or **Codex** mode; normal Chat does not
+       reach tools on your computer yet.
+
+=== "Claude Code"
+
+    1. Install uv once with the installer for your computer (see the ChatGPT tab), or follow
+       [Install](install.md#step-1-install-uv).
+    2. In Claude Code, type:
+
+        ```text
+        /plugin marketplace add skhan61/email-tool
+        /plugin install email-tool@email-tool
+        ```
+
+    3. Close Claude Code and open it again.
+
+=== "Another app"
+
+    Any app that supports the Model Context Protocol (MCP) can run email-tool.
+    See [Install](install.md) for your app.
+
+## 2. Add your mailbox
+
+In your app, type:
 
 > add my mailbox
 
-A page opens in your browser. It runs on your computer only:
+A page opens in your browser. It runs on your computer only. If your app shows a link
+instead, open the link.
 
 ![The Add a mailbox page: choose the kind of mailbox, type the email address and, for Gmail, the password](assets/screens/setup-page.png){ width="560" }
 
@@ -33,16 +67,14 @@ A page opens in your browser. It runs on your computer only:
       or [create one](mailboxes.md#google-workspace).
     - **Any other mailbox:** type your password and, under **Any other mailbox: server names**,
       the server names from your provider.
-4. Select **Add mailbox**. When the page says **Mailbox added**, go back to Claude.
+4. Select **Add mailbox**. When the page says **Mailbox added**, go back to your app.
 
-Your password never passes through Claude. To add another mailbox, ask again.
+Your password never passes through the AI assistant. To add another mailbox, ask again.
 
-## Try it
+## 3. Try it
 
 - "Summarize my unread mail."
 - "Draft a reply to the last message from Dana, with the report from my Downloads attached."
-- "Send it." Claude asks you before it sends anything.
+- "Send it." Your assistant asks you before it sends anything.
 
 Something not working? See [Troubleshooting](troubleshooting.md).
-
-Using **Claude Code**, **ChatGPT desktop** or **Codex**? See [Install](install.md).

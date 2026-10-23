@@ -1,8 +1,7 @@
 # Install
 
-!!! tip "Claude Desktop or Cowork?"
-    You need none of this page. [Start here](start.md): download one file, open it, and ask
-    Claude to "add my mailbox".
+!!! tip "Not a developer?"
+    [Start here](start.md) has the simplest steps for every app, with no terminal.
 
 For other apps, installing takes two parts: the **uv** tool, which runs email-tool, and the
 connection to your AI app. Then ask your assistant to "add my mailbox".
