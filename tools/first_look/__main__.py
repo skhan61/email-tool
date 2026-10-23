@@ -7,7 +7,7 @@
 
 Standard: the standard library's `argparse` behind `python -m`; not `fire` (as `tools.bot_pr`
 uses), because the runner's own `python3` has no project packages installed.
-Placement: tools/first_look/__main__.py; the verbs live in `_verbs.py`.
+Placement: tools/first_look/__main__.py; the verbs live in `_verbs.py` and `_comment.py`.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from tools.first_look import _verbs
+from tools.first_look import _verbs, status_message
 
 if __name__ == "__main__":
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="python3 -m tools.first_look")
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     elif args.verb == "slot":
         output = _verbs.slot(args.comments, args.claim_id, args.day) + "\n"
     elif args.verb == "status":
-        output = _verbs.status(args.name)
+        output = status_message(args.name)
     else:
         output = _verbs.render(args.result, args.repo, args.sha, args.issue)
     sys.stdout.write(output)

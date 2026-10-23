@@ -117,13 +117,13 @@ def test_every_status_message_carries_the_marker() -> None:
 def test_the_result_has_cause_code_links_and_issues() -> None:
     body: str = render_result(full_result(), "skhan61/email-tool", SHA, 97)
     assert body.startswith(MARKER)
-    assert "The IMAP login fails because the app password expired." in body
+    assert "```text\nThe IMAP login fails because the app password expired.\n```" in body
     assert (
         f"[`src/email_tool_mcp/imap_session.py` line 42](https://github.com/skhan61/email-tool/blob/{SHA}"
-        "/src/email_tool_mcp/imap_session.py#L42): where login happens"
+        "/src/email_tool_mcp/imap_session.py#L42): `where login happens`"
     ) in body
-    assert f"[`README.md`](https://github.com/skhan61/email-tool/blob/{SHA}/README.md): app password steps" in body
-    assert "- #12: same error" in body
+    assert f"[`README.md`](https://github.com/skhan61/email-tool/blob/{SHA}/README.md): `app password steps`" in body
+    assert "- #12: `same error`" in body
 
 
 def test_empty_lists_say_none_found() -> None:
@@ -136,13 +136,31 @@ def test_no_likely_cause_is_an_error() -> None:
         render_result({"likely_cause": "   ", "related_code": []}, "o/r", SHA, 1)
 
 
-def test_mentions_cannot_ping_anyone() -> None:
-    result: dict[str, Any] = full_result()
-    result["likely_cause"] = "Ask @skhan61 and @org/team, mail a@b.c"
-    result["related_issues"] = [{"number": 3, "why": "cc @someone"}]
+def test_claudes_words_are_shown_only_as_code() -> None:
+    # Code is where GitHub renders no links, images, HTML, mentions or cross-repo references.
+    attack: str = "``` [fix](https://evil.example/x.exe) ![i](https://evil.example/i.png) <b>hi</b> @skhan61 a/b#5 `"
+    result: dict[str, Any] = {
+        "likely_cause": attack,
+        "related_code": [{"path": "src/x.py", "why": attack}],
+        "related_issues": [{"number": 3, "why": attack}],
+    }
     body: str = render_result(result, "o/r", SHA, 1)
-    assert re.search(r"@[A-Za-z0-9_-]", body) is None
-    assert "@\u200bskhan61" in body
+    cause: str = body.split("```text\n", 1)[1].split("\n```", 1)[0]
+    assert "`" not in cause
+    assert "[fix](https://evil.example/x.exe)" in cause
+    assert body.count("```") == 2
+    spans: list[str] = re.findall(r"^- .*?: `([^`]*)`$", body, flags=re.MULTILINE)
+    assert len(spans) == 2
+    assert all("@skhan61" in span for span in spans)
+    outside: str = re.sub(r"`[^`]*`", "", body.replace(cause, ""))
+    assert "evil.example" not in outside
+    assert "@" not in outside
+
+
+def test_a_long_cause_is_wrapped_inside_its_block() -> None:
+    body: str = render_result({"likely_cause": "word " * 200}, "o/r", SHA, 1)
+    cause: str = body.split("```text\n", 1)[1].split("\n```", 1)[0]
+    assert all(len(line) <= 100 for line in cause.splitlines())
 
 
 @pytest.mark.parametrize(
@@ -152,6 +170,11 @@ def test_unsafe_code_paths_are_dropped(path: str) -> None:
     result: dict[str, Any] = {"likely_cause": "c", "related_code": [{"path": path, "line": 1, "why": "w"}]}
     body: str = render_result(result, "o/r", SHA, 1)
     assert "**Related code**\n\nNone found." in body
+
+
+def test_dot_paths_are_kept() -> None:
+    result: dict[str, Any] = {"likely_cause": "c", "related_code": [{"path": ".github/workflows/release.yml"}]}
+    assert "[`.github/workflows/release.yml`](" in render_result(result, "o/r", SHA, 1)
 
 
 def test_bad_issue_numbers_and_the_report_itself_are_dropped() -> None:
@@ -241,7 +264,9 @@ def test_claude_gets_read_only_tools_and_no_write_token() -> None:
     assert "--allowedTools Read,Grep,Glob\n" in look
     assert "--disallowedTools Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch\n" in look
     assert "--strict-mcp-config" in look
-    # Read reaches outside the checkout; /proc/self/environ would hand over the OAuth token.
+    assert "--permission-mode dontAsk" in look
+    assert '"blockReadsOutsideWorkingDirectories":true' in look
+    # Outside the checkout, /proc/self/environ would hand over the OAuth token.
     assert "Read(//proc/**)" in look
     assert "Read(./.git/**)" in look
     # The report reaches Claude as a file, never pasted into the prompt.

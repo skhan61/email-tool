@@ -1,4 +1,4 @@
-"""The four CLI verbs: read the files the workflow wrote, decide, and return the text to print.
+"""The CLI verbs that read the workflow's files, decide, and return the text to print.
 
 Standard: JSON Lines input, as `gh api --paginate ... --jq '.[]'` writes it (one object per line).
 Placement: tools/first_look/_verbs.py; `__main__.py` parses the arguments and prints the return value.
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.first_look._cap import already_looked, slot_granted
-from tools.first_look._comment import Status, render_result, status_message
+from tools.first_look._comment import render_result
 
 
 def _lines(path: Path) -> list[dict[str, Any]]:
@@ -28,11 +28,6 @@ def seen(comments: Path) -> str:
 def slot(comments: Path, claim_id: int, day: str) -> str:
     """`true` when claim `claim_id` of UTC date `day` is within the daily cap."""
     return str(slot_granted(_lines(comments), claim_id, day)).lower()
-
-
-def status(name: Status) -> str:
-    """The comment body for `name` (running, limit or failed)."""
-    return status_message(name)
 
 
 def render(result: Path, repo: str, sha: str, issue: int) -> str:

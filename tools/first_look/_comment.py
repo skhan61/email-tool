@@ -4,20 +4,22 @@ Standard: Claude Code's structured output (`--json-schema` in the workflow) give
 object; this module checks it field by field and writes GitHub-flavored Markdown. The
 object comes from a model that read text anyone can write, so it is treated as untrusted:
 unknown fields are ignored, code paths must be plain repository paths, issue references
-must be numbers, every text is cut to a length limit, and `@` mentions are broken with a
-zero-width space (as Renovate and Dependabot do) so a report cannot make the bot ping people.
+must be numbers, and every text is cut to a length limit and shown only as code (a fenced
+block or an inline code span, backticks removed), where GitHub renders no links, images,
+HTML, `@` mentions or cross-repository references.
 Placement: tools/first_look/_comment.py; `_cap.py` imports `MARKER` from here.
 """
 
 from __future__ import annotations
 
 import re
+import textwrap
 from collections.abc import Mapping
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, TypeAlias
 
 MARKER: Final[str] = "<!-- email-tool-first-look -->"
 
-Status = Literal["running", "limit", "failed"]
+Status: TypeAlias = Literal["running", "limit", "failed"]
 
 _STATUS_TEXT: Final[dict[str, str]] = {
     "running": (
@@ -32,8 +34,8 @@ _MAX_ITEMS: Final[int] = 5
 _MAX_CAUSE: Final[int] = 1500
 _MAX_WHY: Final[int] = 300
 _MAX_PATH: Final[int] = 200
-_PATH: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./-]*")
-_MENTION: Final[re.Pattern[str]] = re.compile(r"@(?=[A-Za-z0-9_-])")
+_WRAP: Final[int] = 100
+_PATH: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9_.][A-Za-z0-9_./-]*")
 _FOOTER: Final[str] = (
     "_Written by Claude from the code and earlier issues only, with read-only access. "
     "It may be wrong; the maintainer reads every report._"
@@ -46,13 +48,18 @@ def status_message(status: Status) -> str:
 
 
 def _text(value: Any, limit: int) -> str:
-    """`value` as one safe line of Markdown text, at most `limit` characters."""
+    """`value` as one line of plain text with no backticks, at most `limit` characters."""
     if not isinstance(value, str):
         return ""
-    flat: str = " ".join(value.split())
+    flat: str = " ".join(value.replace("`", "'").split())
     if len(flat) > limit:
         flat = flat[: limit - 1].rstrip() + "…"
-    return _MENTION.sub("@\u200b", flat)
+    return flat
+
+
+def _code_span(text: str) -> str:
+    """`text` as an inline code span, or nothing when it is empty."""
+    return f": `{text}`" if text else ""
 
 
 def _safe_path(value: Any) -> str | None:
@@ -99,17 +106,16 @@ def render_result(result: Mapping[str, Any], repo: str, sha: str, issue: int) ->
         line: int | None = _positive_int(item.get("line"))
         anchor: str = f"#L{line}" if line is not None else ""
         label: str = f"`{path}` line {line}" if line is not None else f"`{path}`"
-        why: str = _text(item.get("why"), _MAX_WHY)
-        link: str = f"[{label}](https://github.com/{repo}/blob/{sha}/{path}{anchor})"
-        code_lines.append(f"- {link}: {why}" if why else f"- {link}")
+        code_why: str = _code_span(_text(item.get("why"), _MAX_WHY))
+        code_lines.append(f"- [{label}](https://github.com/{repo}/blob/{sha}/{path}{anchor}){code_why}")
 
     issue_lines: list[str] = []
     for item in _items(result, "related_issues"):
         number: int | None = _positive_int(item.get("number"))
         if number is None or number == issue:
             continue
-        why = _text(item.get("why"), _MAX_WHY)
-        issue_lines.append(f"- #{number}: {why}" if why else f"- #{number}")
+        issue_why: str = _code_span(_text(item.get("why"), _MAX_WHY))
+        issue_lines.append(f"- #{number}{issue_why}")
 
     parts: list[str] = [
         MARKER,
@@ -117,7 +123,9 @@ def render_result(result: Mapping[str, Any], repo: str, sha: str, issue: int) ->
         "",
         "**Likely cause**",
         "",
-        cause,
+        "```text",
+        textwrap.fill(cause, width=_WRAP),
+        "```",
         "",
         "**Related code**",
         "",
