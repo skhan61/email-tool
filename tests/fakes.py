@@ -28,6 +28,7 @@ class FakeMailServer:
     logins: list[tuple[str, str]] = field(default_factory=list)
     token_logins: list[tuple[str, str]] = field(default_factory=list)
     gmail: bool = False
+    gmail_queries: list[str] = field(default_factory=list)
 
     def open_imap(self, mailbox: Mailbox, credential: Credential) -> ImapSession:
         """Return a session over this server; the ImapSession factory signature."""
@@ -88,6 +89,7 @@ class FakeSession:
         return uid in self._server.folders[self._folder]
 
     def gmail_search(self, query: str) -> list[int]:
+        self._server.gmail_queries.append(query)
         return sorted(self._server.folders[self._folder])
 
     def fetch_headers(self, uids: list[int]) -> dict[int, bytes]:
