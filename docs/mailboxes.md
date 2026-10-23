@@ -109,7 +109,7 @@ For Outlook.com, Hotmail, Live and Microsoft 365. No password is stored.
     ```
 
 2. Your browser opens on Microsoft's sign-in page. Sign in. Microsoft may first ask
-   **Are you trying to sign in to email-tool?** Select **Continue**:
+   **Are you trying to sign in to email-tool?** Select **Continue**, the blue button:
 
     ![Microsoft asks whether you are trying to sign in to email-tool, with Cancel and Continue](assets/screens/microsoft-confirm-app.png){ width="440" }
 
@@ -198,8 +198,9 @@ download button next to the new secret. When email-tool works with the new file,
     ```
 
 2. Your browser opens. Choose your account.
-3. For an External client, Google shows **Google hasn't verified this app**. It is your own
-   app. Select **Advanced**:
+3. For an External client, Google shows **Google hasn't verified this app**, with your own
+   address as the developer (hidden in the pictures below). It is your own app. Select
+   **Advanced**:
 
     ![Google warns that it has not verified the app, with Advanced and Back to safety](assets/screens/google-unverified.png){ width="520" }
 
@@ -207,15 +208,16 @@ download button next to the new secret. When email-tool works with the new file,
 
     ![After Advanced, Google offers Go to email-tool (unsafe)](assets/screens/google-unverified-advanced.png){ width="520" }
 
-4. Google shows **Sign in to email-tool** (**You're signing back in** if you used it before).
-   Select **Continue**:
+4. Google asks you to continue to email-tool: **Sign in to email-tool** the first time, or
+   **You're signing back in to email-tool**, as here, if you used it before. Select
+   **Continue**:
 
     ![Google asks you to continue signing in to email-tool](assets/screens/google-sign-in.png){ width="600" }
 
-5. Google lists what email-tool asks for. Leave every permission selected and select
-   **Continue**. Reading and sending through IMAP and SMTP needs full mail access:
-
-    ![Google shows what email-tool wants to access, with Cancel and Continue](assets/screens/google-consent.png){ width="600" }
+5. Google shows **email-tool wants access to your Google Account**. The first time, it lists
+   each permission: leave every one selected, because reading and sending through IMAP and
+   SMTP needs full mail access. If you signed in before, it says
+   **email-tool already has some access** instead. Select **Continue**.
 
 6. The browser shows "The authentication flow has completed". Return to the terminal, which
    prints `Mailbox 'work' ... added`.
