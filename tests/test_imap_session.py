@@ -10,6 +10,7 @@ from datetime import date
 from typing import Any
 
 import pytest
+from imapclient import IMAPClient
 
 # Private, but it is exactly what IMAPClient.search sends; pinned with imapclient==4.1.0.
 from imapclient.imapclient import _literal, _normalise_search_criteria
@@ -57,13 +58,15 @@ class StubClient:
 class GmailStub(StubClient):
     """A Gmail connection: X-GM-EXT-1, a Trash folder flagged \\Trash, and folders that can be selected."""
 
-    def __init__(self) -> None:
+    def __init__(self, in_trash: list[int] | None = None) -> None:
         super().__init__(uidplus=True, flagged=[5])
+        self.in_trash: list[int] = [41] if in_trash is None else in_trash
 
     def has_capability(self, name: str) -> bool:
         return name in ("UIDPLUS", "X-GM-EXT-1")
 
     def list_folders(self) -> list[tuple[tuple[bytes, ...], bytes, bytes]]:
+        self.calls.append(("list_folders", None))
         return [((b"\\HasNoChildren",), b"/", b"INBOX"), ((b"\\HasNoChildren", b"\\Trash"), b"/", b"[Gmail]/Trash")]
 
     def select_folder(self, folder: str, readonly: bool) -> dict[bytes, Any]:
@@ -78,7 +81,7 @@ class GmailStub(StubClient):
 
     def search(self, criteria: list[SearchItem], charset: str | None = None) -> list[int]:
         self.calls.append(("search", (criteria, charset)))
-        return [41] if criteria == ["X-GM-MSGID", 1797] else self.flagged
+        return self.in_trash if criteria == ["X-GM-MSGID", 1797] else self.flagged
 
 
 def session_over(client: StubClient) -> ImapSession:
@@ -172,3 +175,21 @@ def test_in_gmail_trash_a_delete_expunges_at_once() -> None:
     assert session.mark_deleted(5)
     assert ("uid_expunge", [5]) in client.calls
     assert not any(name == "move" for name, _ in client.calls)
+
+
+def test_a_gmail_delete_that_stops_in_trash_says_so() -> None:
+    """Not "flagged, pending deletion" in the inbox: the message is in Trash, which Gmail empties."""
+    client: GmailStub = GmailStub(in_trash=[])
+    session: ImapSession = session_over(client)
+    session.select("INBOX", readonly=False)
+    with pytest.raises(IMAPClient.Error, match=r"uid 5 was moved to '\[Gmail\]/Trash' but not removed"):
+        session.mark_deleted(5)
+
+
+def test_gmail_trash_is_looked_up_once_per_session() -> None:
+    client: GmailStub = GmailStub()
+    session: ImapSession = session_over(client)
+    session.select("INBOX", readonly=False)
+    session.mark_deleted(5)
+    session.mark_deleted(5)
+    assert [name for name, _ in client.calls].count("list_folders") == 1
