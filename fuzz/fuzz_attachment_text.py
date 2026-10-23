@@ -1,44 +1,60 @@
-"""Fuzz the text extraction of attached files (PDF, Word, Excel, PowerPoint, plain text).
+"""Fuzz the text extraction of attached files: PDF, Office, HTML, CSV and plain text, in any charset.
 
-Standard: Atheris (`atheris.Setup` + `atheris.Fuzz`), libFuzzer's coverage-guided engine for Python.
+Standard: Atheris (`FuzzedDataProvider`, `Setup`, `Fuzz`), libFuzzer's coverage-guided engine for Python.
 Placement: fuzz/, one target per file, run by .github/workflows/fuzz.yml.
 
-`attachment_text` reads attachments from incoming mail for the CUI check. It returns "" for
-a file it cannot read, so the bugs left to find are hangs and runaway memory, which libFuzzer's
-`-timeout` and `-rss_limit_mb` report as crashes.
+`attachment_text` reads attachments for the CUI check. The fuzzer picks the file name, the
+content type and the charset the sender declares (an unknown one included), as an incoming
+message can; any exception, a hang over libFuzzer's `-timeout` or memory over `-rss_limit_mb`
+is a finding.
 """
 
 from __future__ import annotations
 
-import sys
-from email.message import EmailMessage
+import base64
+from email import message_from_bytes
+from email.message import Message
 from typing import Final
 
 import atheris
 
-with atheris.instrument_imports():
-    from email_tool_mcp.attachments import attachment_text
+from email_tool_mcp.attachments import attachment_text
+from fuzz._run import run
 
-# The first input byte picks the kind of file; the rest is its content.
-_NAMES: Final[tuple[str, ...]] = ("file.pdf", "file.docx", "file.xlsx", "file.pptx", "file.txt", "file.bin")
+_NAMES: Final[tuple[str, ...]] = (
+    "file.pdf",
+    "file.docx",
+    "file.docm",
+    "file.xlsx",
+    "file.xlsm",
+    "file.pptx",
+    "file.pptm",
+    "file.txt",
+    "file.csv",
+    "file.md",
+    "file.html",
+    "file.htm",
+    "file.bin",
+)
+_TYPES: Final[tuple[str, ...]] = ("application/octet-stream", "text/plain", "text/html", "application/pdf")
+_CHARSETS: Final[tuple[str, ...]] = ("", "utf-8", "latin-1", "utf-16", "iso-2022-jp", "bogus")
 
 
 def test_one_input(data: bytes) -> None:
-    """Attach `data` under one of the names and extract its text."""
-    if not data:
-        return
-    part: EmailMessage = EmailMessage()
-    part.set_content(data[1:], maintype="application", subtype="octet-stream", filename=_NAMES[data[0] % len(_NAMES)])
+    """Build an attached part the way a sender could, then extract its text."""
+    provider: atheris.FuzzedDataProvider = atheris.FuzzedDataProvider(data)
+    name: str = _NAMES[provider.ConsumeIntInRange(0, len(_NAMES) - 1)]
+    kind: str = _TYPES[provider.ConsumeIntInRange(0, len(_TYPES) - 1)]
+    charset: str = _CHARSETS[provider.ConsumeIntInRange(0, len(_CHARSETS) - 1)]
+    content: bytes = provider.ConsumeBytes(provider.remaining_bytes())
+    declared: str = f"; charset={charset}" if charset else ""
+    raw: bytes = (
+        f'Content-Type: {kind}{declared}\r\nContent-Disposition: attachment; filename="{name}"\r\n'
+        "Content-Transfer-Encoding: base64\r\n\r\n"
+    ).encode() + base64.encodebytes(content)
+    part: Message = message_from_bytes(raw)
     attachment_text(part)
 
 
-def main() -> None:
-    # The branches that matter sit in the standard library's parsers (email, zipfile) and in
-    # pypdf; instrument them all so the fuzzer can see which inputs reach new code.
-    atheris.instrument_all()
-    atheris.Setup(sys.argv, test_one_input)
-    atheris.Fuzz()
-
-
 if __name__ == "__main__":
-    main()
+    run(test_one_input)

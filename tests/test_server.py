@@ -177,6 +177,18 @@ async def test_a_reply_to_a_missing_message_saves_and_sends_nothing(
     assert not mail_server.folders.get("Drafts") and mail_server.sent == []
 
 
+async def test_a_message_in_an_unknown_charset_still_reads(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    """Found by fuzzing: a sender-chosen charset Python does not know raised LookupError."""
+    store_password("work", "secret")
+    raw: bytes = b"From: a@x.com\r\nSubject: Hi\r\nContent-Type: text/plain; charset=bogus\r\n\r\nhello there\r\n"
+    uid: int = mail_server.add("INBOX", raw)
+    result: CallToolResult = await call(book, audit, "get_email", {"mailbox": "work", "uid": uid})
+    assert not result.is_error, text_of(result)
+    assert "hello there" in text_of(result)
+
+
 async def test_broken_unicode_is_refused_by_name_and_still_audited(book: MailboxBook, audit: AuditLog) -> None:
     """JSON can carry an unpaired surrogate; it used to escape as a raw UnicodeEncodeError (found by fuzzing)."""
     store_password("work", "secret")

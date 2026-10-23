@@ -112,12 +112,22 @@ def header_block(message: Message) -> str:
     return "\n".join(lines)
 
 
+def decode_text(content: bytes, charset: str | None) -> str:
+    """`content` as text in the charset its sender named; UTF-8 when the name is unknown.
+
+    The charset comes from the sender's headers, so it can be anything, `bogus` included.
+    """
+    try:
+        return content.decode(charset or "utf-8", "replace")
+    except LookupError:
+        return content.decode("utf-8", "replace")
+
+
 def _decode_part(part: Message) -> str:
     payload: object = part.get_payload(decode=True)
     if not isinstance(payload, bytes):
         return ""
-    charset: str = part.get_content_charset() or "utf-8"
-    return payload.decode(charset, "replace")
+    return decode_text(payload, part.get_content_charset())
 
 
 def extract_body(message: Message) -> str:

@@ -5,6 +5,13 @@
 ### Security
 - pypdf 6.21.1 (was 6.19.0) fixes 8 advisories in reading PDF attachments: infinite loops
   and runaway memory on crafted files.
+- The bundle build tool (CI only) uses tmp 0.2.7 (was 0.0.33). node-forge has no fixed
+  release for GHSA-86w9-cpqp-85rv; it is ignored for 3 months in
+  `.github/tools/mcpb/osv-scanner.toml`, because the tool never verifies signatures.
+
+### Fixed
+- A message or attachment in a charset Python does not know (for example `charset=bogus`)
+  no longer fails `get_email` or the CUI check; its text is read as UTF-8. Found by fuzzing.
 
 ### Added
 - Fuzz tests (Atheris) for attachment text and message parsing, run in CI on pull requests

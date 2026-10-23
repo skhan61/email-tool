@@ -8,6 +8,7 @@ on:
     paths: ["src/**", "fuzz/**", "pyproject.toml", "uv.lock", ".github/workflows/fuzz.yml"]
   push:
     branches: [main]
+    paths: ["src/**", "fuzz/**", "pyproject.toml", "uv.lock", ".github/workflows/fuzz.yml"]
   schedule:
     - cron: "17 6 * * 1"
 
@@ -36,7 +37,7 @@ jobs:
       - run: uv sync --locked --group fuzz --python 3.13
       - run: mkdir findings
       - run: >-
-          uv run --no-sync python fuzz/${{ matrix.target }}.py
+          uv run --no-sync python -m fuzz.${{ matrix.target }}
           -max_total_time=300 -timeout=10 -rss_limit_mb=2048 -artifact_prefix=findings/
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
