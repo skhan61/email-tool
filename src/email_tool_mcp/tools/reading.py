@@ -55,6 +55,17 @@ def search_criteria(sender: str, subject: str, body: str, since: str) -> list[Se
     return criteria
 
 
+def reply_parent(session: ImapSession, folder: str, uid: int) -> Message | None:
+    """The headers of the message being answered, without marking it read; None when `uid` is 0."""
+    if not uid:
+        return None
+    session.select(folder, readonly=True)
+    headers: dict[int, bytes] = session.fetch_headers([uid])
+    if uid not in headers:
+        raise LookupError(f"no message with uid {uid} in folder {folder!r} to reply to; nothing was done")
+    return parse_message(headers[uid])
+
+
 def pending_deletion(uid: int, folder: str) -> str:
     """Explain a deletion left flagged because other messages were already flagged."""
     return (

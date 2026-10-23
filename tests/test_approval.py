@@ -149,6 +149,20 @@ async def test_a_delete_prompt_names_the_message_it_removes(
 
 
 @pytest.mark.anyio
+async def test_a_reply_prompt_names_the_message_it_answers(
+    approving_book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    uid: int = mail_server.add(
+        "INBOX", compose("boss@example.com", "me@example.com", "Signed contract", "x", "", "").as_bytes()
+    )
+    person: Person = Person("decline", False)
+    async with Client(build_server(approving_book, audit), elicitation_callback=person) as client:
+        await client.call_tool("send_email", {**SEND, "in_reply_to_uid": uid})
+    assert "In reply to:" in person.shown[0] and "Signed contract" in person.shown[0]
+    assert mail_server.sent == []
+
+
+@pytest.mark.anyio
 async def test_a_send_policy_refuses_is_never_put_to_the_user(
     settings_file: Path, audit: AuditLog, tmp_path: Path, mail_server: FakeMailServer
 ) -> None:
