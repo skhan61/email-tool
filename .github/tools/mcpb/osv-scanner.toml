@@ -1,0 +1,10 @@
+# Known vulnerabilities in this folder's lockfile that do not apply, each with its reason
+# and an end date. osv-scanner and OpenSSF Scorecard read this file next to the lockfile.
+
+[[IgnoredVulns]]
+# node-forge accepts a malformed RSA PKCS#1 v1.5 signature. No fixed release exists.
+# CI and the release workflow run only `mcpb validate` and `mcpb pack`, which never verify
+# a signature, and the bundle is signed by Sigstore in release.yml, not by node-forge.
+id = "GHSA-86w9-cpqp-85rv"
+ignoreUntil = 2027-01-23T00:00:00Z
+reason = "No fixed node-forge release; mcpb validate and pack never verify signatures."

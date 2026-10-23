@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- pypdf 6.21.1 (was 6.19.0) fixes 8 advisories in reading PDF attachments: infinite loops
+  and runaway memory on crafted files.
+
+### Added
+- Fuzz tests (Atheris) for attachment text and message parsing, run in CI on pull requests
+  and weekly.
+
 ## 5.2.0
 
 ### Added

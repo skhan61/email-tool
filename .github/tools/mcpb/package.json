@@ -4,5 +4,8 @@
   "description": "One agent CLI for CI, locked by hash in package-lock.json and installed with npm ci.",
   "devDependencies": {
     "@anthropic-ai/mcpb": "2.1.2"
+  },
+  "overrides": {
+    "tmp": "0.2.7"
   }
 }
