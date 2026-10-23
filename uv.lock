@@ -524,14 +524,12 @@ dev = [
     { name = "pygithub" },
     { name = "pytest" },
     { name = "pytest-timeout" },
+    { name = "rich" },
     { name = "ruff" },
 ]
 docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
-]
-screens = [
-    { name = "rich" },
 ]
 
 [package.metadata]
@@ -561,13 +559,13 @@ dev = [
     { name = "pygithub", specifier = "==2.10.0" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-timeout", specifier = "==2.5.0" },
+    { name = "rich", specifier = "==13.9.4" },
     { name = "ruff", specifier = "==0.16.10" },
 ]
 docs = [
     { name = "mkdocs", specifier = "==1.6.1" },
     { name = "mkdocs-material", specifier = "==9.7.7" },
 ]
-screens = [{ name = "rich", specifier = "==13.9.4" }]
 
 [[package]]
 name = "filelock"

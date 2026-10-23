@@ -47,6 +47,9 @@ dev = [
     "pygithub==2.10.0",
     "pytest==9.1.1",
     "pytest-timeout==2.5.0",
+    # `tools.clean_install` checks the install steps on a clean home and saves each one's real
+    # terminal output as SVG for docs/.
+    "rich==13.9.4",
     "ruff==0.16.10",
 ]
 
@@ -54,12 +57,6 @@ dev = [
 docs = [
     "mkdocs==1.6.1",
     "mkdocs-material==9.7.7",
-]
-
-# `uv run --group screens python -m tools.clean_install run`: checks the install steps on a
-# clean home and saves each one's real terminal output as SVG for docs/.
-screens = [
-    "rich==13.9.4",
 ]
 
 [tool.ruff]
