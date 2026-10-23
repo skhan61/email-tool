@@ -71,7 +71,7 @@ desktop and Codex: one installer to open), then ask your assistant to "add my ma
 3. Ask your assistant to "add my mailbox", or from a terminal:
 
     ```bash
-    uv tool install git+https://github.com/skhan61/email-tool
+    uv tool install email-tool-mcp
     email-tool-mcp add work --auth microsoft --address you@company.com
     ```
 
@@ -99,3 +99,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately as desc
 ## License
 
 [MIT](LICENSE)
+
+<!-- mcp-name: io.github.skhan61/email-tool -->

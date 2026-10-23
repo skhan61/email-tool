@@ -58,16 +58,18 @@ pack, no signing or publishing), so a workflow error fails the pull request, not
 Before step 1, run the live tests on the maintainer's computer; release only when they pass.
 
 1. Bump the version in `pyproject.toml`, `manifest.json`, `.claude-plugin/plugin.json`,
-   `.codex-plugin/plugin.json`, `.claude-plugin/marketplace.json` and the `@vX.Y.Z` pin in
-   `.codex-mcp.json` (`tests/test_manifests.py` fails if they differ), then `uv lock` with the
+   `.codex-plugin/plugin.json`, `.claude-plugin/marketplace.json`, both versions in
+   `server.json` and the `email-tool-mcp==X.Y.Z` pin in `.codex-mcp.json`
+   (`tests/test_manifests.py` fails if they differ), then `uv lock` with the
    uv version CI uses.
    Add the version's section to `CHANGELOG.md`, including behaviour changes.
 2. Merge, then tag `main` at once: `git tag vX.Y.Z && git push origin vX.Y.Z`
-   (the Codex plugin points at that tag, so it must exist as soon as the bump lands).
+   (the Codex plugin installs that version from PyPI, which the tag's release publishes).
 3. The release workflow tests, builds the wheel, sdist and `.mcpb` bundle, signs each with
    Sigstore (`*.sigstore.json`), adds SLSA build provenance (`*.intoto.jsonl`) and publishes a
    GitHub release. With the repository variable `PYPI_PUBLISH` set to `true` (after the PyPI
-   trusted publisher exists, #31), it also publishes the wheel and sdist to PyPI.
+   trusted publisher exists, #31), it also publishes the wheel and sdist to PyPI,
+   then `server.json` to the official MCP Registry (GitHub sign-in by OIDC, no secret).
    Verify a download (X.Y.Z the version): it must be signed by release.yml on that tag:
    ```bash
    uvx sigstore==4.5.0 verify identity <file> \
