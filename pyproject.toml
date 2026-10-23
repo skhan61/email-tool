@@ -1,6 +1,6 @@
 [project]
 name = "email-tool-mcp"
-version = "5.1.0"
+version = "5.2.0"
 description = "IMAP/SMTP email for any MCP client: read, search, draft and send mail."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,6 +16,7 @@ dependencies = [
     "imapclient==4.1.0",
     "keyring==25.7.0",
     "msal==1.39.0",
+    "pypdf==6.19.0",
     "mcp==2.3.0",
     "mcp-types==2.3.0",
     "platformdirs==4.12.4",
@@ -69,7 +70,7 @@ files = ["src", "tests", "tools"]
 
 [[tool.mypy.overrides]]
 # None of these ships type information.
-module = ["fire", "google_auth_oauthlib", "google_auth_oauthlib.*", "imapclient", "imapclient.*", "msal"]
+module = ["fire", "google_auth_oauthlib", "google_auth_oauthlib.*", "imapclient", "imapclient.*", "msal", "msal.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

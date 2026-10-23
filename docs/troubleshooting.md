@@ -30,7 +30,7 @@ assistant, which can tell you the same.
 | `Need admin approval` (AADSTS90094 or AADSTS65001) | Your IT department must approve email-tool. Ask them to grant admin consent to application ID `82731d7a-ac7f-4a5e-88d3-acce522f85ce`, or to give you their own app's ID for `--client-id`. |
 | `work needs a new Microsoft sign-in` | Run the command in the message. It signs you in again. |
 | The sign-in works but the login check fails | IMAP or authenticated SMTP is turned off for your mailbox. Ask your IT department to turn them on. |
-| No browser opens | Add `--device-code` and enter the code it shows at microsoft.com/devicelogin. |
+| No browser opens | Open the sign-in address the terminal prints, then paste back the address the browser ends on. Or use `--device-code`. |
 
 ## Google sign-in
 
@@ -52,6 +52,8 @@ assistant, which can tell you the same.
 | A message that starts with `policy:` | Your organization's policy refused the action. The message names the rule. See [For administrators](administrators.md#policy). |
 | `Refused, nothing was done: ...` | The audit log could not be written, so nothing ran. Check that the log's folder exists and has space (`email-tool-mcp audit path`). |
 | `the log does not match its keyring anchor` | The log was changed or replaced. Run `email-tool-mcp audit verify` and report the result to your security team. |
+| `nothing was done: ... looks sensitive` or `... is a folder whose files run at login` | An attachment looks like a key, credential or CUI file, or the save could make a file run, and your app cannot ask you. Tell the assistant whether to go ahead. |
+| `the attachments add up to ...` | Mail servers refuse more than 25 MB per message. Send fewer or smaller files, or share a link. |
 | `... contains invalid text (a broken Unicode character)` | The assistant sent text that is not valid. Ask it to try again. |
 
 ## Still stuck

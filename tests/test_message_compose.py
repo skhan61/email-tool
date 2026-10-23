@@ -50,7 +50,7 @@ def test_message_id_uses_the_sender_domain_and_never_looks_up_this_machine(monke
 
 def test_a_reply_names_its_parent_and_the_parents_thread() -> None:
     parent: Message = parent_with("Message-ID: <c@x.com>\r\nReferences: <a@x.com> <b@x.com>\r\n")
-    reply: EmailMessage = compose("me@example.com", "a@x.com", "Re: Hello", "ok", "", "", parent)
+    reply: EmailMessage = compose("me@example.com", "a@x.com", "Re: Hello", "ok", "", "", parent=parent)
     assert reply["In-Reply-To"] == "<c@x.com>"
     assert reply["References"] == "<a@x.com> <b@x.com> <c@x.com>"
 
@@ -110,7 +110,7 @@ def test_only_well_formed_ids_are_copied_from_the_parent() -> None:
     parent: Message = parent_with(
         "Message-ID: junk <c@x.com>\r\n\tBcc: victim@x.com\r\nReferences: (comment) <a@x.com> Bcc: b@x.com\r\n"
     )
-    reply: EmailMessage = compose("me@example.com", "a@x.com", "Re", "ok", "", "", parent)
+    reply: EmailMessage = compose("me@example.com", "a@x.com", "Re", "ok", "", "", parent=parent)
     assert reply["In-Reply-To"] == "<c@x.com>"
     assert reply["References"] == "<a@x.com> <c@x.com>"
     assert reply["Bcc"] is None

@@ -46,7 +46,18 @@ KEYRING_SERVICE: Final[str] = f"{APP_NAME}-audit"
 GENESIS: Final[str] = "0" * 64
 logger: Final[logging.Logger] = logging.getLogger(__name__)
 # Arguments safe to record. Subjects, bodies and HTML are deliberately absent.
-RECORDED_ARGUMENTS: Final[tuple[str, ...]] = ("folder", "uid", "to", "cc", "limit", "sender", "since")
+RECORDED_ARGUMENTS: Final[tuple[str, ...]] = (
+    "folder",
+    "uid",
+    "to",
+    "cc",
+    "limit",
+    "sender",
+    "since",
+    "attachments",
+    "index",
+    "directory",
+)
 
 
 class AuditError(RuntimeError):

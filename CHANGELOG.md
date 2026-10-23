@@ -1,12 +1,28 @@
 # Changelog
 
-## Unreleased
+## 5.2.0
 
 ### Added
+- Attachments. `send_email`, `create_draft` and `update_draft` attach any file the user asks
+  for, from any folder, up to 25 MB per message. `get_email` lists attachments with their
+  sizes, and `save_attachment` saves one into a folder the user names, under a safe name that
+  never replaces an existing file.
+- Files that look sensitive (private keys, `.env` files, cloud credentials, password
+  databases, files with CUI markings) make the app ask the user before sending, even when
+  `require_approval` is off. The user decides. Without a prompt, the assistant needs the
+  user's confirmation in the conversation and resends with `confirm_sensitive`.
+- `cui_recipient_domains` also reads text, CSV, Markdown, HTML, Word and PDF attachments.
+- The audit log records each attachment's name, size and SHA-256 fingerprint.
+- Microsoft sign-in without a browser: the terminal prints the sign-in address and takes back
+  the address the browser ends on, and `--paste-address` works for Microsoft as for Google.
+- A pull request that changes the release workflow runs it as a dry run.
 - Replies join their conversation: `create_draft`, `update_draft` and `send_email` take
   `in_reply_to_uid` (and `in_reply_to_folder`, default `INBOX`) and set `In-Reply-To` and
   `References` from that message. Only well-formed message IDs are copied from it, and the
   approval question shows the message being answered.
+
+### Changed
+- New runtime dependency: pypdf 6.19.0, to read PDF attachments for the CUI check.
 
 ## 5.1.0
 

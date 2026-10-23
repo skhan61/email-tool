@@ -31,3 +31,18 @@ InReplyToUid = Annotated[
 ]
 InReplyToFolder = Annotated[str, Field(description="Folder holding the message named by in_reply_to_uid.")]
 Html = Annotated[str, Field(description="Optional HTML body for links and formatting, sent alongside `body`.")]
+Attachments = Annotated[
+    list[str] | None,
+    Field(description="Paths of files to attach, from any folder the user named. Up to 25 MB in total."),
+]
+ConfirmSensitive = Annotated[
+    str,
+    Field(
+        description=(
+            "The code from an earlier refusal that named sensitive attachments or a risky place to save. "
+            "Pass it only after the user, in this conversation, agreed to go ahead. Leave empty otherwise."
+        )
+    ),
+]
+Index = Annotated[int, Field(description="Number of the attachment, as listed by get_email (1 for the first).", ge=1)]
+Directory = Annotated[str, Field(description="Folder to save into, as the user named it; created if missing.")]

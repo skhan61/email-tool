@@ -7,9 +7,12 @@ composed by exactly one piece of code.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from email.message import EmailMessage, Message
 from email.utils import formatdate, getaddresses, make_msgid
 from typing import Final
+
+from email_tool_mcp.attachments import Attachment, attach
 
 # One message ID in its angle-bracket form (RFC 5322 section 3.6.4); nothing else of a header is copied.
 _MESSAGE_ID: Final[re.Pattern[str]] = re.compile(r"<[^<>\s()]+>")
@@ -65,9 +68,16 @@ def keep_thread(message: EmailMessage, previous: Message) -> None:
 
 
 def compose(
-    sender: str, to: str, subject: str, body: str, cc: str, html: str, parent: Message | None = None
+    sender: str,
+    to: str,
+    subject: str,
+    body: str,
+    cc: str,
+    html: str,
+    attachments: Sequence[Attachment] = (),
+    parent: Message | None = None,
 ) -> EmailMessage:
-    """Build a message from `sender`; with `html` it becomes multipart/alternative.
+    """Build a message from `sender`; with `html` it becomes multipart/alternative, with attachments multipart/mixed.
 
     multipart/alternative makes mail clients show the HTML part and open a saved
     draft in rich-text mode, with `body` as the plain-text fallback. With `parent`
@@ -99,6 +109,7 @@ def compose(
     message.set_content(body)
     if html:
         message.add_alternative(html, subtype="html")
+    attach(message, attachments)
     return message
 
 

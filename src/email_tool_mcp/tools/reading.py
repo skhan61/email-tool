@@ -8,20 +8,23 @@ from __future__ import annotations
 
 from datetime import datetime
 from email.message import Message
-from typing import Final
+from pathlib import Path
+from typing import BinaryIO, Final
 
+from email_tool_mcp.attachments import attachment_bytes, free_path, human_size, safe_file_name, save_directory
 from email_tool_mcp.imap_session import ImapSession, SearchItem, text
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_render import (
     MessageSummary,
-    attachment_names,
+    attached_parts,
+    decode_header_value,
     extract_body,
     header_block,
     parse_message,
     summarize,
 )
 from email_tool_mcp.settings import SETUP_COMMAND, Mailbox
-from email_tool_mcp.tools.params import Folder, Limit, MailboxName, Uid
+from email_tool_mcp.tools.params import ConfirmSensitive, Directory, Folder, Index, Limit, MailboxName, Uid
 
 _BODY_CHARACTER_LIMIT: Final[int] = 20_000
 
@@ -67,9 +70,15 @@ def render_message(message: Message) -> str:
     """Return headers, attachment names and the readable body, truncated."""
     body: str = extract_body(message)
     sections: list[str] = [header_block(message)]
-    attachments: list[str] = attachment_names(message)
-    if attachments:
-        sections.append("Attachments: " + ", ".join(attachments))
+    parts: list[Message] = attached_parts(message)
+    if parts:
+        listed: list[str] = []
+        number: int
+        part: Message
+        for number, part in enumerate(parts, start=1):
+            size: int = len(attachment_bytes(part))
+            listed.append(f"{number}. {decode_header_value(part.get_filename())} ({human_size(size)})")
+        sections.append("Attachments (save one with save_attachment): " + ", ".join(listed))
     sections.append("-" * 60)
     sections.append(body[:_BODY_CHARACTER_LIMIT] or "(no readable body)")
     if len(body) > _BODY_CHARACTER_LIMIT:
@@ -147,6 +156,39 @@ class ReadingTools:
         if raw is None:
             return f"No message with uid {uid} in folder {folder!r}."
         return render_message(parse_message(raw))
+
+    def save_attachment(
+        self,
+        uid: Uid,
+        index: Index,
+        directory: Directory,
+        mailbox: MailboxName = "",
+        folder: Folder = "INBOX",
+        confirm_sensitive: ConfirmSensitive = "",
+    ) -> str:
+        """Save one attachment of a message into a folder the user names. The file is never opened.
+
+        A relative folder is taken from the user's home ("Downloads" is ~/Downloads). Saving
+        into a place where a file can run (autostart, .ssh, ...) asks the user first.
+        """
+        with self._book.imap(self._book.resolve(mailbox)) as session:
+            session.select(folder, readonly=True)
+            raw: bytes | None = session.fetch_message(uid)
+        if raw is None:
+            return f"No message with uid {uid} in folder {folder!r}."
+        parts: list[Message] = attached_parts(parse_message(raw))
+        if index > len(parts):
+            return f"Message uid {uid} has {len(parts)} attachment(s); there is no attachment {index}."
+        part: Message = parts[index - 1]
+        content: bytes = attachment_bytes(part)
+        target: Path = save_directory(directory)
+        target.mkdir(parents=True, exist_ok=True)
+        saved: Path = free_path(target, safe_file_name(decode_header_value(part.get_filename())))
+        # Exclusive create: never replaces a file, even one made since free_path looked.
+        file: BinaryIO
+        with saved.open("xb") as file:
+            file.write(content)
+        return f"Saved {saved} ({human_size(len(content))})."
 
     def delete_email(self, uid: Uid, folder: Folder, mailbox: MailboxName = "") -> str:
         """Permanently delete one message by UID. This cannot be undone."""

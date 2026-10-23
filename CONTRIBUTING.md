@@ -38,6 +38,9 @@ Pull requests build it with `--strict`, so a broken link fails the check.
 
 ## Releasing
 
+A pull request that changes `.github/workflows/release.yml` runs it as a dry run (build and
+pack, no signing or publishing), so a workflow error fails the pull request, not the release.
+
 1. Bump the version in `pyproject.toml`, `manifest.json`, `.claude-plugin/plugin.json`,
    `.codex-plugin/plugin.json` and `.claude-plugin/marketplace.json` (`tests/test_manifests.py` fails if they differ), then `uv lock`.
    Add the version's section to `CHANGELOG.md`, including behaviour changes.

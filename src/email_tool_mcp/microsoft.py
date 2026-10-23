@@ -9,13 +9,16 @@ Placement: microsoft.py; MailboxBook asks it for tokens, enrol.py for the first 
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import Any, Final, Literal, Protocol
+from urllib.parse import parse_qsl, urlsplit
 
 import msal
 
 from email_tool_mcp import credentials
+from email_tool_mcp.browser import pasted_address
 from email_tool_mcp.settings import (
     DEFAULT_IMAP_PORT,
     SETUP_COMMAND,
@@ -55,6 +58,8 @@ CLOUDS: Final[dict[CloudName, Cloud]] = {
     ),
 }
 PERSONAL_SMTP_HOST: Final[str] = "smtp-mail.outlook.com"
+# The redirect registered on the app ("Public client/native"); a pasted sign-in ends there.
+REDIRECT: Final[str] = "http://localhost"
 # The project's own app registration (commercial cloud, work and personal accounts). An app ID
 # is public, not a secret; an organisation that wants its own app passes --client-id.
 DEFAULT_CLIENT_ID: Final[str] = "82731d7a-ac7f-4a5e-88d3-acce522f85ce"
@@ -96,6 +101,12 @@ class MsalApp(Protocol):
     def initiate_device_flow(self, scopes: list[str]) -> dict[str, Any]: ...
 
     def acquire_token_by_device_flow(self, flow: dict[str, Any]) -> dict[str, Any]: ...
+
+    def initiate_auth_code_flow(self, scopes: list[str], **options: Any) -> dict[str, Any]: ...
+
+    def acquire_token_by_auth_code_flow(
+        self, auth_code_flow: dict[str, Any], auth_response: dict[str, str]
+    ) -> dict[str, Any]: ...
 
 
 AppFactory = Callable[[str, str, msal.SerializableTokenCache], MsalApp]
@@ -277,11 +288,17 @@ class MicrosoftTokens:
             self._store.delete(PROVIDER, mailbox.name)
             self._drop_apps(mailbox)
 
-    def sign_in(self, mailbox: Mailbox, device_code: bool, show: Callable[[str], None]) -> SignIn:
-        """Sign in once in the browser (or with a device code); nothing is kept until `keep`.
+    def sign_in(
+        self,
+        mailbox: Mailbox,
+        device_code: bool,
+        show: Callable[[str], None],
+        paste: Callable[[str], str] | None = None,
+    ) -> SignIn:
+        """Sign in once in the browser, with a device code, or by pasting back the browser's address.
 
-        The sign-in goes into a new cache, so a sign-in kept earlier is untouched if
-        this one, or the check after it, fails.
+        Nothing is kept until `keep`. The sign-in goes into a new cache, so a sign-in kept
+        earlier is untouched if this one, or the check after it, fails.
         """
         cache: msal.SerializableTokenCache = msal.SerializableTokenCache()
         app: MsalApp = self._app_factory(mailbox.client_id, authority_of(mailbox), cache)
@@ -293,6 +310,17 @@ class MicrosoftTokens:
                 raise RuntimeError(f"Microsoft refused the device sign-in: {flow.get('error_description', flow)}")
             show(str(flow["message"]))
             result = app.acquire_token_by_device_flow(flow)
+        elif paste is not None:
+            with warnings.catch_warnings():
+                # MSAL recommends form_post, which hides the code from the address bar; pasting
+                # needs it in the query, protected by PKCE as RFC 8252 prescribes for native apps.
+                warnings.filterwarnings("ignore", message="response_mode='form_post' is recommended")
+                code_flow: dict[str, Any] = app.initiate_auth_code_flow(
+                    scopes, redirect_uri=REDIRECT, login_hint=mailbox.address, prompt="select_account"
+                )
+            answer: str = pasted_address("Microsoft", str(code_flow["auth_uri"]), REDIRECT, show, paste)
+            pairs: list[tuple[str, str]] = parse_qsl(urlsplit(answer).query)
+            result = app.acquire_token_by_auth_code_flow(code_flow, dict(pairs))
         else:
             show("A browser window opens for the Microsoft sign-in; finish it there.")
             try:
@@ -302,7 +330,8 @@ class MicrosoftTokens:
             except RuntimeError as error:
                 raise RuntimeError(
                     f"no answer from the browser within {SIGN_IN_SECONDS // 60} minutes; nothing saved. "
-                    "On a computer without a browser, use --device-code"
+                    'If the browser is on another computer, or showed "site can\'t be reached", '
+                    "run again with --paste-address"
                 ) from error
         if "access_token" not in result:
             said: str = str(result.get("error_description", result.get("error"))).split("\n")[0]

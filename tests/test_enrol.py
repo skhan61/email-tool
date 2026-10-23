@@ -121,8 +121,8 @@ def test_removing_an_unsupported_sign_in_says_it_was_left(tmp_path: Path) -> Non
         ("password", "", "c", "commercial", "", "need --auth microsoft"),
         ("password", "", "", "gcc-high", "", "need --auth microsoft"),
         ("google", "", "c", "commercial", "f.json", "need --auth microsoft"),
-        ("password", "", "", "commercial", "f.json", "need --auth google"),
-        ("microsoft", "", "", "commercial", "f.json", "need --auth google"),
+        ("password", "", "", "commercial", "f.json", "needs --auth google"),
+        ("microsoft", "", "", "commercial", "f.json", "needs --auth google"),
         ("yahoo", "", "", "commercial", "", "must be password, microsoft or google"),
     ],
 )
