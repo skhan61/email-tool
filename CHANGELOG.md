@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 5.4.0
+
 ### Fixed
 - On Gmail, `delete_email` and replacing a draft now delete the message: it moves to Trash
   and is removed from there. Before, Gmail only took it out of the folder and kept it in All Mail.
