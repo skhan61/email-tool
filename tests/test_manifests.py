@@ -90,4 +90,4 @@ def test_registry_entry_names_this_release_and_the_readme_proves_it() -> None:
 
 def test_codex_plugin_runs_the_release_matching_its_version() -> None:
     arguments: list[str] = read_json(".codex-mcp.json")["mcpServers"]["email"]["args"]
-    assert f"git+https://github.com/skhan61/email-tool@v{package_version()}" in arguments
+    assert f"email-tool-mcp=={package_version()}" in arguments

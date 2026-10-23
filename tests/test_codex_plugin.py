@@ -17,7 +17,7 @@ from tests.launch import declared_tool_names, served_tool_names
 
 REGISTERED: str = os.environ.get("EMAIL_TOOL_CODEX_SERVER", "")
 CHECKOUT: str = os.environ.get("EMAIL_TOOL_CODEX_FROM", "")
-GITHUB_SOURCE: str = "git+https://github.com/skhan61/email-tool@"
+PYPI_SOURCE: str = "email-tool-mcp=="
 
 pytestmark: list[pytest.MarkDecorator] = [
     pytest.mark.anyio,
@@ -27,8 +27,8 @@ pytestmark: list[pytest.MarkDecorator] = [
 
 async def test_registered_server_serves_every_declared_tool() -> None:
     transport: dict[str, Any] = json.loads(Path(REGISTERED).read_text(encoding="utf-8"))["transport"]
-    sources: list[str] = [argument for argument in transport["args"] if argument.startswith(GITHUB_SOURCE)]
+    sources: list[str] = [argument for argument in transport["args"] if argument.startswith(PYPI_SOURCE)]
     assert len(sources) == 1, f"Codex registered an unexpected source: {transport['args']}"
-    # The pinned release tag does not exist for an unmerged PR, so build this checkout in its place.
+    # The pinned release is not on PyPI for an unmerged PR, so build this checkout in its place.
     arguments: list[str] = [CHECKOUT if argument in sources else argument for argument in transport["args"]]
     assert await served_tool_names(transport["command"], arguments, None) == declared_tool_names()

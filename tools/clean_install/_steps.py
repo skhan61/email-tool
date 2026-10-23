@@ -18,7 +18,7 @@ from tools.clean_install._render import save_svg
 
 log: Final[logging.Logger] = logging.getLogger(__name__)
 
-_REPOSITORY: Final[str] = "git+https://github.com/skhan61/email-tool"
+_REPOSITORY: Final[str] = "email-tool-mcp"
 _SYSTEM_PATH: Final[str] = "/usr/local/bin:/usr/bin:/bin"
 # A long package list adds nothing a reader acts on.
 _PACKAGE_LINE: Final[str] = " + "
@@ -76,15 +76,23 @@ def steps(source: str, with_claude: bool) -> list[Step]:
     return found
 
 
-def _install_source(source: str) -> str:
-    """`source` as uv receives it: the repository address, or an absolute local checkout."""
-    return source if source.startswith("git+") else str(Path(source).resolve())
+def _install_source(source: str, workdir: Path) -> str:
+    """`source` as uv receives it: a PyPI name or address as given; a local checkout built into a
+    wheel first, so the install reads as one from PyPI (no build step, no local path)."""
+    if not Path(source).exists():
+        return source
+    subprocess.run(
+        ["uv", "build", "--wheel", "--out-dir", str(workdir), str(Path(source).resolve())],
+        check=True,
+        capture_output=True,
+    )
+    return str(next(workdir.glob("*.whl")))
 
 
 def _readable(output: str, home: Path, source: str) -> str:
-    """The output a reader sees: the temporary home as `~`, a local checkout as the documented
-    address, and the long list of installed packages as one line."""
-    shown: str = output.replace(f"file://{source}", _REPOSITORY) if source != _REPOSITORY else output
+    """The output a reader sees: the temporary home as `~`, no local wheel path, and the long
+    list of installed packages as one line."""
+    shown: str = output.replace(f" (from file://{source})", "")
     lines: list[str] = shown.replace(str(home), "~").splitlines()
     packages: list[int] = [index for index, line in enumerate(lines) if line.startswith(_PACKAGE_LINE)]
     if not packages:
@@ -141,8 +149,8 @@ def run(source: str = _REPOSITORY, out: str = "docs/assets/screens") -> str:
 
     Without Claude Code on this machine, its two steps are skipped and their SVGs left as they are.
     """
-    installed: str = _install_source(source)
     with tempfile.TemporaryDirectory(prefix="clean-home-") as directory:
+        installed: str = _install_source(source, Path(directory) / "wheel")
         home: Path = Path(directory) / "home"
         home.mkdir()
         tools: Path = Path(directory) / "tools"

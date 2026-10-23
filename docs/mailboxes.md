@@ -12,7 +12,7 @@ send before it saves anything, so a typo never leaves a half-working mailbox beh
 1. Install the `email-tool-mcp` command once:
 
     ```bash
-    uv tool install git+https://github.com/skhan61/email-tool
+    uv tool install email-tool-mcp
     ```
 
     It ends with **Installed 1 executable: email-tool-mcp**:

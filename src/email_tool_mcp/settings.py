@@ -33,7 +33,7 @@ ENV_SMTP_PORT: Final[str] = "EMAIL_TOOL_SMTP_PORT"
 ENV_PASSWORD: Final[str] = "EMAIL_TOOL_PASSWORD"
 
 # Where a missing-password or no-mailbox message sends the user.
-SETUP_COMMAND: Final[str] = "uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp add"
+SETUP_COMMAND: Final[str] = "uvx email-tool-mcp add"
 
 OPTIONAL_DEFAULTS: Final[dict[str, str]] = {
     "auth": "password",
