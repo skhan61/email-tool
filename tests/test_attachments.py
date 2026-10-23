@@ -143,6 +143,12 @@ def test_a_file_in_the_ssh_folder_is_sensitive_and_a_report_is_not(private_key: 
     assert flagged == ["id_ed25519"]
 
 
+def use_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> None:
+    """Point `~` and Path.home() at `home`: POSIX reads HOME, Windows reads USERPROFILE."""
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+
+
 @pytest.mark.anyio
 async def test_an_ordinary_attachment_sends_without_a_question(
     book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer, report: Path
@@ -406,7 +412,7 @@ async def test_saving_where_a_file_can_run_asks_first(
     name: str,
 ) -> None:
     store_password("work", "pw")
-    monkeypatch.setenv("HOME", str(tmp_path))
+    use_home(monkeypatch, tmp_path)
     uid: int = mail_server.add("INBOX", message_with(name, b"payload").as_bytes())
     arguments: dict[str, Any] = {"mailbox": "work", "uid": uid, "index": 1, "directory": directory}
     declining: Person = Person("decline", False)
@@ -424,7 +430,7 @@ async def test_a_relative_folder_means_the_users_home(
     book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store_password("work", "pw")
-    monkeypatch.setenv("HOME", str(tmp_path))
+    use_home(monkeypatch, tmp_path)
     uid: int = mail_server.add("INBOX", message_with("notes.txt", b"hello").as_bytes())
     result: CallToolResult = await call(
         book, audit, "save_attachment", {"mailbox": "work", "uid": uid, "index": 1, "directory": "Downloads"}

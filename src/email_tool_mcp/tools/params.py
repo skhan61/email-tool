@@ -22,6 +22,14 @@ To = Annotated[str, Field(description="Comma-separated recipient addresses.")]
 Cc = Annotated[str, Field(description="Comma-separated Cc addresses.")]
 Subject = Annotated[str, Field(description="Subject line.")]
 Body = Annotated[str, Field(description="Plain text body; the fallback when `html` is also given.")]
+InReplyToUid = Annotated[
+    int,
+    Field(
+        description="UID of the message this one answers, so it joins that conversation. 0 when it is not a reply.",
+        ge=0,
+    ),
+]
+InReplyToFolder = Annotated[str, Field(description="Folder holding the message named by in_reply_to_uid.")]
 Html = Annotated[str, Field(description="Optional HTML body for links and formatting, sent alongside `body`.")]
 Attachments = Annotated[
     list[str] | None,

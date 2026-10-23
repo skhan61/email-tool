@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import socket
-from email.message import EmailMessage
+from email import message_from_bytes
+from email.message import EmailMessage, Message
 
 import pytest
 
-from email_tool_mcp.message_compose import compose, envelope_recipients
+from email_tool_mcp.message_compose import compose, envelope_recipients, keep_thread, thread_headers
+
+
+def parent_with(headers: str) -> Message:
+    return message_from_bytes(f"{headers}Subject: Hello\r\n\r\nbody\r\n".encode())
 
 
 def test_plain_body_stays_text_plain() -> None:
@@ -41,3 +46,72 @@ def test_message_id_uses_the_sender_domain_and_never_looks_up_this_machine(monke
     monkeypatch.setattr(socket, "getfqdn", no_lookup)
     message: EmailMessage = compose("me@example.com", "a@example.com", "Hi", "hello", "", "")
     assert str(message["Message-ID"]).endswith("@example.com>")
+
+
+def test_a_reply_names_its_parent_and_the_parents_thread() -> None:
+    parent: Message = parent_with("Message-ID: <c@x.com>\r\nReferences: <a@x.com> <b@x.com>\r\n")
+    reply: EmailMessage = compose("me@example.com", "a@x.com", "Re: Hello", "ok", "", "", parent=parent)
+    assert reply["In-Reply-To"] == "<c@x.com>"
+    assert reply["References"] == "<a@x.com> <b@x.com> <c@x.com>"
+
+
+def test_a_parent_without_references_falls_back_to_its_in_reply_to() -> None:
+    assert thread_headers(parent_with("Message-ID: <c@x.com>\r\nIn-Reply-To: <b@x.com>\r\n")) == (
+        "<c@x.com>",
+        "<b@x.com> <c@x.com>",
+    )
+
+
+def test_a_first_reply_references_only_the_parent() -> None:
+    assert thread_headers(parent_with("Message-ID: <c@x.com>\r\n")) == ("<c@x.com>", "<c@x.com>")
+
+
+def test_a_parent_without_a_message_id_cannot_be_answered() -> None:
+    with pytest.raises(ValueError, match="no Message-ID"):
+        thread_headers(parent_with("From: a@x.com\r\n"))
+
+
+def test_a_long_thread_keeps_its_first_and_newest_ids() -> None:
+    chain: str = " ".join(f"<{n}@x.com>" for n in range(50))
+    references: str = thread_headers(parent_with(f"Message-ID: <last@x.com>\r\nReferences: {chain}\r\n"))[1]
+    ids: list[str] = references.split()
+    assert len(ids) == 20
+    assert ids[0] == "<0@x.com>" and ids[-2:] == ["<49@x.com>", "<last@x.com>"]
+
+
+def test_an_id_already_in_the_chain_is_not_repeated() -> None:
+    parent: Message = parent_with("Message-ID: <c@x.com>\r\nReferences: <a@x.com> <c@x.com> <a@x.com>\r\n")
+    assert thread_headers(parent)[1] == "<a@x.com> <c@x.com>"
+
+
+def test_in_reply_to_with_several_parents_is_not_taken_as_a_chain() -> None:
+    parent: Message = parent_with("Message-ID: <c@x.com>\r\nIn-Reply-To: <p1@x.com> <p2@x.com>\r\n")
+    assert thread_headers(parent)[1] == "<c@x.com>"
+
+
+@pytest.mark.parametrize(
+    "references",
+    ["(see <evil@x.com>) <a@x.com>", "<a@x.com> (a (nested <evil@x.com>) one)", "<a@x.com> (open <evil@x.com>"],
+)
+def test_an_id_inside_a_comment_is_never_copied(references: str) -> None:
+    parent: Message = parent_with(f"Message-ID: <c@x.com>\r\nReferences: {references}\r\n")
+    assert thread_headers(parent)[1] == "<a@x.com> <c@x.com>"
+
+
+def test_a_replacement_draft_keeps_the_thread_of_the_one_it_replaces() -> None:
+    previous: Message = parent_with("In-Reply-To: <c@x.com>\r\nReferences: <a@x.com> <c@x.com>\r\n")
+    replacement: EmailMessage = compose("me@example.com", "a@x.com", "Re", "fixed typo", "", "")
+    keep_thread(replacement, previous)
+    assert replacement["In-Reply-To"] == "<c@x.com>"
+    assert replacement["References"] == "<a@x.com> <c@x.com>"
+
+
+def test_only_well_formed_ids_are_copied_from_the_parent() -> None:
+    parent: Message = parent_with(
+        "Message-ID: junk <c@x.com>\r\n\tBcc: victim@x.com\r\nReferences: (comment) <a@x.com> Bcc: b@x.com\r\n"
+    )
+    reply: EmailMessage = compose("me@example.com", "a@x.com", "Re", "ok", "", "", parent=parent)
+    assert reply["In-Reply-To"] == "<c@x.com>"
+    assert reply["References"] == "<a@x.com> <c@x.com>"
+    assert reply["Bcc"] is None
+    assert b"victim" not in reply.as_bytes()

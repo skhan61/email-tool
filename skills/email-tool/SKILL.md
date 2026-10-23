@@ -44,7 +44,9 @@ only when search returns nothing.
 
 ### Reply or compose
 1. For a reply, `get_email` the original to quote context and reuse the
-   subject (prefix `Re:`) and recipient.
+   subject (prefix `Re:`) and recipient. Pass its UID as `in_reply_to_uid`
+   (and its folder as `in_reply_to_folder` when not INBOX) to `create_draft`,
+   `update_draft` or `send_email`, so the reply joins that conversation.
 2. **Draft first.** Create the draft or show the user the full proposed
    message (To / Subject / Body) and wait for explicit approval.
 3. Only call `send_email` after the user confirms. Sending is irreversible

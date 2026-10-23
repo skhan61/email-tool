@@ -6,13 +6,13 @@ Placement: tools/drafts.py, one module per tool group.
 
 from __future__ import annotations
 
-from email.message import EmailMessage
+from email.message import EmailMessage, Message
 from typing import Final
 
 from email_tool_mcp.attachments import Attachment, load, sensitive
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.message_compose import compose
-from email_tool_mcp.message_render import MessageSummary, parse_message
+from email_tool_mcp.message_compose import compose, keep_thread
+from email_tool_mcp.message_render import MessageSummary, parse_message, read_headers
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import (
     Attachments,
@@ -20,6 +20,8 @@ from email_tool_mcp.tools.params import (
     Cc,
     DraftsFolder,
     Html,
+    InReplyToFolder,
+    InReplyToUid,
     Limit,
     MailboxName,
     Subject,
@@ -56,13 +58,23 @@ class DraftTools:
         cc: Cc = "",
         html: Html = "",
         attachments: Attachments = None,
+        in_reply_to_uid: InReplyToUid = 0,
+        in_reply_to_folder: InReplyToFolder = "INBOX",
     ) -> str:
-        """Save a new draft into the drafts folder, with any attachments. Does not send it."""
+        """Save a new draft into the drafts folder, with any attachments. Does not send it.
+
+        For a reply, `in_reply_to_uid` names the message answered, so the draft joins its conversation.
+        """
         sender: Mailbox = self._book.resolve(mailbox)
         files: list[Attachment] = load(attachments or [])
-        message: EmailMessage = compose(sender.address, to, subject, body, cc, html, files)
-        self._book.approve(sender, message)
         with self._book.imap(sender) as session:
+            parent: Message | None = (
+                read_headers(session, in_reply_to_folder, in_reply_to_uid) if in_reply_to_uid else None
+            )
+            message: EmailMessage = compose(
+                sender.address, to, subject, body, cc, html, attachments=files, parent=parent
+            )
+            self._book.approve(sender, message)
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
         return f"Draft saved to {folder!r} for {to}.{attachment_note(attachments or [], files)}"
 
@@ -94,19 +106,29 @@ class DraftTools:
         cc: Cc = "",
         html: Html = "",
         attachments: Attachments = None,
+        in_reply_to_uid: InReplyToUid = 0,
+        in_reply_to_folder: InReplyToFolder = "INBOX",
     ) -> str:
         """Replace an existing draft with new content and attachments, keyed by UID.
 
         IMAP has no in-place edit: the replacement is stored first, then the original deleted.
+        A reply draft stays in its conversation; `in_reply_to_uid` moves it to another one.
         """
         sender: Mailbox = self._book.resolve(mailbox)
         files: list[Attachment] = load(attachments or [])
-        message: EmailMessage = compose(sender.address, to, subject, body, cc, html, files)
-        self._book.approve(sender, message)
         with self._book.imap(sender) as session:
+            parent: Message | None = (
+                read_headers(session, in_reply_to_folder, in_reply_to_uid) if in_reply_to_uid else None
+            )
             session.select(folder, readonly=False)
-            if not session.exists(uid):
+            previous: dict[int, bytes] = session.fetch_headers([uid])
+            if uid not in previous:
                 raise LookupError(f"no draft with uid {uid} in folder {folder!r}; nothing was changed")
+            message: EmailMessage = compose(
+                sender.address, to, subject, body, cc, html, attachments=files, parent=parent
+            )
+            keep_thread(message, parse_message(previous[uid]))
+            self._book.approve(sender, message)
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
             expunged: bool = session.mark_deleted(uid)
         replaced: str = f"Draft uid {uid} in {folder!r} replaced.{attachment_note(attachments or [], files)}"

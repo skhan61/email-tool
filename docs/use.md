@@ -34,6 +34,9 @@ In Claude Code, the plugin also adds three commands: `/inbox`, `/email-search` a
 | `send_email` | Sends a message, with any attachments |
 | `delete_email` | Deletes a message permanently |
 
+A reply the assistant drafts or sends joins the conversation it answers, in Gmail, Outlook
+and any other mail program.
+
 ## Approve before sending
 
 When your organization turns on approval, your app asks you before email-tool sends,

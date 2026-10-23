@@ -49,6 +49,7 @@ from email_tool_mcp.message_render import (
     decode_header_value,
     every_text,
     parse_message,
+    read_headers,
     summarize,
 )
 from email_tool_mcp.policy import PolicyRefusal
@@ -68,6 +69,8 @@ _QUESTION_ARGUMENTS: Final[tuple[str, ...]] = (
     "index",
     "directory",
     "confirm_sensitive",
+    "in_reply_to_uid",
+    "in_reply_to_folder",
 )
 # How long a confirmation code from a refusal stays valid.
 CODE_SECONDS: Final[float] = 600.0
@@ -96,11 +99,7 @@ def can_ask(capabilities: ClientCapabilities | None) -> bool:
 def target_summary(book: MailboxBook, mailbox: Mailbox, folder: str, uid: int) -> MessageSummary:
     """The headers of the message a delete or replacement would remove; LookupError if absent."""
     with book.imap(mailbox) as session:
-        session.select(folder, readonly=True)
-        headers: dict[int, bytes] = session.fetch_headers([uid])
-    if uid not in headers:
-        raise LookupError(f"no message with uid {uid} in folder {folder!r}")
-    return summarize(uid, parse_message(headers[uid]))
+        return summarize(uid, read_headers(session, folder, uid))
 
 
 def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[str, Any]) -> str:
@@ -120,6 +119,11 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
     if "to" in arguments:
         paths: list[str] = attachment_paths(arguments)
         files: list[Attachment] = load(paths)
+        parent_uid: int = int(arguments.get("in_reply_to_uid", 0))
+        parent: Message | None = None
+        if parent_uid:
+            with book.imap(mailbox) as session:
+                parent = read_headers(session, str(arguments.get("in_reply_to_folder", "INBOX")), parent_uid)
         message: EmailMessage = compose(
             mailbox.address,
             str(arguments.get("to", "")),
@@ -127,9 +131,12 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
             str(arguments.get("body", "")),
             str(arguments.get("cc", "")),
             str(arguments.get("html", "")),
-            files,
+            attachments=files,
+            parent=parent,
         )
         recipients: list[str] = book.approve(mailbox, message)
+        if parent is not None:
+            lines += ["In reply to:", summarize(parent_uid, parent).render()]
         lines += [f"Delivered to: {', '.join(recipients)}", f"Subject: {message.get('Subject', '')}"]
         if files:
             lines.append("Attachments: " + ", ".join(attachment.label() for attachment in files))

@@ -16,6 +16,10 @@
 - Microsoft sign-in without a browser: the terminal prints the sign-in address and takes back
   the address the browser ends on, and `--paste-address` works for Microsoft as for Google.
 - A pull request that changes the release workflow runs it as a dry run.
+- Replies join their conversation: `create_draft`, `update_draft` and `send_email` take
+  `in_reply_to_uid` (and `in_reply_to_folder`, default `INBOX`) and set `In-Reply-To` and
+  `References` from that message. Only well-formed message IDs are copied from it, and the
+  approval question shows the message being answered.
 
 ### Changed
 - New runtime dependency: pypdf 6.19.0, to read PDF attachments for the CUI check.
