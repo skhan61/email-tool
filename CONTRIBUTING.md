@@ -50,17 +50,6 @@ EMAIL_TOOL_LIVE=1 uv run pytest tests/live -q
 EMAIL_TOOL_LIVE=1 EMAIL_TOOL_LIVE_FROM=work EMAIL_TOOL_LIVE_TO=home uv run pytest tests/live -q
 ```
 
-Weekly on Linux, with a systemd user timer (`tools/live-timer/`): set `WorkingDirectory` in
-`email-tool-live.service` to your checkout, then
-
-```bash
-mkdir -p ~/.config/systemd/user ~/.local/state/email-tool
-cp tools/live-timer/* ~/.config/systemd/user/
-systemctl --user daemon-reload && systemctl --user enable --now email-tool-live.timer
-```
-
-A failed run shows a desktop notification; the log is `~/.local/state/email-tool/live.log`.
-
 ## Releasing
 
 A pull request that changes `.github/workflows/release.yml` runs it as a dry run (build and

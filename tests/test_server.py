@@ -202,6 +202,7 @@ async def test_a_gmail_search_runs_on_gmail_and_is_ignored_elsewhere(
     result: CallToolResult = await call(book, audit, "search_emails", arguments)
     assert not result.is_error
     assert ("gmail_query was ignored" in text_of(result)) is ignored
+    assert mail_server.gmail_queries == ([] if ignored else ["from:jane has:attachment"])
     assert "Invoice" in text_of(result)
 
 

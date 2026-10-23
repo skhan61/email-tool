@@ -4,14 +4,16 @@ Standard: pytest's `live` marker, skipped unless EMAIL_TOOL_LIVE=1; the real ser
 (`build_server` over this computer's settings, keyring and sign-ins) driven through the MCP
 SDK's in-process client, which answers approval prompts as the user would.
 Placement: tests/live/test_live_mail.py, in pytest's tests/ layout, kept in its own folder as
-Google's client libraries keep their system tests; run on the maintainer's computer only, so
-no real password reaches CI.
+Google's client libraries keep their system tests; run on the maintainer's computer before each
+release, never in CI, so no real password leaves that computer.
 
 Run:  EMAIL_TOOL_LIVE=1 uv run pytest tests/live -q
 Mailboxes: EMAIL_TOOL_LIVE_FROM (default `gmail`) sends to EMAIL_TOOL_LIVE_TO (default `outlook`).
-Every message carries a unique code in its subject, and cleanup deletes only those. Junk
-filters may file the messages as junk or spam: the test looks there too and warns when it
-does, since that is the mail provider's choice, not a fault in email-tool.
+Every message carries a unique code in its subject, and cleanup deletes only those (on Gmail
+also from All Mail and Trash, since deleting from a label only archives). Junk filters may
+file the messages as junk or spam: the test looks there too and warns when it does, since that
+is the mail provider's choice, not a fault in email-tool. The tests ignore this computer's
+admin policy, so a `require_approval` there does not refuse their sends and deletes.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import re
 import secrets
 import time
 import warnings
+from collections.abc import Callable
 from email.message import Message
 from pathlib import Path
 from typing import Any, Final
@@ -40,12 +43,16 @@ from email_tool_mcp.providers import open_book, token_sources
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import Mailbox, settings_path
 
-LIVE: Final[bool] = os.environ.get("EMAIL_TOOL_LIVE") == "1"
+LIVE: Final[bool] = os.environ.get("EMAIL_TOOL_LIVE") == "1" and not os.environ.get("CI")
 SENDER: Final[str] = os.environ.get("EMAIL_TOOL_LIVE_FROM", "gmail")
 RECEIVER: Final[str] = os.environ.get("EMAIL_TOOL_LIVE_TO", "outlook")
 ARRIVAL_SECONDS: Final[float] = 240.0
+INDEX_SECONDS: Final[float] = 60.0
 _UID: Final[re.Pattern[str]] = re.compile(r"\[uid (\d+)\]")
 _JUNK: Final[tuple[str, ...]] = ("Junk", "Junk Email", "[Gmail]/Spam", "Spam")
+_SENT: Final[tuple[str, ...]] = ("[Gmail]/Sent Mail", "Sent", "Sent Items")
+# Last, in this order: a message deleted from All Mail moves to Trash.
+_GMAIL_LAST: Final[tuple[str, ...]] = ("[Gmail]/All Mail", "[Gmail]/Trash")
 BODY: Final[str] = (
     "Hello,\n\nThis is the weekly check that email-tool can send, receive and reply. It removes "
     "itself when the check finishes.\n\nBest regards,\nemail-tool\n"
@@ -57,7 +64,7 @@ pytestmark: list[pytest.MarkDecorator] = [
     pytest.mark.live,
     pytest.mark.anyio,
     pytest.mark.timeout(900),
-    pytest.mark.skipif(not LIVE, reason="live test: set EMAIL_TOOL_LIVE=1 on the maintainer's computer"),
+    pytest.mark.skipif(not LIVE, reason="live test: set EMAIL_TOOL_LIVE=1 on the maintainer's computer, never in CI"),
 ]
 
 
@@ -87,6 +94,18 @@ def folder_named(listing: str, *wanted: str) -> str:
 async def uids_with(client: Client, mailbox: str, folder: str, code: str) -> list[int]:
     said: str = await call(client, "search_emails", {"mailbox": mailbox, "folder": folder, "subject": code})
     return [int(uid) for uid in _UID.findall(said)]
+
+
+async def settled(
+    client: Client, mailbox: str, folder: str, code: str, ready: Callable[[list[int]], bool]
+) -> list[int]:
+    """The UIDs whose subject holds `code`, once `ready` accepts them: a server's search index can lag."""
+    deadline: float = time.monotonic() + INDEX_SECONDS
+    found: list[int] = await uids_with(client, mailbox, folder, code)
+    while not ready(found) and time.monotonic() < deadline:
+        await anyio.sleep(2)
+        found = await uids_with(client, mailbox, folder, code)
+    return found
 
 
 async def junk_folder(client: Client, mailbox: str) -> str:
@@ -120,22 +139,31 @@ async def arrival(client: Client, mailbox: str, code: str) -> tuple[str, int]:
 
 
 async def clean_up(client: Client, code: str) -> None:
-    """Delete every message whose subject holds `code`, in both mailboxes' inbox, sent and drafts."""
+    """Delete every message whose subject holds `code`, in both mailboxes.
+
+    Inbox, sent, drafts and junk, then on Gmail All Mail and Trash. A failure is a warning and
+    the rest still runs, so it neither hides the test's own failure nor leaves the other mailbox.
+    """
     mailbox: str
     for mailbox in (SENDER, RECEIVER):
-        listing: str = await call(client, "list_folders", {"mailbox": mailbox})
+        try:
+            names: set[str] = set((await call(client, "list_folders", {"mailbox": mailbox})).splitlines())
+        except AssertionError as failure:
+            warnings.warn(f"cleanup could not list {mailbox}'s folders: {failure}", stacklevel=2)
+            continue
         folders: list[str] = ["INBOX"]
         candidates: tuple[str, ...]
-        for candidates in (("[Gmail]/Sent Mail", "Sent", "Sent Items"), ("[Gmail]/Drafts", "Drafts"), _JUNK):
-            try:
-                folders.append(folder_named(listing, *candidates))
-            except AssertionError:
-                pass
+        for candidates in (_SENT, ("[Gmail]/Drafts", "Drafts"), _JUNK):
+            folders.extend(name for name in candidates if name in names)
+        folders.extend(name for name in _GMAIL_LAST if name in names)
         folder: str
         for folder in folders:
-            uid: int
-            for uid in await uids_with(client, mailbox, folder, code):
-                await call(client, "delete_email", {"mailbox": mailbox, "folder": folder, "uid": uid})
+            try:
+                uid: int
+                for uid in await uids_with(client, mailbox, folder, code):
+                    await call(client, "delete_email", {"mailbox": mailbox, "folder": folder, "uid": uid})
+            except AssertionError as failure:
+                warnings.warn(f"cleanup left messages in {mailbox} {folder}: {failure}", stacklevel=2)
 
 
 def address_of(book: MailboxBook, name: str) -> str:
@@ -145,7 +173,7 @@ def address_of(book: MailboxBook, name: str) -> str:
 
 
 async def test_a_real_round_trip_send_receive_attachment_reply_and_drafts(tmp_path: Path) -> None:
-    book: MailboxBook = open_book(os.environ, with_policy=True)
+    book: MailboxBook = open_book(os.environ, with_policy=False)
     code: str = f"email-tool live test {secrets.token_hex(4)}"
     payload: bytes = f"email-tool weekly check\nReference: {code}\nEverything below is a test.\n".encode()
     attachment: Path = tmp_path / "live-report.txt"
@@ -210,7 +238,9 @@ async def test_a_real_round_trip_send_receive_attachment_reply_and_drafts(tmp_pa
                 "create_draft",
                 {"mailbox": SENDER, "folder": drafts, "to": address_of(book, RECEIVER), "subject": draft_code},
             )
-            draft: int = max(await uids_with(client, SENDER, drafts, draft_code))
+            created: list[int] = await settled(client, SENDER, drafts, draft_code, lambda found: len(found) == 1)
+            assert len(created) == 1, created
+            draft: int = created[0]
             await call(
                 client,
                 "update_draft",
@@ -223,7 +253,9 @@ async def test_a_real_round_trip_send_receive_attachment_reply_and_drafts(tmp_pa
                     "body": "Replaced.",
                 },
             )
-            remaining: list[int] = await uids_with(client, SENDER, drafts, draft_code)
+            remaining: list[int] = await settled(
+                client, SENDER, drafts, draft_code, lambda found: len(found) == 1 and found[0] != draft
+            )
             assert len(remaining) == 1 and remaining[0] != draft, remaining
         finally:
             await clean_up(client, code)
@@ -246,7 +278,7 @@ async def test_approval_and_the_sensitive_file_warning_on_real_mail(tmp_path: Pa
     approving: MailboxBook = MailboxBook(
         settings_path(), os.environ, policy=Policy([policy_file]), token_sources=token_sources()
     )
-    plain: MailboxBook = open_book(os.environ, with_policy=True)
+    plain: MailboxBook = open_book(os.environ, with_policy=False)
     audit: AuditLog = AuditLog(tmp_path / "audit.jsonl")
     code: str = f"email-tool live test {secrets.token_hex(4)}"
     key: Path = tmp_path / "id_ed25519"
@@ -274,7 +306,17 @@ async def test_approval_and_the_sensitive_file_warning_on_real_mail(tmp_path: Pa
             assert not (await app.call_tool("send_email", message)).is_error
         async with Client(build_server(plain, audit)) as client:
             await arrival(client, RECEIVER, code)
-            assert not await uids_with(client, RECEIVER, "INBOX", f"{code} key"), "a declined file was sent"
+            # The sender's Sent copy settles first; the receiver's inbox and junk catch the rest.
+            sent: str = folder_named(await call(client, "list_folders", {"mailbox": SENDER}), *_SENT)
+            await settled(client, SENDER, sent, code, lambda found: bool(found))
+            where: list[tuple[str, str]] = [(SENDER, sent), (RECEIVER, "INBOX")]
+            junk: str = await junk_folder(client, RECEIVER)
+            if junk:
+                where.append((RECEIVER, junk))
+            box: str
+            folder: str
+            for box, folder in where:
+                assert not await uids_with(client, box, folder, f"{code} key"), f"a declined file was sent ({folder})"
     finally:
         async with Client(build_server(plain, audit)) as client:
             await clean_up(client, code)
