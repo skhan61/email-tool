@@ -177,7 +177,7 @@ def test_a_cancelled_sign_in_saves_nothing(page: SetupPage, tmp_path: Path) -> N
     ("form", "said"),
     [
         ({"kind": "fax", "name": "w", "address": "a@b.c"}, "Choose what kind"),
-        ({"kind": "gmail", "name": "../etc", "address": "a@gmail.com"}, "short name"),
+        ({"kind": "gmail", "name": "../etc", "address": "a@gmail.com"}, "only letters, numbers"),
         ({"kind": "gmail", "name": "w", "address": "no-at-sign"}, "full email address"),
         ({"kind": "google", "name": "w", "address": "a@school.edu"}, "client file"),
     ],
@@ -228,3 +228,18 @@ async def test_an_app_that_opens_pages_gets_the_page_and_the_token_never_reaches
         assert "Mailbox 'personal' (me@gmail.com) added" in reported
         with pytest.raises(UrlElicitationRequiredError):
             await client.call_tool("add_mailbox", {})
+
+
+def test_without_a_name_one_is_taken_from_the_address_and_a_used_name_is_refused(
+    page: SetupPage, tmp_path: Path
+) -> None:
+    page.start()
+    unnamed: dict[str, str] = {key: value for key, value in GMAIL.items() if key != "name"}
+    assert request(page, "POST", add_path(page), unnamed).status == 200
+    assert set(load_mailboxes(tmp_path / "mailboxes.toml")) == {"gmail"}
+    page.start()
+    again: http.client.HTTPResponse = request(page, "POST", add_path(page), {**unnamed, "name": "gmail"})
+    assert again.status == 400
+    assert "You already have a mailbox called gmail" in again.read().decode()
+    assert request(page, "POST", add_path(page), unnamed).status == 200
+    assert set(load_mailboxes(tmp_path / "mailboxes.toml")) == {"gmail", "gmail2"}

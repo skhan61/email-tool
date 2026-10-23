@@ -1,7 +1,19 @@
 # Install
 
-Installing takes two parts: the **uv** tool, which runs email-tool, and the connection to
-your AI app. Then [add your mailboxes](mailboxes.md).
+!!! tip "Claude Desktop or Cowork?"
+    You need none of this page. [Start here](start.md): download one file, open it, and ask
+    Claude to "add my mailbox".
+
+For other apps, installing takes two parts: the **uv** tool, which runs email-tool, and the
+connection to your AI app. Then ask your assistant to "add my mailbox".
+
+**ChatGPT desktop, no typing:** download
+[Install-email-tool.cmd](https://github.com/skhan61/email-tool/releases/latest/download/Install-email-tool.cmd)
+(Windows) and open it, or
+[Install-email-tool-macOS.zip](https://github.com/skhan61/email-tool/releases/latest/download/Install-email-tool-macOS.zip)
+(macOS), open the zip, then right-click **Install-email-tool.command** and select **Open**
+(macOS asks once because the file comes from the internet). It installs uv and tells you the
+next steps in ChatGPT. Otherwise, follow Step 1 below.
 
 ## Step 1: Install uv
 

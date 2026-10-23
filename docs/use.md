@@ -32,6 +32,7 @@ In Claude Code, the plugin also adds three commands: `/inbox`, `/email-search` a
 | `save_attachment` | Saves one attachment into a folder you name |
 | `create_draft`, `list_drafts`, `get_draft`, `update_draft` | Works with drafts |
 | `send_email` | Sends a message, with any attachments |
+| `add_mailbox` | Opens a page in your browser to add a mailbox |
 | `delete_email` | Deletes a message permanently |
 
 A reply the assistant drafts or sends joins the conversation it answers, in Gmail, Outlook

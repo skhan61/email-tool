@@ -53,7 +53,7 @@ from email_tool_mcp.enrol import (
 )
 from email_tool_mcp.google import GoogleTokens
 from email_tool_mcp.microsoft import MicrosoftTokens
-from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT
+from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, load_mailboxes
 
 LIFETIME_SECONDS: Final[float] = 600.0
 # How long the page waits for Microsoft or Google to hand over their sign-in address.
@@ -189,9 +189,12 @@ class SetupPage:
             return refused
         form: FormData = await request.form()
         kind: str = str(form.get("kind", ""))
-        name: str = str(form.get("name", "")).strip()
         address: str = str(form.get("address", "")).strip()
-        problem: str = _invalid(kind, name, address)
+        taken: set[str] = set(load_mailboxes(self._settings_file)) if self._settings_file.exists() else set()
+        name: str = str(form.get("name", "")).strip() or _free_name(address, taken)
+        problem: str = _invalid(kind, name, address) or (
+            f"You already have a mailbox called {name}. Choose another name." if name in taken else ""
+        )
         if problem:
             return HTMLResponse(_page("Add a mailbox", _form(self._token, problem)), status_code=400)
         if kind in ("gmail", "password"):
@@ -354,12 +357,23 @@ def _loopback_sockets() -> list[socket.socket]:
     return sockets
 
 
+def _free_name(address: str, taken: set[str]) -> str:
+    """A name from the address's provider (gmail, outlook, example), numbered when already used."""
+    provider: str = re.sub(r"[^A-Za-z0-9_-]", "", address.rpartition("@")[2].split(".")[0])[:30] or "mail"
+    name: str = provider
+    number: int = 2
+    while name in taken:
+        name = f"{provider}{number}"
+        number += 1
+    return name
+
+
 def _invalid(kind: str, name: str, address: str) -> str:
     """Why the form cannot be used as sent; "" when it can."""
     if kind not in _KINDS:
         return "Choose what kind of mailbox it is."
     if not _NAME.match(name):
-        return "Give the mailbox a short name: letters, numbers, - or _, such as work or personal."
+        return "A name may use only letters, numbers, - or _, such as work or personal."
     if "@" not in address or address.startswith("@") or address.endswith("@"):
         return "Type the full email address, such as you@example.com."
     return ""
@@ -392,15 +406,14 @@ def _form(token: str, problem: str) -> str:
       Any other mailbox (your own domain or a hosting company)</label>
   </fieldset>
   <label>Email address <input name="address" type="email" autocomplete="email" required></label>
-  <label>A short name for it
-    <input name="name" value="work" pattern="[A-Za-z0-9][A-Za-z0-9_-]{{0,39}}" required></label>
+  <label>Password (Gmail and any other mailbox; Outlook and Google Workspace do not need one)
+    <input name="password" type="password" autocomplete="off"></label>
+  <p class="hint">For Gmail, use an
+  <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App Password</a>,
+  not your Google password. The password is kept on this computer only, never sent to the assistant.</p>
   <details>
-    <summary>Gmail or any other mailbox: password</summary>
-    <p>Gmail needs an
-    <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App Password</a>,
-    not your Google password. It goes only into this computer's keyring.</p>
-    <label>Password <input name="password" type="password" autocomplete="off"></label>
-    <p>Any other mailbox: your provider's server names, for example mail.example.com.</p>
+    <summary>Any other mailbox: server names</summary>
+    <p>From your provider's help pages, for example mail.example.com.</p>
     <label>IMAP server <input name="imap_host"></label>
     <label>SMTP server <input name="smtp_host"></label>
   </details>
@@ -410,6 +423,11 @@ def _form(token: str, problem: str) -> str:
     (<a href="https://skhan61.github.io/email-tool/mailboxes/#google-workspace"
     target="_blank" rel="noopener">steps</a>).</p>
     <label>Client file <input name="client_file" type="file" accept=".json,application/json"></label>
+  </details>
+  <details>
+    <summary>Name this mailbox (optional)</summary>
+    <label>Name, such as work or personal
+    <input name="name" pattern="[A-Za-z0-9][A-Za-z0-9_-]{{0,39}}"></label>
   </details>
   <p>Outlook, Microsoft 365 and Google Workspace open their own sign-in page next.</p>
   <button type="submit">Add mailbox</button>
@@ -428,6 +446,7 @@ input[type=email], input[name=name], input[type=password], input[name$=_host] {{
   display: block; width: 100%; padding: .4rem; }}
 fieldset {{ border: 1px solid #ccc; padding: .5rem 1rem; }} details {{ margin: 1rem 0; }}
 button {{ font-size: 1rem; padding: .5rem 1.2rem; }} .problem {{ color: #a40000; font-weight: 600; }}
+.hint {{ margin-top: -.3rem; color: #444; font-size: .9rem; }}
 .ok {{ color: #0a6b2d; font-weight: 600; }}
 </style></head>
 <body><h1>{html.escape(title)}</h1>

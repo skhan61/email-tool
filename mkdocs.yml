@@ -36,6 +36,7 @@ extra_css:
 
 nav:
   - Home: index.md
+  - Start here: start.md
   - Install: install.md
   - Add your mailboxes: mailboxes.md
   - Everyday use: use.md

@@ -53,6 +53,13 @@ wait for your approval, and CUI-marked mail stays inside the domains you allow.
 
 ## Quick start
 
+**Claude Desktop or Cowork, no terminal:**
+[download email-tool.mcpb](https://github.com/skhan61/email-tool/releases/latest/download/email-tool.mcpb),
+open it and select **Install**, then ask Claude to "add my mailbox".
+[Start here](https://skhan61.github.io/email-tool/start/).
+
+**Claude Code and other apps:**
+
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
 2. Connect your AI app. In Claude Code:
 
@@ -62,7 +69,7 @@ wait for your approval, and CUI-marked mail stays inside the domains you allow.
     ```
 
     Other apps: [Install](https://skhan61.github.io/email-tool/install/).
-3. Add a mailbox:
+3. Ask your assistant to "add my mailbox", or from a terminal:
 
     ```bash
     uv tool install git+https://github.com/skhan61/email-tool

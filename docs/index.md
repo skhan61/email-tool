@@ -18,9 +18,13 @@ approval, and CUI-marked mail stays inside the domains you allow.
 
 ## Get started
 
+**Claude Desktop or Cowork:** [Start here](start.md). Download one file, open it, then ask
+Claude to "add my mailbox". No terminal.
+
+**Claude Code, ChatGPT desktop, Codex or another app:**
+
 1. [Install email-tool](install.md) for your AI app.
-2. [Add your mailboxes](mailboxes.md): Outlook, Microsoft 365, Gmail, Google Workspace or
-   any IMAP mailbox.
+2. Ask your assistant to "add my mailbox", or [add mailboxes from a terminal](mailboxes.md).
 3. Ask your assistant to check your mail.
 
 ## Works with
