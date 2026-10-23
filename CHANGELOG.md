@@ -9,6 +9,8 @@
   `email_problem_report`, from their own mailbox after approving the exact text (asked every
   time, whatever the policy), or by a GitHub link that opens a filled-in `user-report` issue.
   Docs: "Report a problem".
+- Each new `user-report` issue gets one automatic first-look comment from Claude (likely cause,
+  related code, related issues), read-only and at most 3 a day. SECURITY.md says what it can do.
 - Maintainer tool `python -m tools.report_bridge run`: each emailed problem report becomes one
   `user-report` GitHub issue, opened by the bot, with every address removed (#96).
 
