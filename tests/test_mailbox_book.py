@@ -6,13 +6,14 @@ Placement: tests/test_mailbox_book.py, beside the module it tests (pytest's test
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 
 from email_tool_mcp.mailbox_book import MailboxBook, UnknownMailbox
 from email_tool_mcp.passwords import MissingPassword, store_password
-from email_tool_mcp.settings import save_mailboxes
+from email_tool_mcp.settings import SETUP_COMMAND, save_mailboxes
 from tests.conftest import WORK
 from tests.fakes import FakeMailServer
 
@@ -42,12 +43,12 @@ def test_unknown_name_is_refused(book: MailboxBook) -> None:
 
 
 def test_no_mailboxes_points_at_the_add_command(tmp_path: Path) -> None:
-    with pytest.raises(UnknownMailbox, match="email-tool-mcp add"):
+    with pytest.raises(UnknownMailbox, match=re.escape(SETUP_COMMAND)):
         MailboxBook(tmp_path / "absent.toml", {}).resolve("")
 
 
 def test_missing_password_names_the_fix(book: MailboxBook) -> None:
-    with pytest.raises(MissingPassword, match="email-tool-mcp add work"):
+    with pytest.raises(MissingPassword, match=re.escape(f"{SETUP_COMMAND} work")):
         book.imap(book.resolve("work"))
 
 

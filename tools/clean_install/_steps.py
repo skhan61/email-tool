@@ -77,23 +77,30 @@ def steps(source: str, with_claude: bool) -> list[Step]:
 
 
 def _install_source(source: str, workdir: Path) -> str:
-    """`source` as uv receives it: a PyPI name or address as given; a local checkout built into a
-    wheel first, so the install reads as one from PyPI (no build step, no local path)."""
-    if not Path(source).exists():
+    """`source` as uv receives it: the PyPI name as given; a checkout (a folder with pyproject.toml)
+    built into a wheel first, so the install reads as one from PyPI (no build step, no local path)."""
+    if source == _REPOSITORY:
         return source
-    subprocess.run(
-        ["uv", "build", "--wheel", "--out-dir", str(workdir), str(Path(source).resolve())],
-        check=True,
-        capture_output=True,
+    checkout: Path = Path(source).resolve()
+    if not (checkout / "pyproject.toml").is_file():
+        raise StepFailed(f"{source} is neither {_REPOSITORY!r} nor a checkout with a pyproject.toml")
+    built: subprocess.CompletedProcess[str] = subprocess.run(
+        ["uv", "build", "--wheel", "--out-dir", str(workdir), str(checkout)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
     )
-    return str(next(workdir.glob("*.whl")))
+    wheels: list[Path] = sorted(workdir.glob("*.whl"))
+    if built.returncode != 0 or len(wheels) != 1:
+        raise StepFailed(f"building a wheel from {checkout} failed:\n{built.stdout}")
+    return str(wheels[0])
 
 
-def _readable(output: str, home: Path, source: str) -> str:
-    """The output a reader sees: the temporary home as `~`, no local wheel path, and the long
-    list of installed packages as one line."""
-    shown: str = output.replace(f" (from file://{source})", "")
-    lines: list[str] = shown.replace(str(home), "~").splitlines()
+def _readable(output: str, home: Path) -> str:
+    """The output a reader sees: the temporary folder as `~` (the home inside it, and any built
+    wheel beside it), and the long list of installed packages as one line."""
+    lines: list[str] = output.replace(str(home), "~").replace(str(home.parent), "~").splitlines()
     packages: list[int] = [index for index, line in enumerate(lines) if line.startswith(_PACKAGE_LINE)]
     if not packages:
         return "\n".join(lines)
@@ -144,7 +151,7 @@ def _link_tools(tools: Path) -> bool:
     return True
 
 
-def run(source: str = _REPOSITORY, out: str = "docs/assets/screens") -> str:
+def run(source: str = ".", out: str = "docs/assets/screens") -> str:
     """Run every step in a fresh empty home and save `<out>/<step>.svg`; stop at the first failure.
 
     Without Claude Code on this machine, its two steps are skipped and their SVGs left as they are.
@@ -162,6 +169,6 @@ def run(source: str = _REPOSITORY, out: str = "docs/assets/screens") -> str:
         step: Step
         for step in planned:
             output: str = _execute(step, home, tools)
-            save_svg(Path(out) / f"{step.name}.svg", step.title, step.shown, _readable(output, home, installed))
+            save_svg(Path(out) / f"{step.name}.svg", step.title, step.shown, _readable(output, home))
             log.info("ok: %s", step.shown)
     return f"all {len(planned)} steps passed on a clean home; SVGs in {out}"

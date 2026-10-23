@@ -13,6 +13,7 @@ from __future__ import annotations
 import tomllib
 from collections.abc import Mapping
 from dataclasses import asdict
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Final, Literal
 
@@ -33,7 +34,8 @@ ENV_SMTP_PORT: Final[str] = "EMAIL_TOOL_SMTP_PORT"
 ENV_PASSWORD: Final[str] = "EMAIL_TOOL_PASSWORD"
 
 # Where a missing-password or no-mailbox message sends the user.
-SETUP_COMMAND: Final[str] = "uvx email-tool-mcp add"
+# Pinned to this release: a bare name would run whatever version uvx cached first.
+SETUP_COMMAND: Final[str] = f"uvx email-tool-mcp@{version('email-tool-mcp')} add"
 
 OPTIONAL_DEFAULTS: Final[dict[str, str]] = {
     "auth": "password",

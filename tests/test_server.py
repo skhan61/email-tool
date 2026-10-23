@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from email import message_from_bytes
 from email.message import EmailMessage, Message
+from importlib.metadata import version
 
 import pytest
 from mcp import Client
@@ -70,8 +71,7 @@ async def test_every_tool_is_listed_with_safety_hints(book: MailboxBook, audit: 
 async def test_missing_password_reaches_the_model_with_the_fix(book: MailboxBook, audit: AuditLog) -> None:
     result: CallToolResult = await call(book, audit, "list_emails", {"mailbox": "work"})
     assert result.is_error
-    assert "email-tool-mcp add work" in text_of(result)
-    assert "uvx email-tool-mcp add work" in text_of(result)
+    assert f"uvx email-tool-mcp@{version('email-tool-mcp')} add work" in text_of(result)
 
 
 async def test_list_and_read_a_message(book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer) -> None:
