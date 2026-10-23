@@ -18,6 +18,7 @@ own description included, passes through `redact` before anyone sees it.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import platform
 import re
@@ -94,7 +95,8 @@ _SPOKEN_SECRET: Final[re.Pattern[str]] = re.compile(
 _APP_PASSWORD: Final[re.Pattern[str]] = re.compile(r"(\bpassword\W{0,3})(?:[a-z]{4} ){3}[a-z]{4}\b", re.IGNORECASE)
 _LOCAL_PART: Final[str] = r"""[^\s@<>()\[\]\\,;:"]"""
 # Tried only where a run of local-part characters starts, so a long run without `@` is read once.
-_ADDRESS: Final[re.Pattern[str]] = re.compile(rf"(?<!{_LOCAL_PART}){_LOCAL_PART}+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+# Any letters in the domain, so an internationalised one (exämple.de) is removed whole.
+_ADDRESS: Final[re.Pattern[str]] = re.compile(rf"(?<!{_LOCAL_PART}){_LOCAL_PART}+@[\w-]+(?:\.[\w-]+)+")
 # The rest of a path: up to a space or quote, less a sentence's closing punctuation (`x.pdf: no such file`).
 _PATH_REST: Final[str] = r"""[^\s"'<>|]*?(?=[.,;:)]*(?:[\s"'<>|]|$))"""
 _HOME_PATH: Final[re.Pattern[str]] = re.compile(
@@ -102,6 +104,9 @@ _HOME_PATH: Final[re.Pattern[str]] = re.compile(
 )
 _QUOTED: Final[re.Pattern[str]] = re.compile(
     r"""(?<!\w)b?"[^"\n]*"|(?<!\w)b?'[^'\n]*'(?!\w)|“[^”\n]*”|‘[^’\n]*’(?!\w)"""
+    # A quote not closed on its line (cut off, or broken by a line break) runs to the line's end.
+    r"""|(?<!\w)b?["'“‘].*$""",
+    re.MULTILINE,
 )
 _SUBJECT: Final[re.Pattern[str]] = re.compile(r"\b(subject\s*:)[^\n]*", re.IGNORECASE)
 _TOKEN_CHARACTER: Final[str] = r"[A-Za-z0-9_\-+/=.~]"
@@ -109,6 +114,8 @@ _TOKEN: Final[re.Pattern[str]] = re.compile(
     rf"(?<!{_TOKEN_CHARACTER})(?={_TOKEN_CHARACTER}*[0-9])(?={_TOKEN_CHARACTER}*[A-Za-z]){_TOKEN_CHARACTER}{{20,}}"
 )
 _IP_ADDRESS: Final[re.Pattern[str]] = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# Text that may be an IPv6 address (two colons or more); `ipaddress` decides, so a time such as 14:03:11 stays.
+_IPV6_CANDIDATE: Final[re.Pattern[str]] = re.compile(r"(?<![\w:.])[0-9A-Fa-f.]*:[0-9A-Fa-f:.]*:[0-9A-Fa-f.]*(?![\w:])")
 _HOST: Final[re.Pattern[str]] = re.compile(r"\b(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}\b")
 # Each removal can expose another (a quote after a removed name), so the rules repeat until
 # nothing changes: the text shown is then exactly the text redacted again before sending.
@@ -116,16 +123,30 @@ _MAX_PASSES: Final[int] = 10
 
 
 def home_pattern(home: Path) -> re.Pattern[str]:
-    """Any path under `home`, written with either slash."""
+    """Any path under `home`, written with either slash; never a longer name that starts the same."""
+    if len(home.parts) < 2:
+        # A home at the root of the disk (some containers): every path is under it, so the
+        # general home-folder rule and the other rules are all that apply.
+        return re.compile(r"(?!)")
     roots: list[str] = sorted({str(home), home.as_posix()}, key=len, reverse=True)
     return re.compile(
-        "(?:" + "|".join(re.escape(root) for root in roots) + r")(?:(?=[\\/])" + _PATH_REST + ")?", re.IGNORECASE
+        "(?:" + "|".join(re.escape(root) for root in roots) + r")(?![\w.-])(?:(?=[\\/])" + _PATH_REST + ")?",
+        re.IGNORECASE,
     )
 
 
 def public_or_removed(found: re.Match[str]) -> str:
     """A known provider host as it is; any other host or dotted name removed."""
     return found.group(0) if found.group(0).lower() in _PUBLIC_HOSTS else "[name]"
+
+
+def ip_or_kept(found: re.Match[str]) -> str:
+    """An IPv6 address removed; anything else that only looks like one kept."""
+    try:
+        ipaddress.ip_address(found.group(0))
+    except ValueError:
+        return found.group(0)
+    return "[IP address]"
 
 
 def redaction_pass(text: str, own_home: re.Pattern[str]) -> str:
@@ -144,6 +165,7 @@ def redaction_pass(text: str, own_home: re.Pattern[str]) -> str:
     text = _SUBJECT.sub(r"\1 [removed]", text)
     text = _TOKEN.sub("[secret]", text)
     text = _IP_ADDRESS.sub("[IP address]", text)
+    text = _IPV6_CANDIDATE.sub(ip_or_kept, text)
     return _HOST.sub(public_or_removed, text)
 
 
@@ -156,6 +178,37 @@ def redact(text: str, home: Path | None = None) -> str:
             return text
         text = cleaner
     raise ValueError(f"the report could not be cleaned in {_MAX_PASSES} passes; nothing was shown or sent")
+
+
+def setup_lines() -> list[str]:
+    """The report's lines about this computer, which email-tool writes itself and redaction keeps as they are.
+
+    A kernel or package version can look like a token (6.11.4-301.fc41.x86_64), so these
+    lines are never redacted; a line is kept only when it is exactly this computer's own.
+    """
+    return [
+        f"email-tool: {version('email-tool-mcp')}",
+        f"System: {platform.system()} {platform.release()} ({platform.machine()})",
+        f"Python: {platform.python_version()}",
+    ]
+
+
+def redact_report(report: str, home: Path | None = None) -> str:
+    """`report` redacted, except the lines `setup_lines` writes."""
+    kept: list[str] = setup_lines()
+    lines: list[str] = []
+    other: list[str] = []
+    line: str
+    for line in report.split("\n") + [kept[0]]:
+        if line in kept:
+            if other:
+                lines.extend(redact("\n".join(other), home).split("\n"))
+            lines.append(line)
+            other = []
+        else:
+            other.append(line)
+    # The last line is the sentinel added above, which flushed the rest.
+    return "\n".join(lines[:-1])
 
 
 def provider_kind(mailbox: Mailbox) -> ProviderKind:
@@ -205,7 +258,11 @@ def failure_line(record: dict[str, Any], home: Path | None) -> str:
     kind, separator, message = outcome.partition(": ")
     # The error's type in brackets: a colon after a name such as MissingPassword would read as a secret.
     described: str = f"({kind}) {message}" if separator and kind.isidentifier() else outcome
-    line: str = redact(f"{when} {record.get('tool', '')} {described}", home)
+    try:
+        line: str = redact(f"{when} {record.get('tool', '')} {described}", home)
+    except ValueError:
+        # One error message that cannot be cleaned is left out, not the whole report.
+        line = f"{when} (an error that could not be cleaned is left out)"
     return line if len(line) <= _OUTCOME_LIMIT else line[: _OUTCOME_LIMIT - 3] + "..."
 
 
@@ -235,15 +292,13 @@ def build_report(description: str, app: str, mailboxes: str, failures: list[str]
     lines: list[str] = [
         f"Problem: {description.strip() or 'no description'}",
         "",
-        f"email-tool: {version('email-tool-mcp')}",
-        f"System: {platform.system()} {platform.release()} ({platform.machine()})",
-        f"Python: {platform.python_version()}",
+        *setup_lines(),
         f"App: {app.strip() or 'unknown'}",
         f"Mailboxes: {mailboxes}",
         "Recent failed calls, newest first:" if failures else "Recent failed calls: none",
         *(f"- {failure}" for failure in failures),
     ]
-    return redact("\n".join(lines), home)
+    return redact_report("\n".join(lines), home)
 
 
 def report_title(report: str) -> str:
@@ -255,7 +310,7 @@ def report_title(report: str) -> str:
 
 def report_email(report: str, home: Path | None = None) -> dict[str, str]:
     """The `to`, `subject` and `body` of the emailed report; redacted again, so added text is cleaned too."""
-    body: str = redact(report[:REPORT_LIMIT], home)
+    body: str = redact_report(report[:REPORT_LIMIT], home)
     return {"to": REPORT_ADDRESS, "subject": f"{SUBJECT_PREFIX} {report_title(body)}", "body": body}
 
 

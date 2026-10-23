@@ -35,6 +35,7 @@ from email_tool_mcp.problem_report import (
     issue_link,
     provider_kind,
     redact,
+    report_email,
     report_title,
 )
 from email_tool_mcp.server import build_server
@@ -76,6 +77,10 @@ PRIVATE: Final[list[tuple[str, str]]] = [
     ("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9P", "eyJhbGciOiJIUzI1NiJ9"),
     ("connect to imap.mycompany.example failed", "mycompany"),
     ("refused by 10.20.30.40", "10.20.30.40"),
+    ("connect to 2001:db8:85a3::8a2e:370:7334 port 993 failed", "2001:db8"),
+    ("refused dana@exämple.de", "dana@"),
+    ("cut off inside 'Offer letter for Dana Lee", "Offer letter"),
+    ('a subject broken by a line break: "Offer letter\nfor Dana"', "Offer letter"),
 ]
 
 
@@ -109,8 +114,22 @@ def test_this_computers_home_folder_is_removed(tmp_path: Path) -> None:
 
 
 def test_ordinary_words_survive() -> None:
-    text: str = "Sending fails since Tuesday. I don't know why it's slow; the token expired? error 535."
+    text: str = "Sending fails since Tuesday. I don't know why it's slow at 14:03:11; the token expired? error 535."
     assert redact(text, HOME_FOLDER) == text
+
+
+def test_a_longer_name_that_starts_like_home_is_not_cut_in_half() -> None:
+    assert "[home folder path]ice" not in redact("see /srv/alice/notes", Path("/srv/al"))
+    assert redact("[Gmail]/Drafts", Path("/")) == "[Gmail]/Drafts"
+
+
+def test_the_computers_own_versions_are_never_taken_for_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A Fedora kernel or a development version looks like a token, but email-tool wrote it itself."""
+    monkeypatch.setattr(platform, "release", lambda: "6.11.4-301.fc41.x86_64")
+    report: str = build_report("x", "app", "none", [], HOME_FOLDER)
+    assert "6.11.4-301.fc41.x86_64" in report
+    added: str = report + "\nSystem: Linux a1B2c3D4e5F6g7H8i9J0k1L2 (x86_64)"
+    assert "a1B2c3D4e5F6g7H8i9J0k1L2" not in report_email(added, HOME_FOLDER)["body"]
 
 
 ADDRESS_IN_TEXT: st.SearchStrategy[tuple[str, str, str]] = st.tuples(
@@ -194,6 +213,17 @@ def test_a_huge_error_is_cut_without_leaving_part_of_a_token(audit: AuditLog) ->
     assert len(line) <= 300 and "[quoted text]" in line and "ghp_" not in line
 
 
+def test_an_error_that_cannot_be_cleaned_is_left_out_not_the_report(
+    audit: AuditLog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def never_clean(text: str, home: Path | None = None) -> str:
+        raise ValueError("too many passes")
+
+    write_failure(audit, "list_emails", "OSError: anything")
+    monkeypatch.setattr(problem_report, "redact", never_clean)
+    assert "could not be cleaned is left out" in failed_calls(audit.path, 1)[0]
+
+
 def test_no_audit_log_means_no_failures(tmp_path: Path) -> None:
     assert failed_calls(tmp_path / "missing.jsonl", 5) == []
 
@@ -212,6 +242,7 @@ def test_the_report_names_the_setup_and_redacts_everything_it_holds() -> None:
     assert "App: claude-code 2.1.0" in report
     assert "Mailboxes: 1 Gmail, 1 other" in report
     assert "send_email (SMTPAuthenticationError)" in report
+    private: str
     for private in ("boss@corp.example", "hunter2", "Offer letter", "/home/dana"):
         assert private not in report
 
@@ -279,6 +310,7 @@ async def test_report_problem_changes_nothing_and_sends_nothing(
     report: str = between_markers(said)
     assert "App: claude-code 2.1.0" in report and "Mailboxes: 1 Gmail, 1 other" in report
     assert "send_email (SMTPRecipientsRefused)" in report
+    private: str
     for private in ("lee@corp.example", "me@example.com", "me@gmail.com", "'work'"):
         assert private not in report
     assert mail_server.sent == [] and mail_server.logins == []
@@ -335,6 +367,8 @@ async def test_an_accepted_report_sends_exactly_the_text_shown(
     body: str = every_text(sent)
     assert body.strip() == report.strip()
     assert body in person.shown[0] and f"Delivered to: {REPORT_ADDRESS}" in person.shown[0]
+    started: dict[str, Any] = json.loads(audit.path.read_text(encoding="utf-8").splitlines()[-2])
+    assert started["tool"] == "email_problem_report" and started["arguments"]["to"] == REPORT_ADDRESS
 
 
 @pytest.mark.anyio

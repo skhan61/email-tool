@@ -36,6 +36,7 @@ from mcp_types import (
     ToolAnnotations,
 )
 
+from email_tool_mcp import problem_report
 from email_tool_mcp.approval import Approval, ConfirmationCodes, approval_resolver, enforce
 from email_tool_mcp.attachments import Attachment, load
 from email_tool_mcp.audit import AuditError, AuditLog
@@ -75,6 +76,8 @@ class ToolKind:
     asks: bool
     # The approval step asks every time, whatever the policy; an app that cannot ask is refused.
     always_asks: bool = False
+    # Where the tool always sends, for the audit record when it takes no `to` argument.
+    recipient: str = ""
 
 
 def broken_text_arguments(kwargs: dict[str, Any]) -> list[str]:
@@ -135,6 +138,8 @@ def reported(
         logged: dict[str, object] = {key: escaped(value) if key in broken else value for key, value in kwargs.items()}
         if logged.get("attachments") and "attachments" not in broken:
             logged["attachments"] = attachment_record(logged["attachments"])
+        if kind.recipient:
+            logged["to"] = kind.recipient
         given: str = str(logged.get("mailbox", ""))
         target: Mailbox | None = None
         unresolved: Exception | None = None
@@ -296,7 +301,10 @@ def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = No
         (setup.add_mailbox, ToolKind(_WRITES, changes_mail=False, asks=False)),
         # Reads only this computer's settings and audit log, and sends nothing.
         (reporting.report_problem, reads),
-        (reporting.email_problem_report, ToolKind(_SENDS, changes_mail=True, asks=True, always_asks=True)),
+        (
+            reporting.email_problem_report,
+            ToolKind(_SENDS, changes_mail=True, asks=True, always_asks=True, recipient=problem_report.REPORT_ADDRESS),
+        ),
     ]
     server: MCPServer = MCPServer(
         name="email-tool",
