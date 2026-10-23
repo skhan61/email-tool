@@ -54,6 +54,33 @@ class StubClient:
         ]
 
 
+class GmailStub(StubClient):
+    """A Gmail connection: X-GM-EXT-1, a Trash folder flagged \\Trash, and folders that can be selected."""
+
+    def __init__(self) -> None:
+        super().__init__(uidplus=True, flagged=[5])
+
+    def has_capability(self, name: str) -> bool:
+        return name in ("UIDPLUS", "X-GM-EXT-1")
+
+    def list_folders(self) -> list[tuple[tuple[bytes, ...], bytes, bytes]]:
+        return [((b"\\HasNoChildren",), b"/", b"INBOX"), ((b"\\HasNoChildren", b"\\Trash"), b"/", b"[Gmail]/Trash")]
+
+    def select_folder(self, folder: str, readonly: bool) -> dict[bytes, Any]:
+        self.calls.append(("select_folder", folder))
+        return {b"EXISTS": 1}
+
+    def fetch(self, uids: list[int], items: list[bytes]) -> dict[int, dict[bytes, Any]]:
+        return {uid: {b"X-GM-MSGID": 1797} for uid in uids}
+
+    def move(self, uids: list[int], folder: str) -> None:
+        self.calls.append(("move", (uids, folder)))
+
+    def search(self, criteria: list[SearchItem], charset: str | None = None) -> list[int]:
+        self.calls.append(("search", (criteria, charset)))
+        return [41] if criteria == ["X-GM-MSGID", 1797] else self.flagged
+
+
 def session_over(client: StubClient) -> ImapSession:
     session: ImapSession = ImapSession(WORK, Credential(WORK.address, "secret", is_token=False))
     session._client = client
@@ -118,3 +145,30 @@ def test_search_declares_utf8_only_when_needed(value: str, charset: str | None) 
     client: StubClient = StubClient(uidplus=True, flagged=[])
     session_over(client).search(["FROM", text(value)])
     assert client.calls[-1][1][1] == charset
+
+
+def test_on_gmail_a_delete_moves_to_trash_and_is_expunged_there() -> None:
+    """Gmail reads an expunge as "remove this label"; the message would stay in All Mail."""
+    client: GmailStub = GmailStub()
+    session: ImapSession = session_over(client)
+    session.select("INBOX", readonly=False)
+    assert session.mark_deleted(5)
+    moves: list[tuple[str, Any]] = [
+        call for call in client.calls if call[0] in ("move", "select_folder", "uid_expunge")
+    ]
+    assert moves == [
+        ("select_folder", "INBOX"),
+        ("move", ([5], "[Gmail]/Trash")),
+        ("select_folder", "[Gmail]/Trash"),
+        ("uid_expunge", [41]),
+        ("select_folder", "INBOX"),
+    ]
+
+
+def test_in_gmail_trash_a_delete_expunges_at_once() -> None:
+    client: GmailStub = GmailStub()
+    session: ImapSession = session_over(client)
+    session.select("[Gmail]/Trash", readonly=False)
+    assert session.mark_deleted(5)
+    assert ("uid_expunge", [5]) in client.calls
+    assert not any(name == "move" for name, _ in client.calls)
