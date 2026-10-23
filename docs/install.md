@@ -72,7 +72,7 @@ settings.
           "mcpServers": {
             "email": {
               "command": "uvx",
-              "args": ["--from", "git+https://github.com/skhan61/email-tool", "email-tool-mcp", "serve"]
+              "args": ["email-tool-mcp", "serve"]
             }
           }
         }
@@ -94,7 +94,7 @@ settings.
     ```toml
     [mcp_servers.email]
     command = "/Users/you/.local/bin/uvx"
-    args = ["--from", "git+https://github.com/skhan61/email-tool", "email-tool-mcp", "serve"]
+    args = ["email-tool-mcp", "serve"]
     ```
 
 === "ChatGPT Business and Enterprise"
@@ -110,7 +110,7 @@ settings.
         ```bash
         tunnel-client init --sample sample_mcp_stdio_local --profile email \
           --tunnel-id <tunnel_id> \
-          --mcp-command "uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve"
+          --mcp-command "uvx email-tool-mcp serve"
         tunnel-client run --profile email
         ```
 
@@ -127,7 +127,7 @@ settings.
     Add a local (stdio) server that runs this command:
 
     ```bash
-    uvx --from git+https://github.com/skhan61/email-tool email-tool-mcp serve
+    uvx email-tool-mcp serve
     ```
 
 After connecting, ask your assistant to "add my mailbox", or add mailboxes from a terminal
@@ -140,7 +140,7 @@ as in [Mailbox details](mailboxes.md#from-a-terminal).
 - **Update a config-file setup:** run this once, then restart your app:
 
     ```bash
-    uvx --refresh --from git+https://github.com/skhan61/email-tool email-tool-mcp --help
+    uvx --refresh email-tool-mcp --help
     ```
 - **Remove a mailbox:** `email-tool-mcp remove <name>` deletes its settings and its password
   or sign-in.

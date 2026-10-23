@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 5.4.3
+
+### Fixed
+- ChatGPT desktop and Codex no longer need git on the computer: they install email-tool from
+  PyPI (`email-tool-mcp`). Before, a computer without git failed with "Git executable not found".
+  The docs and the setup hint use the PyPI package too.
+
 ## 5.4.2
 
 ### Fixed
