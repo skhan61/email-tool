@@ -242,7 +242,11 @@ def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = No
     reading: ReadingTools = ReadingTools(book)
     drafts: DraftTools = DraftTools(book)
     sending: SendingTools = SendingTools(book)
-    setup_page: SetupPage = page or SetupPage(book.settings_file, book.forget, microsoft_tokens, google_tokens)
+    setup_page: SetupPage = page or SetupPage(
+        book.settings_file, book.forget, microsoft_tokens, google_tokens, audit=audit
+    )
+    # list_mailboxes shows what the page added, so it also clears add_mailbox's pending report.
+    reading.after_listing = setup_page.take_result
     setup: SetupTools = SetupTools(setup_page)
     reads: ToolKind = ToolKind(_READ_ONLY, changes_mail=False, asks=False)
     tools: list[tuple[Callable[..., str], ToolKind]] = [

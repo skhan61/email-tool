@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Mailboxes added on the setup page are written to the audit log; in 5.3.0 the server gave the
+  page no audit log, so they were not.
+- When an app reports the setup page as canceled or closed, the assistant is told to check
+  `list_mailboxes`, since the user may have added the mailbox there.
+
 ## 5.3.0
 
 ### Added

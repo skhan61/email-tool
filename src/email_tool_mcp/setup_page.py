@@ -91,17 +91,19 @@ class SetupPage:
         forget: Forget,
         microsoft: Callable[[], MicrosoftTokens],
         google: Callable[[], GoogleTokens],
-        login_check: LoginCheck = check_login,
+        *,
+        audit: AuditLog,
+        login_check: LoginCheck | None = None,
         lifetime: float = LIFETIME_SECONDS,
-        audit: AuditLog | None = None,
     ) -> None:
         self._settings_file: Path = settings_file
         self._forget: Forget = forget
         self._microsoft: Callable[[], MicrosoftTokens] = microsoft
         self._google: Callable[[], GoogleTokens] = google
-        self._login_check: LoginCheck = login_check
+        self._login_check: LoginCheck = login_check or check_login
         self._lifetime: float = lifetime
-        self._audit: AuditLog | None = audit
+        # Required: a page that could add mailboxes without recording them is the bug of #87.
+        self._audit: AuditLog = audit
         self._lock: threading.Lock = threading.Lock()
         self._server: uvicorn.Server | None = None
         self._timer: threading.Timer | None = None
@@ -168,16 +170,15 @@ class SetupPage:
 
     def _audit_started(self, name: str, address: str, kind: str) -> str:
         """Record the attempt before anything is saved; AuditError refuses it (fail closed)."""
-        if self._audit is None:
-            return ""
         return self._audit.started(name, _TOOL, {"kind": kind, "address": address})
 
-    def _audit_finished(self, call: str, name: str, outcome: str) -> None:
-        if self._audit is not None and call:
-            try:
-                self._audit.finished(call, name, _TOOL, outcome)
-            except AuditError:
-                pass
+    def _audit_finished(self, call: str, name: str, outcome: str) -> str:
+        """Record the outcome; "" when recorded, else a note the page shows (as the tools say it)."""
+        try:
+            self._audit.finished(call, name, _TOOL, outcome)
+        except AuditError as error:
+            return f" Done, but the outcome could not be recorded ({error}). Do not repeat it."
+        return ""
 
     # Requests -------------------------------------------------------------------------------------
 
@@ -247,7 +248,7 @@ class SetupPage:
             return password
 
         try:
-            call: str = self._audit_started(name, address, kind)
+            call: str = await run_in_threadpool(self._audit_started, name, address, kind)
         except AuditError as error:
             return self._again(f"Refused, nothing was done: {error}", 503)
         try:
@@ -268,9 +269,9 @@ class SetupPage:
                 forget=self._forget,
             )
         except Exception as error:
-            self._audit_finished(call, name, f"{type(error).__name__}: {_reason(error)}")
+            await run_in_threadpool(self._audit_finished, call, name, f"{type(error).__name__}: {_reason(error)}")
             return self._again(_reason(error))
-        self._audit_finished(call, name, "ok")
+        done += await run_in_threadpool(self._audit_finished, call, name, "ok")
         self._finish(done)
         return self._shown("Mailbox added", _done(done))
 
@@ -289,7 +290,7 @@ class SetupPage:
         if busy:
             return self._again("A sign-in is already open in another tab. Finish it there, or close this page.", 409)
         try:
-            call: str = self._audit_started(name, address, kind)
+            call: str = await run_in_threadpool(self._audit_started, name, address, kind)
         except AuditError as error:
             with self._lock:
                 self._pending = None
@@ -351,7 +352,7 @@ class SetupPage:
                 self._audit_finished(call, name, f"{type(error).__name__}: {_reason(error)}")
                 pending.outcome.put((False, _reason(error)))
             else:
-                self._audit_finished(call, name, "ok")
+                done += self._audit_finished(call, name, "ok")
                 # Recorded here, not by the page, so a page that stopped waiting still reports it.
                 self._finish(done)
                 pending.outcome.put((True, done))
@@ -385,7 +386,7 @@ class SetupPage:
             return Response("No sign-in is waiting here.", status_code=404)
         said: dict[str, list[str]] = parse_qs(query)
         if "code" not in said:
-            explained: str = (said.get("error_description") or said.get("error") or ["the sign-in was cancelled"])[0]
+            explained: str = (said.get("error_description") or said.get("error") or ["the sign-in was canceled"])[0]
             pending.returned.put("")
             return self._again(f"The sign-in did not finish: {explained}")
         pending.returned.put(f"{pending.redirect}?{query}")
