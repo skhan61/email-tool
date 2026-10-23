@@ -141,7 +141,8 @@ async def test_a_reply_draft_joins_the_parents_thread(
     reply: dict[str, object] = {"mailbox": "work", "folder": "Drafts", "to": "jane@example.com", "in_reply_to_uid": uid}
     assert not (await call(book, audit, "create_draft", reply)).is_error
     assert saved_draft(mail_server)["In-Reply-To"] == PARENT_ID
-    assert not (await call(book, audit, "update_draft", {**reply, "uid": 1})).is_error
+    without_parent: dict[str, object] = {key: value for key, value in reply.items() if key != "in_reply_to_uid"}
+    assert not (await call(book, audit, "update_draft", {**without_parent, "uid": 1, "body": "typo"})).is_error
     assert list(mail_server.folders["Drafts"]) == [2]
     assert saved_draft(mail_server)["References"] == PARENT_ID
 

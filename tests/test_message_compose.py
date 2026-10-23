@@ -8,7 +8,7 @@ from email.message import EmailMessage, Message
 
 import pytest
 
-from email_tool_mcp.message_compose import compose, envelope_recipients, thread_headers
+from email_tool_mcp.message_compose import compose, envelope_recipients, keep_thread, thread_headers
 
 
 def parent_with(headers: str) -> Message:
@@ -77,6 +77,33 @@ def test_a_long_thread_keeps_its_first_and_newest_ids() -> None:
     ids: list[str] = references.split()
     assert len(ids) == 20
     assert ids[0] == "<0@x.com>" and ids[-2:] == ["<49@x.com>", "<last@x.com>"]
+
+
+def test_an_id_already_in_the_chain_is_not_repeated() -> None:
+    parent: Message = parent_with("Message-ID: <c@x.com>\r\nReferences: <a@x.com> <c@x.com> <a@x.com>\r\n")
+    assert thread_headers(parent)[1] == "<a@x.com> <c@x.com>"
+
+
+def test_in_reply_to_with_several_parents_is_not_taken_as_a_chain() -> None:
+    parent: Message = parent_with("Message-ID: <c@x.com>\r\nIn-Reply-To: <p1@x.com> <p2@x.com>\r\n")
+    assert thread_headers(parent)[1] == "<c@x.com>"
+
+
+@pytest.mark.parametrize(
+    "references",
+    ["(see <evil@x.com>) <a@x.com>", "<a@x.com> (a (nested <evil@x.com>) one)", "<a@x.com> (open <evil@x.com>"],
+)
+def test_an_id_inside_a_comment_is_never_copied(references: str) -> None:
+    parent: Message = parent_with(f"Message-ID: <c@x.com>\r\nReferences: {references}\r\n")
+    assert thread_headers(parent)[1] == "<a@x.com> <c@x.com>"
+
+
+def test_a_replacement_draft_keeps_the_thread_of_the_one_it_replaces() -> None:
+    previous: Message = parent_with("In-Reply-To: <c@x.com>\r\nReferences: <a@x.com> <c@x.com>\r\n")
+    replacement: EmailMessage = compose("me@example.com", "a@x.com", "Re", "fixed typo", "", "")
+    keep_thread(replacement, previous)
+    assert replacement["In-Reply-To"] == "<c@x.com>"
+    assert replacement["References"] == "<a@x.com> <c@x.com>"
 
 
 def test_only_well_formed_ids_are_copied_from_the_parent() -> None:

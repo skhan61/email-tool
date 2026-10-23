@@ -10,9 +10,9 @@ from email.message import EmailMessage, Message
 
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose, envelope_recipients
+from email_tool_mcp.message_render import read_headers
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import Body, Cc, Html, InReplyToFolder, InReplyToUid, MailboxName, Subject, To
-from email_tool_mcp.tools.reading import reply_parent
 
 
 class SendingTools:
@@ -40,7 +40,7 @@ class SendingTools:
         parent: Message | None = None
         if in_reply_to_uid:
             with self._book.imap(sender) as session:
-                parent = reply_parent(session, in_reply_to_folder, in_reply_to_uid)
+                parent = read_headers(session, in_reply_to_folder, in_reply_to_uid)
         message: EmailMessage = compose(sender.address, to, subject, body, cc, html, parent)
         refused: dict[str, tuple[int, bytes]] = self._book.send(sender, message)
         if refused:

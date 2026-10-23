@@ -26,10 +26,9 @@ from pydantic import BaseModel, Field
 
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose
-from email_tool_mcp.message_render import MessageSummary, every_text, parse_message, summarize
+from email_tool_mcp.message_render import MessageSummary, every_text, read_headers, summarize
 from email_tool_mcp.policy import PolicyRefusal
 from email_tool_mcp.settings import Mailbox
-from email_tool_mcp.tools.reading import reply_parent
 
 # Tool arguments the question may read; a resolver takes only those its tool has.
 _QUESTION_ARGUMENTS: Final[tuple[str, ...]] = (
@@ -69,11 +68,7 @@ def can_ask(capabilities: ClientCapabilities | None) -> bool:
 def target_summary(book: MailboxBook, mailbox: Mailbox, folder: str, uid: int) -> MessageSummary:
     """The headers of the message a delete or replacement would remove; LookupError if absent."""
     with book.imap(mailbox) as session:
-        session.select(folder, readonly=True)
-        headers: dict[int, bytes] = session.fetch_headers([uid])
-    if uid not in headers:
-        raise LookupError(f"no message with uid {uid} in folder {folder!r}")
-    return summarize(uid, parse_message(headers[uid]))
+        return summarize(uid, read_headers(session, folder, uid))
 
 
 def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[str, Any]) -> str:
@@ -88,7 +83,7 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
         parent: Message | None = None
         if parent_uid:
             with book.imap(mailbox) as session:
-                parent = reply_parent(session, str(arguments.get("in_reply_to_folder", "INBOX")), parent_uid)
+                parent = read_headers(session, str(arguments.get("in_reply_to_folder", "INBOX")), parent_uid)
         message: EmailMessage = compose(
             mailbox.address,
             str(arguments.get("to", "")),
