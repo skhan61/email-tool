@@ -38,6 +38,8 @@ TOOL_NAMES: set[str] = {
     "update_draft",
     "send_email",
     "add_mailbox",
+    "report_problem",
+    "email_problem_report",
 }
 
 
@@ -63,6 +65,7 @@ async def test_every_tool_is_listed_with_safety_hints(book: MailboxBook, audit: 
         "delete_email",
         "update_draft",
         "send_email",
+        "email_problem_report",
     }
     assert hints["list_emails"].read_only_hint
     assert "mailbox" in tools["list_emails"].input_schema["properties"]

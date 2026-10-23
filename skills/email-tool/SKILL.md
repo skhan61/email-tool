@@ -32,6 +32,10 @@ A tool error saying there is no password means the user must run
 - `send_email`, send a new message immediately.
 - `create_draft` / `get_draft` / `list_drafts` / `update_draft`, manage drafts.
 - `delete_email`, delete a message (destructive, confirm first).
+- `report_problem`, build a problem report for the email-tool maintainer when the
+  user wants to report a problem. Show it exactly as returned; it sends nothing.
+- `email_problem_report`, email that report to the maintainer from a mailbox the
+  user picks; their app asks them to approve the exact text first.
 
 ## Workflows
 

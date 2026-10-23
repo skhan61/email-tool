@@ -65,7 +65,8 @@ _SENSITIVE_FOLDERS: Final[dict[str, str]] = {
     ".docker": "it is in .docker, which can hold registry logins",
     "keyrings": "it is in a keyring folder",
 }
-_SENSITIVE_TEXT: Final[tuple[tuple[re.Pattern[bytes], str], ...]] = (
+# Also removed from problem reports (problem_report.py).
+SENSITIVE_TEXT: Final[tuple[tuple[re.Pattern[bytes], str], ...]] = (
     (re.compile(rb"-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----"), "it contains a private key"),
     (re.compile(rb"aws_secret_access_key", re.IGNORECASE), "it contains an AWS secret key"),
     (re.compile(rb"\bAKIA[0-9A-Z]{16}\b"), "it contains an AWS access key ID"),
@@ -227,7 +228,7 @@ def sensitive(paths: Sequence[str], attachments: Sequence[Attachment]) -> list[S
                 break
         pattern: re.Pattern[bytes]
         reason: str
-        for pattern, reason in _SENSITIVE_TEXT:
+        for pattern, reason in SENSITIVE_TEXT:
             if pattern.search(attachment.content):
                 reasons.append(reason)
         if reasons:

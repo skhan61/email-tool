@@ -35,10 +35,12 @@ from mcp.client.context import ClientRequestContext
 from mcp.client.session import ElicitationFnT
 from mcp_types import CallToolResult, ElicitRequestParams, ElicitResult, TextContent
 
+from email_tool_mcp import problem_report
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_render import parse_message
 from email_tool_mcp.policy import Policy
+from email_tool_mcp.problem_report import REPORT_END, REPORT_START, SUBJECT_PREFIX
 from email_tool_mcp.providers import open_book, token_sources
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import Mailbox, settings_path
@@ -320,3 +322,28 @@ async def test_approval_and_the_sensitive_file_warning_on_real_mail(tmp_path: Pa
     finally:
         async with Client(build_server(plain, audit)) as client:
             await clean_up(client, code)
+
+
+async def test_a_problem_report_emailed_from_a_real_mailbox_arrives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The report goes to the receiving test mailbox instead of the maintainer, by the real send path."""
+    book: MailboxBook = open_book(os.environ, with_policy=False)
+    monkeypatch.setattr(problem_report, "REPORT_ADDRESS", address_of(book, RECEIVER))
+    code: str = f"email-tool live test {secrets.token_hex(4)}"
+    shown: list[str] = []
+    async with Client(
+        build_server(book, AuditLog(tmp_path / "audit.jsonl")), elicitation_callback=answering("accept", shown)
+    ) as app:
+        try:
+            said: str = await call(app, "report_problem", {"description": code})
+            report: str = said.split(REPORT_START + "\n", 1)[1].split("\n" + REPORT_END, 1)[0]
+            await call(app, "email_problem_report", {"report": report, "mailbox": SENDER})
+            assert report in shown[0], shown
+            folder: str
+            received: int
+            folder, received = await arrival(app, RECEIVER, f"{SUBJECT_PREFIX} {code}")
+            opened: str = await call(app, "get_email", {"mailbox": RECEIVER, "folder": folder, "uid": received})
+            assert f"Problem: {code}" in opened, opened
+        finally:
+            await clean_up(app, code)

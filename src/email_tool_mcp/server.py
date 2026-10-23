@@ -28,7 +28,13 @@ import anyio
 from mcp.server.mcpserver import Context, ElicitationResult, MCPServer, Resolve
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.shared.exceptions import UrlElicitationRequiredError
-from mcp_types import ClientCapabilities, ElicitRequestURLParams, ToolAnnotations
+from mcp_types import (
+    ClientCapabilities,
+    ElicitRequestURLParams,
+    Implementation,
+    InitializeRequestParams,
+    ToolAnnotations,
+)
 
 from email_tool_mcp.approval import Approval, ConfirmationCodes, approval_resolver, enforce
 from email_tool_mcp.attachments import Attachment, load
@@ -38,7 +44,9 @@ from email_tool_mcp.providers import google_tokens, microsoft_tokens
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.setup_page import SetupPage
 from email_tool_mcp.tools.drafts import DraftTools
+from email_tool_mcp.tools.params import ProblemDescription
 from email_tool_mcp.tools.reading import ReadingTools
+from email_tool_mcp.tools.reporting import ReportingTools
 from email_tool_mcp.tools.sending import SendingTools
 from email_tool_mcp.tools.setup import SetupTools
 
@@ -65,6 +73,8 @@ class ToolKind:
     changes_mail: bool
     # The tool has an approval step that may ask the user before it runs.
     asks: bool
+    # The approval step asks every time, whatever the policy; an app that cannot ask is refused.
+    always_asks: bool = False
 
 
 def broken_text_arguments(kwargs: dict[str, Any]) -> list[str]:
@@ -180,7 +190,7 @@ def reported(
     annotations: dict[str, Any] = typing.get_type_hints(tool, include_extras=True)
     if asks:
         question: Callable[..., Any] = approval_resolver(
-            name, set(signature.parameters), known_tools, book, changes_mail, codes
+            name, set(signature.parameters), known_tools, book, changes_mail, codes, always=kind.always_asks
         )
         resolved: Any = Annotated[ElicitationResult[Approval], Resolve(question)]
         parameters.append(inspect.Parameter("approval", inspect.Parameter.KEYWORD_ONLY, annotation=resolved))
@@ -234,6 +244,24 @@ def opening_page(run: Callable[..., Awaitable[str]], page: SetupPage) -> Callabl
     return add_mailbox
 
 
+def app_name(ctx: Context) -> str:
+    """The connected app as it names itself (MCP client info), `claude-code 2.1.0`; "" when it did not say."""
+    params: InitializeRequestParams | None = ctx.request_context.session.client_params
+    info: Implementation | None = params.client_info if params is not None else None
+    return f"{info.name} {info.version}".strip() if info is not None else ""
+
+
+def naming_app(run: Callable[..., Awaitable[str]]) -> Callable[..., Awaitable[str]]:
+    """`report_problem` as the app sees it: the audited tool, told which app is calling."""
+
+    async def report_problem(ctx: Context, description: ProblemDescription) -> str:
+        report: str = await run(description=description, app=app_name(ctx))
+        return report
+
+    report_problem.__doc__ = run.__doc__
+    return report_problem
+
+
 def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = None) -> MCPServer:
     """Return a server exposing every mail tool over the mailboxes in `book`, audited to `audit`.
 
@@ -242,6 +270,7 @@ def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = No
     reading: ReadingTools = ReadingTools(book)
     drafts: DraftTools = DraftTools(book)
     sending: SendingTools = SendingTools(book)
+    reporting: ReportingTools = ReportingTools(book, audit.path, sending)
     setup_page: SetupPage = page or SetupPage(
         book.settings_file, book.forget, microsoft_tokens, google_tokens, audit=audit
     )
@@ -265,6 +294,9 @@ def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = No
         (sending.send_email, ToolKind(_SENDS, changes_mail=True, asks=True)),
         # Changes no mail; the user adds the mailbox on the page, where policy's FIPS rule applies.
         (setup.add_mailbox, ToolKind(_WRITES, changes_mail=False, asks=False)),
+        # Reads only this computer's settings and audit log, and sends nothing.
+        (reporting.report_problem, reads),
+        (reporting.email_problem_report, ToolKind(_SENDS, changes_mail=True, asks=True, always_asks=True)),
     ]
     server: MCPServer = MCPServer(
         name="email-tool",
@@ -277,12 +309,20 @@ def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = No
     known_tools: frozenset[str] = frozenset(tool.__name__ for tool, _ in tools)
     # One set of confirmation codes per server, shared by every tool that asks.
     codes: ConfirmationCodes = ConfirmationCodes()
+    # Tools the app reaches through a wrapper: add_mailbox opens a page, report_problem learns the app.
+    wrappers: dict[str, Callable[[Callable[..., Awaitable[str]]], Callable[..., Awaitable[str]]]] = {
+        "add_mailbox": functools.partial(opening_page, page=setup_page),
+        "report_problem": naming_app,
+    }
     tool: Callable[..., str]
     kind: ToolKind
     for tool, kind in tools:
         audited: Callable[..., Awaitable[str]] = reported(tool, kind, known_tools, audit, book, codes)
+        wrap: Callable[[Callable[..., Awaitable[str]]], Callable[..., Awaitable[str]]] | None = wrappers.get(
+            tool.__name__
+        )
         server.add_tool(
-            opening_page(audited, setup_page) if tool.__name__ == "add_mailbox" else audited,
+            wrap(audited) if wrap is not None else audited,
             name=tool.__name__,
             annotations=kind.hints,
             structured_output=False,
