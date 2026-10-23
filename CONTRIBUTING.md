@@ -63,7 +63,9 @@ uv run python -m tools.report_bridge run --mailbox=NAME [--folder=INBOX]
 
 It reads the mailbox through this computer's email-tool settings and sign-in, and opens issues with
 the bot's key (as `tools.bot_pr` does). Every address is removed from the title and body. Each issue
-carries a hash of the report's Message-ID, so running it again opens nothing twice. Mail is never
+ends with a hash of the report's Message-ID, so running it again opens nothing twice, even after the
+issue is relabelled or closed; close a report rather than deleting or transferring it, or the next
+run files it again. A report GitHub refuses is reported and tried again next run. Mail is never
 deleted or moved.
 
 ## Releasing

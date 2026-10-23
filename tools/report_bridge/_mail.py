@@ -15,6 +15,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from email.message import Message
+from email.utils import parsedate_to_datetime
 from typing import Final
 
 from email_tool_mcp.imap_session import ImapSession, text
@@ -25,14 +26,21 @@ SUBJECT_PREFIX: Final[str] = "email-tool problem report:"
 
 REMOVED: Final[str] = "[address removed]"
 
-# Any run of characters around an @, up to a space or a bracket that wraps addresses. Wider than
-# RFC 5322's addr-spec on purpose: an over-removed word costs nothing, a leaked address does.
-_ADDRESS: Final[re.Pattern[str]] = re.compile(r"[^\s<>(),;]+@[^\s<>(),;]+")
+# A word: a run up to a space or a bracket that wraps addresses, or a quoted local part with its
+# domain (`"john doe"@host`). Every word holding an @ after its first character is an address: wider
+# than RFC 5322's addr-spec on purpose, since an over-removed word costs nothing and a leaked address
+# does. Words, not an `x@y` pattern: that one backtracks over every start of a long run with no @,
+# which is quadratic in a report's length.
+_WORD: Final[re.Pattern[str]] = re.compile(r'"[^"\n]*"@[^\s<>(),;]*|[^\s<>(),;]+')
+
+
+def _removed(word: re.Match[str]) -> str:
+    return REMOVED if "@" in word.group().lstrip("@") else word.group()
 
 
 def redact(value: str) -> str:
-    """`value` with every email address replaced by `REMOVED`."""
-    return _ADDRESS.sub(REMOVED, value)
+    """`value` with every email address replaced by `REMOVED`; a lone `@name` stays."""
+    return _WORD.sub(_removed, value)
 
 
 @dataclass(frozen=True)
@@ -40,25 +48,41 @@ class Report:
     """One emailed report, already free of addresses."""
 
     key: str
-    """A hash of the Message-ID (of the raw message when it has none): stable, and not the sender's domain."""
+    """A hash of the Message-ID (of subject, date and text when it has none): stable, not the sender's domain."""
     title: str
     date: str
+    """The day it was sent, `YYYY-MM-DD`, or "" when the Date header does not parse."""
     text: str
 
 
-def _key(message: Message, raw: bytes) -> str:
-    message_id: str = str(message.get("Message-ID", "")).strip()
-    return hashlib.sha256(message_id.encode() if message_id else raw).hexdigest()
+def _header(message: Message, name: str) -> str:
+    """A header as text; the raw value when its encoded words do not decode (a bogus charset)."""
+    raw: object = message.get(name)
+    try:
+        return decode_header_value(None if raw is None else str(raw))
+    except (LookupError, UnicodeError, ValueError):
+        return "" if raw is None else str(raw)
 
 
-def _report(message: Message, raw: bytes) -> Report:
-    subject: str = decode_header_value(message.get("Subject"))
+def _date(message: Message) -> str:
+    """Only the parsed day: the header itself is the sender's text and may carry anything."""
+    try:
+        return parsedate_to_datetime(str(message.get("Date", ""))).date().isoformat()
+    except (TypeError, ValueError, IndexError):
+        return ""
+
+
+def _report(message: Message) -> Report:
+    subject: str = _header(message, "Subject")
     title: str = " ".join(redact(subject.removeprefix(SUBJECT_PREFIX)).split())
+    body: str = extract_body(message)
+    message_id: str = _header(message, "Message-ID").strip()
+    identity: str = message_id or "\n".join((subject, _header(message, "Date"), body))
     return Report(
-        key=_key(message, raw),
+        key=hashlib.sha256(identity.encode()).hexdigest(),
         title=title or "(no description)",
-        date=decode_header_value(message.get("Date")),
-        text=redact(extract_body(message)),
+        date=_date(message),
+        text=redact(body),
     )
 
 
@@ -69,10 +93,9 @@ def find_reports(session: ImapSession, folder: str) -> list[Report]:
     headers: dict[int, bytes] = session.fetch_headers(candidates)
     reports: list[Report] = []
     for uid in candidates:
-        subject: str = decode_header_value(parse_message(headers.get(uid, b"")).get("Subject"))
-        if not subject.startswith(SUBJECT_PREFIX):
+        if not _header(parse_message(headers.get(uid, b"")), "Subject").startswith(SUBJECT_PREFIX):
             continue
         raw: bytes | None = session.fetch_message(uid)
         if raw is not None:
-            reports.append(_report(parse_message(raw), raw))
+            reports.append(_report(parse_message(raw)))
     return reports

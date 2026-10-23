@@ -15,6 +15,7 @@ from github.Repository import Repository
 
 from tools.bot_pr import BotError
 from tools.bot_pr._github import _as_bot, _repository, _said
+from tools.bot_pr._identity import bot_login
 
 LABEL: Final[str] = "user-report"
 """The label the issue form (#95) also gives a report, so both kinds are listed together."""
@@ -24,10 +25,11 @@ _LABEL_DESCRIPTION: Final[str] = "A problem a user reported from their app"
 
 
 class BotTracker:
-    """The repository's `user-report` issues, read and opened as the bot."""
+    """The repository's issues, read and opened as the bot."""
 
-    def __init__(self, repository: Repository) -> None:
+    def __init__(self, repository: Repository, author: str) -> None:
         self._repository: Repository = repository
+        self._author: str = author
 
     def _has_label(self) -> bool:
         try:
@@ -38,14 +40,20 @@ class BotTracker:
             raise BotError(f"could not read the {LABEL!r} label ({_said(error)})") from None
         return True
 
-    def known(self) -> str:
-        """Every `user-report` issue's body, open or closed, joined; "" while the label does not exist."""
-        if not self._has_label():
-            return ""
+    def filed(self) -> list[str]:
+        """The body of every issue the bot opened, open or closed, whatever its labels now.
+
+        Not only `user-report` issues: a report relabelled during triage must still count as filed.
+        Only the bot's own: a user's issue (the #95 form) cannot claim a report's marker.
+        """
         try:
-            return "\n".join(issue.body or "" for issue in self._repository.get_issues(state="all", labels=[LABEL]))
+            return [
+                issue.body or ""
+                for issue in self._repository.get_issues(state="all")
+                if issue.user is not None and issue.user.login == self._author
+            ]
         except GithubException as error:
-            raise BotError(f"could not list the {LABEL!r} issues ({_said(error)})") from None
+            raise BotError(f"could not list the issues ({_said(error)})") from None
 
     def ensure_label(self) -> None:
         """Create the `user-report` label when it is missing."""
@@ -67,4 +75,4 @@ class BotTracker:
 
 def bot_tracker() -> BotTracker:
     """The tracker for this checkout's repository (from `origin`), signed in as the bot."""
-    return BotTracker(_repository(_as_bot()))
+    return BotTracker(_repository(_as_bot()), bot_login())
