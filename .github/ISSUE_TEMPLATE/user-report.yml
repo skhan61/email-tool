@@ -1,0 +1,17 @@
+name: Problem report
+description: A report from email-tool's report_problem tool, filled in by the link it gives
+title: "email-tool problem report: "
+labels: [user-report]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Your app filled this in from email-tool's report_problem tool. Read it before you submit:
+        it is public. Remove anything you do not want to share.
+  - type: textarea
+    id: report
+    attributes:
+      label: Report
+      description: The problem, the versions, the app, the kinds of mailbox and the last few errors.
+    validations:
+      required: true

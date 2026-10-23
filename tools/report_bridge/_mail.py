@@ -20,9 +20,7 @@ from typing import Final
 
 from email_tool_mcp.imap_session import ImapSession, text
 from email_tool_mcp.message_render import decode_header_value, extract_body, parse_message
-
-SUBJECT_PREFIX: Final[str] = "email-tool problem report:"
-"""The subject `report_problem` (#93) gives every emailed report."""
+from email_tool_mcp.problem_report import SUBJECT_PREFIX
 
 REMOVED: Final[str] = "[address removed]"
 

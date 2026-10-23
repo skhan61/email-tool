@@ -18,6 +18,7 @@ Talk to your assistant in plain language. Name the mailbox when you have more th
 | "Send the report in ~/Documents/q3.pdf to Lee." | Sends the message with that file attached. |
 | "Save the invoice attached to Dana's message in ~/Downloads." | Saves the attachment there. It is never opened. |
 | "Delete the newsletter from this morning." | Deletes that message permanently. |
+| "Report a problem with email-tool: search never finishes." | Shows you a report for the maintainer, with nothing private in it. Nothing is sent until you choose how. See [Report a problem](report-a-problem.md). |
 
 In Claude Code, the plugin also adds three commands: `/inbox`, `/email-search` and
 `/email-send`.
@@ -36,6 +37,8 @@ In Claude Code, the plugin also adds three commands: `/inbox`, `/email-search` a
 | `send_email` | Sends a message, plain or formatted, with any attachments |
 | `add_mailbox` | Opens a page in your browser to add a mailbox |
 | `delete_email` | Deletes a message permanently |
+| `report_problem` | Builds a problem report for the maintainer, with nothing private in it; sends nothing |
+| `email_problem_report` | Emails that report to the maintainer from one of your mailboxes, after you approve the exact text |
 
 A reply the assistant drafts or sends joins the conversation it answers, in Gmail, Outlook
 and any other mail program.

@@ -62,7 +62,9 @@ assistant, which can tell you the same.
 
 ## Still stuck
 
-Open an issue at [github.com/skhan61/email-tool/issues](https://github.com/skhan61/email-tool/issues)
+Ask your assistant to report the problem: it builds a report with nothing private in it,
+which you read before it is sent. See [Report a problem](report-a-problem.md). Or open an
+issue at [github.com/skhan61/email-tool/issues](https://github.com/skhan61/email-tool/issues)
 with the message you see and the output of `email-tool-mcp list`. Remove anything private
 first. Report security problems privately, as described in the
 [security policy](https://github.com/skhan61/email-tool/blob/main/SECURITY.md).

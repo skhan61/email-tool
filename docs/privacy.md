@@ -13,7 +13,8 @@ assistant you choose read, draft and send email from mailboxes you add.
 ## Where your data goes
 
 - Nothing is sent to the developers of email-tool. There is no server, analytics or
-  telemetry.
+  telemetry. The one exception is a [problem report](report-a-problem.md) you choose to
+  send: you read its exact text first, and it holds no addresses, subjects or passwords.
 - Passwords stay in your operating system's keyring. Google and Microsoft sign-ins are
   kept on your computer, encrypted, with the key in your keyring.
 - Mail goes only between your computer and your mail provider, over TLS 1.2 or newer,
