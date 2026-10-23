@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 5.2.1
 
 ### Security
 - pypdf 6.21.1 (was 6.19.0) fixes 8 advisories in reading PDF attachments: infinite loops
@@ -12,10 +12,14 @@
 ### Fixed
 - A message or attachment in a charset Python does not know (for example `charset=bogus`)
   no longer fails `get_email` or the CUI check; its text is read as UTF-8. Found by fuzzing.
+- `email-tool-mcp --help` lists every command (`add`, `check`, `list`, `remove`, `serve`,
+  `audit`, `policy`); it showed none.
 
 ### Added
 - Fuzz tests (Atheris) for attachment text and message parsing, run in CI on pull requests
   and weekly.
+- Documentation: every install step checked on a clean computer, with screenshots of the
+  terminal, Gmail App Passwords, and the Microsoft and Google sign-in screens.
 
 ## 5.2.0
 
