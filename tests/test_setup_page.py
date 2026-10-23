@@ -25,7 +25,7 @@ from email_tool_mcp import setup_page as setup_page_module
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.microsoft import MicrosoftTokens
+from email_tool_mcp.microsoft import DEFAULT_CLIENT_ID, MicrosoftTokens
 from email_tool_mcp.passwords import read_password
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import Mailbox, load_mailboxes
@@ -178,6 +178,57 @@ def test_a_microsoft_sign_in_returns_to_the_page_and_finishes_there(
     assert checks.seen[0][1].is_token
 
 
+def test_a_university_directory_and_app_from_it_reach_microsoft_and_are_kept(page: SetupPage, tmp_path: Path) -> None:
+    """Without a terminal: the directory (tenant) and the organization's own app ID IT gave the user."""
+    page.start()
+    port: int = int(urlsplit(page.url).port or 0)
+    app: str = "12345678-abcd-1234-abcd-1234567890ab"
+    form: dict[str, str] = {
+        "kind": "microsoft",
+        "name": "uni",
+        "address": ADDRESS,
+        "tenant": "school.edu",
+        "client_id": app,
+    }
+    started: http.client.HTTPResponse = request(page, "POST", add_path(page), form)
+    assert started.status == 303
+    assert FakeMsal.instances[-1].client_id == app
+    assert FakeMsal.instances[-1].authority == "https://login.microsoftonline.com/school.edu"
+    back: http.client.HTTPResponse = request(page, "GET", "/?code=one-time&state=s", host=f"localhost:{port}")
+    assert back.status == 200, back.read()
+    kept: Mailbox = load_mailboxes(tmp_path / "mailboxes.toml")["uni"]
+    assert (kept.tenant, kept.client_id) == ("school.edu", app)
+
+
+@pytest.mark.parametrize(
+    ("tenant", "pasted_app", "app", "authority"),
+    [
+        ("11111111-2222-3333-4444-555555555555", "", "", "11111111-2222-3333-4444-555555555555"),
+        (
+            "organizations",
+            "{12345678-abcd-1234-abcd-1234567890ab}",
+            "12345678-abcd-1234-abcd-1234567890ab",
+            "organizations",
+        ),
+    ],
+    ids=["directory ID alone", "Microsoft's own name and an app ID pasted in braces"],
+)
+def test_either_value_alone_and_as_pasted_reaches_microsoft(
+    page: SetupPage, tenant: str, pasted_app: str, app: str, authority: str
+) -> None:
+    page.start()
+    form: dict[str, str] = {
+        "kind": "microsoft",
+        "name": "uni",
+        "address": ADDRESS,
+        "tenant": tenant,
+        "client_id": pasted_app,
+    }
+    assert request(page, "POST", add_path(page), form).status == 303
+    assert FakeMsal.instances[-1].client_id == (app or DEFAULT_CLIENT_ID)
+    assert FakeMsal.instances[-1].authority == f"https://login.microsoftonline.com/{authority}"
+
+
 def test_a_cancelled_sign_in_saves_nothing(page: SetupPage, tmp_path: Path) -> None:
     page.start()
     port: int = int(urlsplit(page.url).port or 0)
@@ -196,6 +247,8 @@ def test_a_cancelled_sign_in_saves_nothing(page: SetupPage, tmp_path: Path) -> N
         ({"kind": "gmail", "name": "../etc", "address": "a@gmail.com"}, "only letters, numbers"),
         ({"kind": "gmail", "name": "w", "address": "no-at-sign"}, "full email address"),
         ({"kind": "google", "name": "w", "address": "a@school.edu"}, "client file"),
+        ({"kind": "microsoft", "name": "w", "address": "a@school.edu", "client_id": "not-an-id"}, "App (client) ID"),
+        ({"kind": "microsoft", "name": "w", "address": "a@school.edu", "tenant": "x/../evil"}, "Directory (tenant) ID"),
     ],
 )
 def test_an_incomplete_form_is_explained_and_saves_nothing(

@@ -57,7 +57,7 @@ from email_tool_mcp.enrol import (
     check_login,
 )
 from email_tool_mcp.google import GoogleTokens
-from email_tool_mcp.microsoft import MicrosoftTokens
+from email_tool_mcp.microsoft import MicrosoftTokens, check_directory, pasted_id
 from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, Mailbox, load_mailboxes
 
 LIFETIME_SECONDS: Final[float] = 600.0
@@ -231,8 +231,19 @@ class SetupPage:
             return self._again(problem)
         if kind in ("gmail", "password"):
             return await self._add_with_password(form, kind, name, address)
+        tenant: str = ""
+        client_id: str = ""
+        if kind == "microsoft":
+            tenant = pasted_id(str(form.get("tenant", "")))
+            client_id = pasted_id(str(form.get("client_id", "")))
+            try:
+                check_directory(tenant, client_id)
+            except ValueError as wrong:
+                return self._again(str(wrong))
         upload: object = form.get("client_file")
-        return await self._start_sign_in(kind, name, address, upload if isinstance(upload, UploadFile) else None)
+        return await self._start_sign_in(
+            kind, name, address, upload if isinstance(upload, UploadFile) else None, tenant, client_id
+        )
 
     async def _add_with_password(self, form: FormData, kind: str, name: str, address: str) -> Response:
         domain: str = address.rpartition("@")[2].lower()
@@ -275,7 +286,9 @@ class SetupPage:
         self._finish(done)
         return self._shown("Mailbox added", _done(done))
 
-    async def _start_sign_in(self, kind: str, name: str, address: str, upload: UploadFile | None) -> Response:
+    async def _start_sign_in(
+        self, kind: str, name: str, address: str, upload: UploadFile | None, tenant: str, client_id: str
+    ) -> Response:
         if kind == "google" and (upload is None or not upload.filename):
             return self._again("Choose your Google client file (client_secret_….json).")
         # Microsoft's app registers `http://localhost` and Google's loopback `http://localhost/`.
@@ -326,7 +339,8 @@ class SetupPage:
                         self._settings_file,
                         self._microsoft(),
                         address,
-                        "",
+                        client_id,
+                        tenant,
                         show=no_terminal,
                         login_check=self._login_check,
                         forget=self._forget,
@@ -540,6 +554,12 @@ def _form(token: str, problem: str) -> str:
     <label>Client file <input name="client_file" type="file" accept=".json,application/json"></label>
   </details>
   <details>
+    <summary>Outlook or Microsoft 365 at a university or company: only if IT gave you these</summary>
+    <p>Leave both empty unless your IT department gave them to you.</p>
+    <label>Directory (tenant) ID, such as your-school.edu <input name="tenant"></label>
+    <label>App (client) ID of your organization's own app <input name="client_id"></label>
+  </details>
+  <details>
     <summary>Name this mailbox (optional)</summary>
     <label>Name, such as work or personal
     <input name="name" pattern="[A-Za-z0-9][A-Za-z0-9_-]{{0,39}}"></label>
@@ -556,7 +576,8 @@ def _page(title: str, body: str) -> str:
 <style>
 body {{ font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; }}
 h1 {{ font-size: 1.5rem; }} label {{ display: block; margin: .6rem 0; }}
-input[type=email], input[name=name], input[type=password], input[name$=_host] {{
+input[type=email], input[name=name], input[type=password], input[name$=_host], input[name=tenant],
+input[name=client_id] {{
   display: block; width: 100%; padding: .4rem; }}
 fieldset {{ border: 1px solid #ccc; padding: .5rem 1rem; }} details {{ margin: 1rem 0; }}
 button {{ font-size: 1rem; padding: .5rem 1.2rem; }} .problem {{ color: #a40000; font-weight: 600; }}

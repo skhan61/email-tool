@@ -69,6 +69,10 @@ instead, open the link.
       [How to get an App Password](mailboxes.md#gmail).
     - **Outlook, Hotmail or Microsoft 365:** nothing more. After you select **Add mailbox**,
       Microsoft's sign-in page opens. Sign in and select **Accept**.
+      At a university or company, Microsoft may say **Need admin approval**: your IT
+      department must approve email-tool first. Send them the application ID
+      `82731d7a-ac7f-4a5e-88d3-acce522f85ce`. If IT gives you its own app ID or a directory ID
+      instead, type them under **Outlook or Microsoft 365 at a university or company**.
     - **Google Workspace at a company or school:** ask your IT department for the client file,
       or [create one](mailboxes.md#google-workspace).
     - **Any other mailbox:** type your password and, under **Any other mailbox: server names**,

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 5.4.4
+
+### Added
+- University and company Microsoft 365 without a terminal: the setup page takes the
+  directory (tenant) ID and the organization's own app (client) ID that IT gives you.
+  Start here says what to send IT when Microsoft asks for admin approval.
+
 ## 5.4.3
 
 ### Fixed
