@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+- Each new `user-report` issue gets one automatic first-look comment from Claude (likely cause,
+  related code, related issues), read-only and at most 3 a day. SECURITY.md says what it can do.
+
 ## 5.4.4
 
 ### Added
