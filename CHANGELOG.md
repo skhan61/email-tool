@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- On Gmail, `delete_email` and replacing a draft now delete the message: it moves to Trash
+  and is removed from there. Before, Gmail only took it out of the folder and kept it in All Mail.
 - Mailboxes added on the setup page are written to the audit log; in 5.3.0 the server gave the
   page no audit log, so they were not.
 - When an app reports the setup page as canceled or closed, the assistant is told to check

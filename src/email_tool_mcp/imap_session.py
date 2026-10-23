@@ -39,6 +39,8 @@ _HEADER_KEY: Final[bytes] = b"BODY[HEADER]"
 _MESSAGE_REQUEST: Final[str] = "BODY.PEEK[]"
 _MESSAGE_KEY: Final[bytes] = b"BODY[]"
 _FORBIDDEN: Final[tuple[str, ...]] = ("\r", "\n", "\0")
+_TRASH_FLAG: Final[bytes] = b"\\trash"
+_GMAIL_MESSAGE_ID: Final[bytes] = b"X-GM-MSGID"
 
 
 def checked(value: str) -> str:
@@ -76,6 +78,8 @@ class ImapSession:
         self._mailbox: Mailbox = mailbox
         self._credential: Credential = credential
         self._client: IMAPClient | None = None
+        self._selected: str = ""
+        self._trash: str | None = None
 
     def __enter__(self) -> ImapSession:
         client: IMAPClient = IMAPClient(
@@ -123,9 +127,8 @@ class ImapSession:
         """Return True when the server is Gmail (advertises X-GM-EXT-1)."""
         return bool(self._live.has_capability(_GMAIL_EXTENSION))
 
-    # no-library: scikit-learn: list_folders lists IMAP mail folders, it is not a data split.
-    def list_folders(self) -> list[str]:
-        """Return every selectable folder name, decoded one by one so a bad name cannot fail the rest."""
+    def _selectable(self) -> list[tuple[tuple[bytes, ...], str]]:
+        """Every selectable folder with its flags, decoded one by one so a bad name cannot fail the rest."""
         client: IMAPClient = self._live
         client.folder_encode = False
         try:
@@ -133,14 +136,34 @@ class ImapSession:
         finally:
             client.folder_encode = True
         return [
-            decode_folder_name(name)
+            (flags, decode_folder_name(name))
             for flags, _, name in listing
             if not any(flag.lower() == b"\\noselect" for flag in flags)
         ]
 
+    # no-library: scikit-learn: list_folders lists IMAP mail folders, it is not a data split.
+    def list_folders(self) -> list[str]:
+        """Return every selectable folder name, decoded one by one so a bad name cannot fail the rest."""
+        return [name for _, name in self._selectable()]
+
+    def _gmail_trash(self) -> str:
+        """Gmail's Trash folder (flagged \\Trash, RFC 6154), or "" when the server is not Gmail.
+
+        Not imapclient's find_special_folder: it lists with folder names decoded all at once,
+        so one malformed name fails it; _selectable decodes them one by one.
+        """
+        if self._trash is None:
+            self._trash = (
+                next((name for flags, name in self._selectable() if _TRASH_FLAG in map(bytes.lower, flags)), "")
+                if self.supports_gmail_search()
+                else ""
+            )
+        return self._trash
+
     def select(self, folder: str, readonly: bool) -> int:
         """Select `folder` (the name list_folders shows) and return its message count."""
         response: dict[bytes, Any] = self._live.select_folder(checked(folder), readonly=readonly)
+        self._selected = folder
         return int(response[b"EXISTS"])
 
     def search(self, criteria: list[SearchItem]) -> list[int]:
@@ -179,12 +202,41 @@ class ImapSession:
     def mark_deleted(self, uid: int) -> bool:
         """Delete `uid` from the selected folder; return True when it is gone.
 
+        Gmail reads an expunge as "remove this label", so the message would stay in All Mail.
+        There it moves to Trash and is expunged from Trash, Gmail's way to delete for good.
+        """
+        if not self.exists(uid):
+            raise LookupError(f"no message with uid {uid} in this folder")
+        trash: str = self._gmail_trash()
+        if not trash or trash == self._selected:
+            return self._expunge(uid)
+        client: IMAPClient = self._live
+        origin: str = self._selected
+        message_id: Any = client.fetch([uid], [_GMAIL_MESSAGE_ID]).get(uid, {}).get(_GMAIL_MESSAGE_ID)
+        if not isinstance(message_id, int):
+            raise LookupError(f"no message with uid {uid} in this folder")
+        client.move([uid], trash)
+        try:
+            self.select(trash, readonly=False)
+            moved: list[int] = [int(found) for found in client.search([_GMAIL_MESSAGE_ID.decode(), message_id])]
+            if not moved:
+                raise LookupError("not found there after the move")
+            for found in moved:
+                self._expunge(found)
+        except (IMAPClient.Error, OSError, LookupError) as failure:
+            raise IMAPClient.Error(
+                f"uid {uid} was moved to {trash!r} but not removed from it ({failure}); Gmail empties it after 30 days"
+            ) from failure
+        self.select(origin, readonly=False)
+        return True
+
+    def _expunge(self, uid: int) -> bool:
+        """Flag and expunge `uid` in the selected folder; return True when it is gone.
+
         With UIDPLUS (Gmail, Dovecot, most servers) only `uid` is expunged. Without
         it, EXPUNGE would also purge every other message flagged \\Deleted, so it
         runs only when `uid` is the sole flagged one; otherwise `uid` stays flagged.
         """
-        if not self.exists(uid):
-            raise LookupError(f"no message with uid {uid} in this folder")
         client: IMAPClient = self._live
         client.delete_messages([uid])
         if client.has_capability(_UID_EXPUNGE):
