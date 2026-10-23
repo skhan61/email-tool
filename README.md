@@ -3,7 +3,7 @@
 <h1 align="center">email-tool</h1>
 
 <p align="center"><b>Email for any AI agent that speaks MCP: Claude Code, Claude Desktop, Cowork, ChatGPT desktop, Codex and others.</b><br>
-Read, search, draft and send mail over IMAP/SMTP.</p>
+Read, search, draft and send mail, with attachments, over IMAP/SMTP.</p>
 
 <p align="center">
   <b>Works with</b><br>
