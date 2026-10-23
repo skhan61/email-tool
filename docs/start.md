@@ -29,21 +29,27 @@ Three steps, for any AI app. No terminal.
 
 === "Claude Code"
 
-    1. Install uv once with the installer for your computer (see the ChatGPT tab), or follow
-       [Install](install.md#step-1-install-uv).
-    2. In Claude Code, type:
+    1. Install uv once with the installer for your computer (see the ChatGPT tab), or
+       [by hand](install.md#install-uv-by-hand).
+    2. In a terminal, add the marketplace and install the plugin:
 
-        ```text
-        /plugin marketplace add skhan61/email-tool
-        /plugin install email-tool@email-tool
+        ```bash
+        claude plugin marketplace add skhan61/email-tool
+        claude plugin install email-tool@email-tool
         ```
 
+        ![Claude Code adds the email-tool marketplace](assets/screens/claude-marketplace.svg)
+
+        ![Claude Code installs the email-tool plugin](assets/screens/claude-install.svg)
+
+        Or type the same inside Claude Code: `/plugin marketplace add skhan61/email-tool`,
+        then `/plugin install email-tool@email-tool`.
     3. Close Claude Code and open it again.
 
 === "Another app"
 
     Any app that supports the Model Context Protocol (MCP) can run email-tool.
-    See [Install](install.md) for your app.
+    See [Advanced setup](install.md#connect-through-a-configuration-file-or-command).
 
 ## 2. Add your mailbox
 

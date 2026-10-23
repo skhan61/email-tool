@@ -1,20 +1,13 @@
-# Add your mailboxes
+# Mailbox details
+
+Most people add a mailbox on the setup page: ask your assistant to "add my mailbox"
+([Start here](start.md#2-add-your-mailbox), step 2). This page has what each kind of
+mailbox needs, which the setup page links to, and the same steps from a terminal.
 
 You add each mailbox once on each computer. email-tool checks that it can both read and
 send before it saves anything, so a typo never leaves a half-working mailbox behind.
 
-## The easy way: ask your assistant
-
-Ask your assistant to "add my mailbox". A page opens in your browser, on your computer only,
-where you choose the kind of mailbox and sign in or type its password:
-
-![The Add a mailbox page](assets/screens/setup-page.png){ width="560" }
-
-The password never passes through the assistant. If your app cannot open pages, the
-assistant shows you the page's link to open. The rest of this page does the same from a
-terminal.
-
-## From a terminal: before you start
+## From a terminal
 
 1. Install the `email-tool-mcp` command once:
 
