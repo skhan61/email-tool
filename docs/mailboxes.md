@@ -108,8 +108,11 @@ For Outlook.com, Hotmail, Live and Microsoft 365. No password is stored.
     email-tool-mcp add work --auth microsoft --address you@company.com
     ```
 
-2. Your browser opens on Microsoft's sign-in page. Sign in and select **Accept** to let
-   **email-tool** read and send your mail.
+2. Your browser opens on Microsoft's sign-in page. Sign in. Microsoft then asks
+   **Let this app access your info?** and lists what **email-tool** may do: read and write
+   your mail, send mail, keep access, and see your basic profile. Select **Accept**:
+
+    ![Microsoft asks whether email-tool may access your mail, with Deny and Accept](assets/screens/microsoft-consent.png){ width="440" }
 3. Return to the terminal. It prints `Mailbox 'work' ... added` when both the reading and
    the sending checks pass.
 
