@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 5.4.2
+
+### Fixed
+- The release reaches PyPI and the MCP Registry: 5.4.1's upload stopped because the
+  installers were handed to PyPI with the Python packages.
+
 ## 5.4.1
 
 ### Added

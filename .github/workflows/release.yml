@@ -46,6 +46,11 @@ jobs:
         run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
       - run: uv run --locked pytest -q
       - run: uv build
+      # PyPI takes the wheel and the sdist only: they go in their own artifact, checked here with
+      # the twine that gh-action-pypi-publish v1.14.2 runs,
+      # so a pull request's dry run fails on anything PyPI would refuse.
+      - run: mkdir pypi && cp dist/*.whl dist/*.tar.gz pypi/
+      - run: uvx twine==7.0.0 check --strict pypi/*
       - uses: ./.github/actions/agent-cli
         with:
           tool: mcpb
@@ -65,6 +70,10 @@ jobs:
         with:
           name: dist
           path: dist/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pypi
+          path: pypi/
 
   # Provenance first, so the release is published once, with every file attached.
   provenance:
@@ -131,10 +140,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: dist
+          name: pypi
           path: dist/
-      # PyPI takes the wheel and the sdist only.
-      - run: rm -f dist/*.mcpb
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
   # The official MCP Registry lists the PyPI package; it checks the README's mcp-name marker.
