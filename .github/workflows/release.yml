@@ -45,7 +45,12 @@ jobs:
         if: github.event_name == 'push'
         run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
       - run: uv run --locked pytest -q
-      - run: uv build
+      # Built outside the checkout, so the bundle below never packs them. Checked with the twine
+      # and pins that gh-action-pypi-publish v1.14.2 runs, so a pull request's dry run fails on
+      # anything PyPI would refuse.
+      - run: uv build --out-dir "$RUNNER_TEMP/python"
+      - run: uvx --constraints .github/tools/twine/constraints.txt twine check --strict "$RUNNER_TEMP"/python/*
+      - run: mkdir -p dist && cp "$RUNNER_TEMP"/python/* dist/
       - uses: ./.github/actions/agent-cli
         with:
           tool: mcpb
@@ -58,6 +63,8 @@ jobs:
       # its "can run" permission; a browser strips it from a bare .command download.
       - run: cp install/Install-email-tool.cmd dist/
       - run: cd install && zip -X ../dist/Install-email-tool-macOS.zip Install-email-tool.command
+      # The pypi job keeps the wheel and sdist formats from dist; that must be exactly what uv built.
+      - run: diff <(cd "$RUNNER_TEMP/python" && ls) <(cd dist && ls -- *.whl *.tar.gz)
       # What the provenance vouches for: the SHA-256 of every file released.
       - id: hashes
         run: echo "hashes=$(cd dist && sha256sum * | base64 -w0)" >> "$GITHUB_OUTPUT"
@@ -133,8 +140,8 @@ jobs:
         with:
           name: dist
           path: dist/
-      # PyPI takes the wheel and the sdist only.
-      - run: rm -f dist/*.mcpb
+      # The signed release's own files; PyPI takes its two package formats, wheel and sdist.
+      - run: find dist -type f ! -name '*.whl' ! -name '*.tar.gz' -delete && ls dist
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
   # The official MCP Registry lists the PyPI package; it checks the README's mcp-name marker.

@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "email-tool",
   "display_name": "Email (IMAP/SMTP)",
-  "version": "5.4.1",
+  "version": "5.4.2",
   "description": "Read, search, draft and send email over IMAP/SMTP.",
   "long_description": "Lets Claude read, search, draft and send email in your own mailboxes. Leave every field below blank and select Install. Then ask Claude: \"add my mailbox\". A page opens in your browser where you choose Gmail, Outlook or another mailbox and sign in. Your password never passes through Claude.",
   "author": {
