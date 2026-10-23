@@ -1,0 +1,7 @@
+# Tells the maintainer on the desktop that the weekly live tests failed; the details are in the log.
+[Unit]
+Description=Notify that the email-tool live tests failed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/notify-send --urgency=critical "email-tool live tests failed" "See ~/.local/state/email-tool/live.log"

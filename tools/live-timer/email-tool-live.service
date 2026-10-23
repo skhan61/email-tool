@@ -1,0 +1,15 @@
+# The live tests (tests/live) against this computer's real mailboxes, as one run.
+# Install: see CONTRIBUTING.md, "Live tests". WorkingDirectory is the email-tool checkout.
+[Unit]
+Description=email-tool live tests against real mailboxes
+OnFailure=email-tool-live-failed.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/email-tool
+Environment=EMAIL_TOOL_LIVE=1
+ExecStart=%h/.local/bin/uv run --frozen pytest tests/live -q -p no:randomly -rw
+# Kept on this computer only: failure messages can name the mailboxes' addresses.
+StandardOutput=append:%h/.local/state/email-tool/live.log
+StandardError=append:%h/.local/state/email-tool/live.log
+TimeoutStartSec=1200

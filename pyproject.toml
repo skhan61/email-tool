@@ -96,6 +96,9 @@ bot_login = "skhan61-bot[bot]"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 addopts = "--strict-markers --durations=10"
+markers = [
+    "live: runs against this computer's real mailboxes; skipped unless EMAIL_TOOL_LIVE=1 (tests/live)",
+]
 # A hung test prints every thread's stack and fails instead of stalling CI.
 timeout = 60
 timeout_method = "thread"

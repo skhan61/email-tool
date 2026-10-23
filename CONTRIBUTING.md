@@ -36,13 +36,42 @@ uv run --group docs mkdocs serve
 
 Pull requests build it with `--strict`, so a broken link fails the check.
 
+## Live tests
+
+`tests/` runs offline against a fake mail server. `tests/live` runs the same tools against
+real mailboxes on this computer (settings, keyring and sign-ins), so it finds what only a real
+server shows. It is skipped unless `EMAIL_TOOL_LIVE=1`, never runs in CI, and no real
+password leaves the computer. It sends one mailbox's messages to another, each with a unique
+code in the subject, and deletes them afterwards; junk or spam filing is reported as a warning.
+
+```bash
+EMAIL_TOOL_LIVE=1 uv run pytest tests/live -q
+# other mailboxes than gmail -> outlook:
+EMAIL_TOOL_LIVE=1 EMAIL_TOOL_LIVE_FROM=work EMAIL_TOOL_LIVE_TO=home uv run pytest tests/live -q
+```
+
+Weekly on Linux, with a systemd user timer (`tools/live-timer/`): set `WorkingDirectory` in
+`email-tool-live.service` to your checkout, then
+
+```bash
+mkdir -p ~/.config/systemd/user ~/.local/state/email-tool
+cp tools/live-timer/* ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now email-tool-live.timer
+```
+
+A failed run shows a desktop notification; the log is `~/.local/state/email-tool/live.log`.
+
 ## Releasing
 
 A pull request that changes `.github/workflows/release.yml` runs it as a dry run (build and
 pack, no signing or publishing), so a workflow error fails the pull request, not the release.
 
+Before step 1, run the live tests on the maintainer's computer; release only when they pass.
+
 1. Bump the version in `pyproject.toml`, `manifest.json`, `.claude-plugin/plugin.json`,
-   `.codex-plugin/plugin.json` and `.claude-plugin/marketplace.json` (`tests/test_manifests.py` fails if they differ), then `uv lock`.
+   `.codex-plugin/plugin.json`, `.claude-plugin/marketplace.json` and the `@vX.Y.Z` pin in
+   `.codex-mcp.json` (`tests/test_manifests.py` fails if they differ), then `uv lock` with the
+   uv version CI uses.
    Add the version's section to `CHANGELOG.md`, including behaviour changes.
 2. Merge, then tag `main` at once: `git tag vX.Y.Z && git push origin vX.Y.Z`
    (the Codex plugin points at that tag, so it must exist as soon as the bump lands).
