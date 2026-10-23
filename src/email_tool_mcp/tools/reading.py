@@ -6,6 +6,7 @@ Placement: tools/reading.py, one module per tool group.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from email.message import Message
 from pathlib import Path
@@ -91,9 +92,13 @@ class ReadingTools:
 
     def __init__(self, book: MailboxBook) -> None:
         self._book: MailboxBook = book
+        # Set by the server: clears add_mailbox's report once the mailboxes have been listed.
+        self.after_listing: Callable[[], object] | None = None
 
     def list_mailboxes(self) -> str:
         """List the mailboxes configured on this machine and whether each can log in."""
+        if self.after_listing is not None:
+            self.after_listing()
         known: dict[str, Mailbox] = self._book.mailboxes()
         lines: list[str] = [
             f"{name}: {mailbox.address} ({self._book.login_problem(mailbox) or 'ready'})"

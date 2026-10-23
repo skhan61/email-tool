@@ -13,7 +13,6 @@ import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlencode, urlsplit
 
 import pytest
@@ -22,7 +21,7 @@ from mcp.client.context import ClientRequestContext
 from mcp.shared.exceptions import UrlElicitationRequiredError
 from mcp_types import CallToolResult, ElicitRequestParams, ElicitResult, TextContent
 
-from email_tool_mcp import server as server_module
+from email_tool_mcp import setup_page as setup_page_module
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.mailbox_book import MailboxBook
@@ -58,11 +57,16 @@ def checks() -> Checks:
 
 
 @pytest.fixture
-def page(tmp_path: Path, checks: Checks) -> Iterator[SetupPage]:
+def page(tmp_path: Path, checks: Checks, audit: AuditLog) -> Iterator[SetupPage]:
     FakeMsal.instances = []
     microsoft: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "sign-ins"), FakeMsal)
     opened: SetupPage = SetupPage(
-        tmp_path / "mailboxes.toml", lambda mailbox: True, lambda: microsoft, lambda: pytest.fail(), checks
+        tmp_path / "mailboxes.toml",
+        lambda mailbox: True,
+        lambda: microsoft,
+        lambda: pytest.fail(),
+        audit=audit,
+        login_check=checks,
     )
     yield opened
     opened.stop()
@@ -137,9 +141,15 @@ def test_a_request_from_anywhere_but_this_page_is_refused(
     assert not (tmp_path / "mailboxes.toml").exists()
 
 
-def test_the_page_closes_when_its_time_runs_out(tmp_path: Path, checks: Checks) -> None:
+def test_the_page_closes_when_its_time_runs_out(tmp_path: Path, checks: Checks, audit: AuditLog) -> None:
     short: SetupPage = SetupPage(
-        tmp_path / "mailboxes.toml", lambda mailbox: True, lambda: pytest.fail(), lambda: pytest.fail(), checks, 0.3
+        tmp_path / "mailboxes.toml",
+        lambda mailbox: True,
+        lambda: pytest.fail(),
+        lambda: pytest.fail(),
+        audit=audit,
+        login_check=checks,
+        lifetime=0.3,
     )
     port: int = int(urlsplit(short.start()).port or 0)
     time.sleep(1.0)
@@ -264,8 +274,8 @@ def audited(tmp_path: Path, checks: Checks, audit: AuditLog) -> Iterator[SetupPa
         lambda mailbox: True,
         lambda: microsoft,
         lambda: tokens_with(tmp_path, FakeFlow(SCHOOL_ADDRESS)),
-        checks,
         audit=audit,
+        login_check=checks,
     )
     yield opened
     opened.stop()
@@ -349,17 +359,30 @@ def test_each_mailbox_added_on_the_page_is_audited_without_its_password(audited:
     assert APP_PASSWORD not in logged and APP_PASSWORD.replace(" ", "") not in logged
 
 
-def test_the_servers_own_setup_page_writes_to_the_audit_log(
-    book: MailboxBook, audit: AuditLog, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.anyio
+async def test_the_servers_own_setup_page_audits_each_add_and_listing_clears_the_report(
+    book: MailboxBook, audit: AuditLog, checks: Checks, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Found live (#87): the server built its page without the audit log, so page adds went unrecorded."""
-    built: list[SetupPage] = []
-
-    class Recorded(SetupPage):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, **kwargs)
-            built.append(self)
-
-    monkeypatch.setattr(server_module, "SetupPage", Recorded)
-    build_server(book, audit)
-    assert built and built[0]._audit is audit
+    monkeypatch.setattr(setup_page_module, "check_login", checks)
+    async with Client(build_server(book, audit)) as client:
+        said: str = text_of(await client.call_tool("add_mailbox", {}))
+        link: str = said.split(": ", 1)[1].split()[0]
+        port: int = int(urlsplit(link).port or 0)
+        connection: http.client.HTTPConnection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        connection.request(
+            "POST",
+            urlsplit(link).path + "/add",
+            body=urlencode(GMAIL),
+            headers={
+                "Host": f"127.0.0.1:{port}",
+                "Origin": f"http://127.0.0.1:{port}",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        )
+        assert connection.getresponse().status == 200
+        logged: str = audit.path.read_text(encoding="utf-8")
+        assert '"kind": "gmail"' in logged and '"address": "me@gmail.com"' in logged
+        await client.call_tool("list_mailboxes", {})
+        again: str = text_of(await client.call_tool("add_mailbox", {}))
+    assert again.startswith("Show the user this link"), "after list_mailboxes, no stale 'Mailbox added' report"

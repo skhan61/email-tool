@@ -245,6 +245,8 @@ def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = No
     setup_page: SetupPage = page or SetupPage(
         book.settings_file, book.forget, microsoft_tokens, google_tokens, audit=audit
     )
+    # list_mailboxes shows what the page added, so it also clears add_mailbox's pending report.
+    reading.after_listing = setup_page.take_result
     setup: SetupTools = SetupTools(setup_page)
     reads: ToolKind = ToolKind(_READ_ONLY, changes_mail=False, asks=False)
     tools: list[tuple[Callable[..., str], ToolKind]] = [
@@ -269,9 +271,7 @@ def build_server(book: MailboxBook, audit: AuditLog, page: SetupPage | None = No
         version=version(DISTRIBUTION),
         instructions=(
             "IMAP/SMTP email. Call list_mailboxes first when more than one mailbox may exist. "
-            "Never send or delete without the user's explicit confirmation of the exact message. "
-            "If the app says the add_mailbox page was canceled or closed, call list_mailboxes: the user may have "
-            "added the mailbox there."
+            "Never send or delete without the user's explicit confirmation of the exact message."
         ),
     )
     known_tools: frozenset[str] = frozenset(tool.__name__ for tool, _ in tools)
