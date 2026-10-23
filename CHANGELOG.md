@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+- Maintainer tool `python -m tools.report_bridge run`: each emailed problem report becomes one
+  `user-report` GitHub issue, opened by the bot, with every address removed (#96).
+
 ## 5.4.4
 
 ### Added
