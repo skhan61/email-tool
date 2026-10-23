@@ -126,7 +126,8 @@ class Cli:
 
 def main() -> None:
     """Console-script entry point."""
-    fire.Fire(Cli)
+    # An instance, not the class: on the class, `--help` describes its constructor and lists no commands.
+    fire.Fire(Cli(), name="email-tool-mcp")
 
 
 if __name__ == "__main__":
