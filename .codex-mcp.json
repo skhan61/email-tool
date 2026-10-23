@@ -4,7 +4,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/skhan61/email-tool@v5.2.1",
+        "git+https://github.com/skhan61/email-tool@v5.3.0",
         "email-tool-mcp",
         "serve"
       ]

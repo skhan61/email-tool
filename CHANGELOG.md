@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 5.3.0
 
 ### Added
 - Add a mailbox without a terminal: ask your assistant to "add my mailbox" (`add_mailbox`).
