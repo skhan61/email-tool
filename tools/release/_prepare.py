@@ -16,14 +16,15 @@ import tomllib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Final, TypeAlias
 
 from tools.release import _changelog, _json_file
 from tools.release._json_file import Json, JsonFile
 
 log: Final[logging.Logger] = logging.getLogger(__name__)
 
-# The uv that CI uses; CONTRIBUTING.md and this tool lock with the same one.
+# The uv that relocks a release, named in CONTRIBUTING.md. CI's setup-uv takes the newest uv,
+# so this pin is not read from CI; change it here and in CONTRIBUTING.md together.
 PINNED_UV: Final[tuple[str, ...]] = ("uvx", "uv@0.13.5")
 PARTS: Final[tuple[str, ...]] = ("patch", "minor", "major")
 PYPROJECT: Final[str] = "pyproject.toml"
@@ -31,7 +32,7 @@ CHANGELOG: Final[str] = "CHANGELOG.md"
 LOCK: Final[str] = "uv.lock"
 
 # Runs uv with these arguments in this folder and returns its standard output.
-Uv = Callable[[Sequence[str], Path], str]
+Uv: TypeAlias = Callable[[Sequence[str], Path], str]
 
 
 class ReleaseError(RuntimeError):
@@ -70,10 +71,12 @@ def pinned_uv(arguments: Sequence[str], root: Path) -> str:
 
 
 def _current_version(root: Path) -> str:
-    project: dict[str, object] = tomllib.loads((root / PYPROJECT).read_text(encoding="utf-8"))["project"]
-    version: object = project["version"]
+    try:
+        version: object = tomllib.loads((root / PYPROJECT).read_text(encoding="utf-8"))["project"]["version"]
+    except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError) as error:
+        raise ReleaseError(f"cannot read the [project] version from {root / PYPROJECT}: {error!r}") from error
     if not isinstance(version, str):
-        raise ReleaseError(f"{PYPROJECT} has no [project] version")
+        raise ReleaseError(f"{root / PYPROJECT} has no [project] version")
     return version
 
 
@@ -131,8 +134,18 @@ def _load_manifests(root: Path, current: str) -> dict[str, JsonFile]:
     return manifests
 
 
-def _snapshot(root: Path, names: Sequence[str]) -> dict[str, bytes]:
-    return {name: (root / name).read_bytes() if (root / name).is_file() else b"" for name in names}
+def _snapshot(root: Path, names: Sequence[str]) -> dict[str, bytes | None]:
+    return {name: (root / name).read_bytes() if (root / name).is_file() else None for name in names}
+
+
+def _restore(root: Path, snapshot: dict[str, bytes | None]) -> None:
+    name: str
+    content: bytes | None
+    for name, content in snapshot.items():
+        if content is not None:
+            (root / name).write_bytes(content)
+        else:
+            (root / name).unlink(missing_ok=True)
 
 
 def prepare(part: str, root: str = ".") -> str:
@@ -158,21 +171,26 @@ def prepare_with(part: str, root: Path, uv: Uv) -> str:
         raise ReleaseError(str(error)) from error
 
     names: list[str] = [PYPROJECT, *manifests, CHANGELOG, LOCK]
-    before: dict[str, bytes] = _snapshot(checkout, names)
-    # Without re-locking here: the lock below is the pinned uv's, with nothing else in between.
-    uv(["version", version, "--frozen"], checkout)
-    location: Location
-    for location in LOCATIONS:
-        _set(manifests[location.file].data, location, location.prefix + version)
-    manifest: JsonFile
-    for manifest in manifests.values():
-        _json_file.save(manifest)
-    (checkout / CHANGELOG).write_text(notes, encoding="utf-8")
-    uv(["lock"], checkout)
-    if _current_version(checkout) != version:
-        raise ReleaseError(f"{PYPROJECT} does not say {version} after `uv version`")
+    before: dict[str, bytes | None] = _snapshot(checkout, names)
+    try:
+        # Without re-locking here: the lock below is the pinned uv's, with nothing else in between.
+        uv(["version", version, "--frozen"], checkout)
+        location: Location
+        for location in LOCATIONS:
+            _set(manifests[location.file].data, location, location.prefix + version)
+        manifest: JsonFile
+        for manifest in manifests.values():
+            _json_file.save(manifest)
+        (checkout / CHANGELOG).write_text(notes, encoding="utf-8")
+        uv(["lock"], checkout)
+        if _current_version(checkout) != version:
+            raise ReleaseError(f"{PYPROJECT} does not say {version} after `uv version`")
+    except BaseException:
+        # A failed lock (no network, say) must not leave a half-prepared release behind.
+        _restore(checkout, before)
+        raise
 
-    after: dict[str, bytes] = _snapshot(checkout, names)
+    after: dict[str, bytes | None] = _snapshot(checkout, names)
     changed: list[str] = [name for name in names if before[name] != after[name]]
     log.info("%s -> %s", current, version)
     return "\n".join([f"{current} -> {version}; changed:", *changed])

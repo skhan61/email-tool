@@ -66,7 +66,8 @@ Run the live tests on the maintainer's computer first; release only when they pa
    ```
    `prepare` sets the next version in every file that carries it (`tests/test_manifests.py`
    checks they agree), moves the `## Unreleased` entries of `CHANGELOG.md` under `## X.Y.Z`
-   (it refuses when there are none) and relocks with the uv version CI uses.
+   (it refuses when there are none) and relocks with uv 0.13.5. If anything fails, it puts
+   every file back.
 2. Merge it. `release.yml` runs on `main`, finds no tag `vX.Y.Z`, tags the merge and, in the
    same run, tests, builds the wheel, sdist and `.mcpb` bundle, signs each with Sigstore
    (`*.sigstore.json`), adds SLSA build provenance (`*.intoto.jsonl`) and publishes a GitHub
@@ -74,13 +75,16 @@ Run the live tests on the maintainer's computer first; release only when they pa
    official MCP Registry (both only with the repository variable `PYPI_PUBLISH` set to `true`).
    A merge that keeps the version releases nothing. Codex installs the new version from PyPI
    and fails until the `pypi` job succeeds: check https://pypi.org/project/email-tool-mcp/
-   after the run. If a job fails, re-run that run's failed jobs. Pushing the tag by hand
-   (`git tag vX.Y.Z && git push origin vX.Y.Z`, on `main`) still releases a version with no tag yet.
-3. Verify a download: it must be signed by release.yml on `main`:
+   after the run. If a job fails, re-run that run's failed jobs. If a fix must reach `main` first,
+   delete the tag after it merges and push it again by hand:
+   `git push origin :refs/tags/vX.Y.Z`, then `git tag vX.Y.Z && git push origin vX.Y.Z` on `main`.
+   A hand-pushed tag releases a version the same way.
+3. Verify a download: it must be signed by release.yml on `main`, at the commit tagged `vX.Y.Z`
+   (every release from `main` has the same identity; the commit ties it to one version):
    ```bash
-   uvx sigstore==4.5.0 verify identity <file> \
-     --cert-identity https://github.com/skhan61/email-tool/.github/workflows/release.yml@refs/heads/main \
-     --cert-oidc-issuer https://token.actions.githubusercontent.com
+   sha="$(git ls-remote https://github.com/skhan61/email-tool refs/tags/vX.Y.Z | cut -f1)"
+   uvx sigstore==4.5.0 verify github <file> --sha "$sha" \
+     --cert-identity https://github.com/skhan61/email-tool/.github/workflows/release.yml@refs/heads/main
    ```
    Releases up to 5.4.4, and a release made by pushing its tag by hand, are signed on the tag:
    end the identity with `release.yml@refs/tags/vX.Y.Z` instead.

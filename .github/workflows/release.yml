@@ -33,22 +33,18 @@ on:
 permissions:
   contents: read
 
-# Pushes to main and tag pushes run one at a time, so two merges close together cannot both
-# find the tag missing. GitHub keeps one waiting run per group and cancels an older waiting one;
-# the newer run is on a later main, so it still finds and releases any untagged version.
-concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('release-dry-run-{0}', github.ref) || 'release' }}
-  cancel-in-progress: false
-
 jobs:
   # What this run releases, if anything: `publish` is "true" for a version with no tag yet on
   # main, and for a tag push. Read with the runner's Python, so no third-party code runs here.
+  # `tagged` is "true" when "Re-run all jobs" repeats a release whose tag this commit already has
+  # and whose GitHub release does not exist yet: the run finishes that release instead of skipping.
   version:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       version: ${{ steps.read.outputs.version }}
       publish: ${{ steps.read.outputs.publish }}
+      tagged: ${{ steps.read.outputs.tagged }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -57,22 +53,30 @@ jobs:
         run: |
           version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            publish=false
-          elif [ "$GITHUB_REF_TYPE" = tag ]; then
+          publish=false
+          tagged=false
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
             publish=true
-          else
+          elif [ "$GITHUB_EVENT_NAME" = push ]; then
             # --exit-code: 0 the tag exists, 2 it does not; anything else is an error, not "missing".
             found=0
-            git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null || found=$?
+            refs="$(git ls-remote --exit-code --tags origin "refs/tags/v$version")" || found=$?
             case "$found" in
-              0) publish=false ;;
+              0)
+                if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ] && grep -q "^$GITHUB_SHA" <<< "$refs" \
+                    && ! gh release view "v$version" --repo "$GITHUB_REPOSITORY" > /dev/null; then
+                  publish=true
+                  tagged=true
+                fi ;;
               2) publish=true ;;
               *) echo "::error::cannot list the repository's tags (git exit $found)"; exit 1 ;;
             esac
           fi
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
-          echo "version $version, publish $publish"
+          echo "tagged=$tagged" >> "$GITHUB_OUTPUT"
+          echo "version $version, publish $publish, tagged $tagged"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   build:
     needs: version
@@ -125,7 +129,9 @@ jobs:
   # A release PR just merged: tag its commit with this workflow's token, after the tests passed.
   # An event the GITHUB_TOKEN causes starts no new workflow run (except workflow_dispatch and
   # repository_dispatch; GitHub docs, "GITHUB_TOKEN"), so this tag does not start the
-  # `push: tags` release again: the release continues in this run. On a tag push it does nothing.
+  # `push: tags` release again: the release continues in this run. `proceed` is "false" when the
+  # tag appeared after the `version` job looked (pushed by hand, or by a run for a later merge):
+  # the run that tag started, or that later run, releases it, and this one stops without failing.
   tag:
     if: github.event_name == 'push'
     needs: [version, build]
@@ -133,16 +139,30 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+    outputs:
+      proceed: ${{ steps.create.outputs.proceed }}
     steps:
-      - if: github.ref_type == 'branch'
-        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$VERSION" -f sha="$GITHUB_SHA"
+      - id: create
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ] || [ "$TAGGED" = true ]; then
+            proceed=true
+          elif gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$VERSION" -f sha="$GITHUB_SHA" > /dev/null; then
+            proceed=true
+          elif gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" > /dev/null; then
+            echo "::notice::v$VERSION was tagged by another push; that run releases it"
+            proceed=false
+          else
+            exit 1
+          fi
+          echo "proceed=$proceed" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
+          TAGGED: ${{ needs.version.outputs.tagged }}
 
   # Provenance first, so the release is published once, with every file attached.
   provenance:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && needs.tag.outputs.proceed == 'true'
     needs: [build, tag]
     # The generator's own upload job declares contents: write even with upload-assets
     # off, and a called workflow may not ask for more than this job grants. That write

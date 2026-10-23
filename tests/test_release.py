@@ -194,7 +194,47 @@ def test_uv_writes_the_version_and_the_lock_comes_last(checkout: Path) -> None:
     _prepare.prepare_with("patch", checkout, uv)
     new: str = version_of(checkout)
     assert uv.calls == [["version", "--bump", "patch", "--dry-run", "--short"], ["version", new, "--frozen"], ["lock"]]
-    assert _prepare.PINNED_UV == ("uvx", "uv@0.13.5")
+
+
+class FailingLock(FakeUv):
+    """`uv lock` fails, as it does without the network."""
+
+    def __call__(self, arguments: Sequence[str], root: Path) -> str:
+        if list(arguments) == ["lock"]:
+            raise ReleaseError("`uv lock` failed: no network")
+        return super().__call__(arguments, root)
+
+
+def test_a_failed_lock_puts_every_file_back(checkout: Path) -> None:
+    before: dict[str, bytes] = {name: (checkout / name).read_bytes() for name in COPIED}
+    with pytest.raises(ReleaseError, match="uv lock"):
+        _prepare.prepare_with("patch", checkout, FailingLock())
+    assert {name: (checkout / name).read_bytes() for name in COPIED} == before
+
+
+def test_a_pyproject_without_a_version_is_refused_plainly(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[tool.ruff]\nline-length = 120\n", encoding="utf-8")
+    with pytest.raises(ReleaseError, match="cannot read the \\[project\\] version"):
+        _prepare.prepare_with("patch", tmp_path, FakeUv())
+
+
+def test_every_tracked_file_that_carries_the_version_is_one_prepare_updates() -> None:
+    """A new manifest that carries the version must be added to LOCATIONS, or this fails."""
+    listed: subprocess.CompletedProcess[str] = subprocess.run(
+        ["git", "ls-files", "*.json", "*.toml", "*.yml", "*.yaml"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    version: str = version_of(ROOT)
+    carrying: set[str] = {
+        name
+        for name in listed.stdout.split()
+        if f'"{version}"' in (ROOT / name).read_text(encoding="utf-8")
+        or f"=={version}" in (ROOT / name).read_text(encoding="utf-8")
+    }
+    assert carrying == {"pyproject.toml", *(location.file for location in LOCATIONS)}
 
 
 def test_the_report_names_every_changed_file(checkout: Path) -> None:
