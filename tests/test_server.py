@@ -190,6 +190,22 @@ async def test_a_message_in_an_unknown_charset_still_reads(
     assert "hello there" in text_of(result)
 
 
+@pytest.mark.parametrize(("gmail", "ignored"), [(True, False), (False, True)])
+async def test_a_gmail_search_runs_on_gmail_and_is_ignored_elsewhere(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer, gmail: bool, ignored: bool
+) -> None:
+    store_password("work", "secret")
+    mail_server.gmail = gmail
+    message: EmailMessage = compose("jane@example.com", "me@example.com", "Invoice", "Due.", "", "")
+    mail_server.add("INBOX", message.as_bytes())
+    arguments: dict[str, object] = {"mailbox": "work", "gmail_query": "from:jane has:attachment", "subject": "Invoice"}
+    result: CallToolResult = await call(book, audit, "search_emails", arguments)
+    assert not result.is_error
+    assert ("gmail_query was ignored" in text_of(result)) is ignored
+    assert mail_server.gmail_queries == ([] if ignored else ["from:jane has:attachment"])
+    assert "Invoice" in text_of(result)
+
+
 async def test_broken_unicode_is_refused_by_name_and_still_audited(book: MailboxBook, audit: AuditLog) -> None:
     """JSON can carry an unpaired surrogate; it used to escape as a raw UnicodeEncodeError (found by fuzzing)."""
     store_password("work", "secret")
