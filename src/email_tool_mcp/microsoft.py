@@ -295,6 +295,7 @@ class MicrosoftTokens:
         show: Callable[[str], None],
         paste: Callable[[str], str] | None = None,
         redirect: str = REDIRECT,
+        open_address: Callable[[str], None] | None = None,
     ) -> SignIn:
         """Sign in once in the browser, with a device code, or by pasting back the browser's address.
 
@@ -322,7 +323,7 @@ class MicrosoftTokens:
                 code_flow: dict[str, Any] = app.initiate_auth_code_flow(
                     scopes, redirect_uri=redirect, login_hint=mailbox.address, prompt="select_account"
                 )
-            answer: str = pasted_address("Microsoft", str(code_flow["auth_uri"]), redirect, show, paste)
+            answer: str = pasted_address("Microsoft", str(code_flow["auth_uri"]), redirect, show, paste, open_address)
             pairs: list[tuple[str, str]] = parse_qsl(urlsplit(answer).query)
             result = app.acquire_token_by_auth_code_flow(code_flow, dict(pairs))
         else:

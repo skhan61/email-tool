@@ -403,6 +403,7 @@ class Recording(MicrosoftTokens):
         show: Callable[[str], None],
         paste: Callable[[str], str] | None = None,
         redirect: str = REDIRECT,
+        open_address: Callable[[str], None] | None = None,
     ) -> SignIn:
         self.pasting: bool = paste is not None
         raise RuntimeError("stop after choosing the mode")

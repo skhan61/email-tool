@@ -8,6 +8,8 @@ Placement: tests/test_setup_page.py, beside the module it tests (pytest's tests/
 from __future__ import annotations
 
 import http.client
+import tempfile
+import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -28,6 +30,8 @@ from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import Mailbox, load_mailboxes
 from email_tool_mcp.setup_page import SetupPage
 from email_tool_mcp.token_store import TokenStore
+from tests.test_google import ADDRESS as SCHOOL_ADDRESS
+from tests.test_google import FakeFlow, tokens_with
 from tests.test_microsoft import ADDRESS, FakeMsal
 
 APP_PASSWORD: str = "abcd efgh ijkl mnop"
@@ -230,16 +234,114 @@ async def test_an_app_that_opens_pages_gets_the_page_and_the_token_never_reaches
             await client.call_tool("add_mailbox", {})
 
 
-def test_without_a_name_one_is_taken_from_the_address_and_a_used_name_is_refused(
-    page: SetupPage, tmp_path: Path
-) -> None:
-    page.start()
+def test_names_reuse_the_addresss_mailbox_and_never_take_another_addresss(page: SetupPage, tmp_path: Path) -> None:
     unnamed: dict[str, str] = {key: value for key, value in GMAIL.items() if key != "name"}
+    page.start()
     assert request(page, "POST", add_path(page), unnamed).status == 200
     assert set(load_mailboxes(tmp_path / "mailboxes.toml")) == {"gmail"}
     page.start()
-    again: http.client.HTTPResponse = request(page, "POST", add_path(page), {**unnamed, "name": "gmail"})
-    assert again.status == 400
-    assert "You already have a mailbox called gmail" in again.read().decode()
-    assert request(page, "POST", add_path(page), unnamed).status == 200
+    renewed: dict[str, str] = {**unnamed, "password": "qrst uvwx yzab cdef"}
+    assert request(page, "POST", add_path(page), renewed).status == 200, "the same address signs in again"
+    assert set(load_mailboxes(tmp_path / "mailboxes.toml")) == {"gmail"}
+    assert read_password("gmail") == "qrstuvwxyzabcdef"
+    page.start()
+    other: dict[str, str] = {**unnamed, "address": "someone.else@gmail.com"}
+    refused: http.client.HTTPResponse = request(page, "POST", add_path(page), {**other, "name": "gmail"})
+    assert refused.status == 400
+    assert "You already have a mailbox called gmail, for me@gmail.com" in refused.read().decode()
+    assert request(page, "POST", add_path(page), other).status == 200
     assert set(load_mailboxes(tmp_path / "mailboxes.toml")) == {"gmail", "gmail2"}
+
+
+@pytest.fixture
+def audited(tmp_path: Path, checks: Checks, audit: AuditLog) -> Iterator[SetupPage]:
+    FakeMsal.instances = []
+    microsoft: MicrosoftTokens = MicrosoftTokens(TokenStore(tmp_path / "sign-ins"), FakeMsal)
+    opened: SetupPage = SetupPage(
+        tmp_path / "mailboxes.toml",
+        lambda mailbox: True,
+        lambda: microsoft,
+        lambda: tokens_with(tmp_path, FakeFlow(SCHOOL_ADDRESS)),
+        checks,
+        audit=audit,
+    )
+    yield opened
+    opened.stop()
+
+
+def test_pages_keep_the_origin_and_never_leak_the_token_as_a_referer(page: SetupPage) -> None:
+    page.start()
+    shown: http.client.HTTPResponse = request(page, "GET", urlsplit(page.url).path)
+    assert shown.headers["Referrer-Policy"] == "same-origin"
+    assert "no-referrer" not in shown.read().decode()
+
+
+def test_a_second_sign_in_while_one_waits_is_refused(page: SetupPage) -> None:
+    page.start()
+    form: dict[str, str] = {"kind": "microsoft", "name": "outlook", "address": ADDRESS}
+    assert request(page, "POST", add_path(page), form).status == 303
+    second: http.client.HTTPResponse = request(page, "POST", add_path(page), form)
+    assert second.status == 409
+    assert "already open in another tab" in second.read().decode()
+
+
+def post_file(page: SetupPage, fields: dict[str, str], name: str, content: bytes) -> http.client.HTTPResponse:
+    """A multipart form post with one file, as the browser sends the Google client file."""
+    port: int = int(urlsplit(page.url).port or 0)
+    boundary: str = "----setup-page-test"
+    parts: list[bytes] = [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode()
+        for key, value in fields.items()
+    ]
+    parts.append(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="client_file"; filename="{name}"\r\n'
+        "Content-Type: application/json\r\n\r\n".encode()
+        + content
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
+    connection: http.client.HTTPConnection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    connection.request(
+        "POST",
+        add_path(page),
+        body=b"".join(parts),
+        headers={
+            "Host": f"127.0.0.1:{port}",
+            "Origin": f"http://127.0.0.1:{port}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+    )
+    return connection.getresponse()
+
+
+def test_the_google_client_file_is_gone_once_google_has_the_sign_in(
+    audited: SetupPage, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    uploads: Path = tmp_path / "uploads"
+    uploads.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(uploads))
+    audited.start()
+    fields: dict[str, str] = {"kind": "google", "name": "school", "address": SCHOOL_ADDRESS}
+    started: http.client.HTTPResponse = post_file(audited, fields, "client_secret_1.json", b'{"installed": {}}')
+    assert started.status == 303
+    assert started.headers["Location"].startswith("https://accounts.google.com/")
+    assert list(uploads.iterdir()) == []
+
+
+def test_closing_the_page_ends_a_waiting_sign_in(audited: SetupPage, audit: AuditLog) -> None:
+    audited.start()
+    form: dict[str, str] = {"kind": "microsoft", "name": "outlook", "address": ADDRESS}
+    assert request(audited, "POST", add_path(audited), form).status == 303
+    audited.stop()
+    deadline: float = time.monotonic() + 5
+    while '"phase": "finished"' not in audit.path.read_text(encoding="utf-8") and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert '"phase": "finished"' in audit.path.read_text(encoding="utf-8")
+    assert all(thread.name != "sign_in" for thread in threading.enumerate())
+
+
+def test_each_mailbox_added_on_the_page_is_audited_without_its_password(audited: SetupPage, audit: AuditLog) -> None:
+    audited.start()
+    assert request(audited, "POST", add_path(audited), GMAIL).status == 200
+    logged: str = audit.path.read_text(encoding="utf-8")
+    assert '"kind": "gmail"' in logged and '"address": "me@gmail.com"' in logged and '"outcome": "ok"' in logged
+    assert APP_PASSWORD not in logged and APP_PASSWORD.replace(" ", "") not in logged

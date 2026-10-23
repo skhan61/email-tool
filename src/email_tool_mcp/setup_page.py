@@ -10,11 +10,15 @@ IMAP and SMTP before anything is saved, a password goes only into the keyring, a
 FIPS rule applies. A password is typed only into this page and never passes through the
 assistant.
 
-Security: bound to 127.0.0.1 (and ::1 when this computer has it) on a random port. Every
-page path carries a 256-bit token compared in constant time. The Host header must name this
-loopback address, which stops DNS rebinding, and a form post must come from this page's own
-origin. The page closes after one mailbox is added or when its time runs out. Nothing is
-logged: uvicorn's access log is off, since the sign-in return address carries a one-time code.
+Security: bound to 127.0.0.1 and, when this computer has it, ::1 on the same random port, both
+exclusively, so no other program can answer the `localhost` sign-in return. Every page path
+carries a 256-bit token compared in constant time. The Host header must name this loopback
+address, which stops DNS rebinding, and a form post must come from this page's own origin
+(`Referrer-Policy: same-origin` keeps the browser sending it, and keeps the token out of the
+Referer sent to Microsoft and Google). One sign-in at a time. A Google client file is deleted
+as soon as Google's sign-in address exists. The page closes after one mailbox or when its time
+runs out. Each mailbox it adds is audit-logged (name, address, kind, outcome; never a password),
+and nothing else is logged: uvicorn's access log is off, since the return carries a one-time code.
 """
 
 from __future__ import annotations
@@ -42,6 +46,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
 
+from email_tool_mcp.audit import AuditError, AuditLog
 from email_tool_mcp.enrol import (
     KNOWN_HOSTS,
     Forget,
@@ -53,16 +58,17 @@ from email_tool_mcp.enrol import (
 )
 from email_tool_mcp.google import GoogleTokens
 from email_tool_mcp.microsoft import MicrosoftTokens
-from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, load_mailboxes
+from email_tool_mcp.settings import DEFAULT_IMAP_PORT, DEFAULT_SMTP_PORT, Mailbox, load_mailboxes
 
 LIFETIME_SECONDS: Final[float] = 600.0
 # How long the page waits for Microsoft or Google to hand over their sign-in address.
 _SIGN_IN_START_SECONDS: Final[float] = 60.0
-# How long the page waits for the login check after the browser comes back.
-_FINISH_SECONDS: Final[float] = 120.0
 _NAME: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
-_SIGN_IN_ADDRESS: Final[re.Pattern[str]] = re.compile(r"https://\S+")
 _KINDS: Final[tuple[str, ...]] = ("gmail", "microsoft", "google", "password")
+_TOOL: Final[str] = "add_mailbox"
+# Same-origin: the browser keeps sending Origin on this page's form posts, and sends no Referer
+# (which would carry the token) to Microsoft or Google.
+_HEADERS: Final[dict[str, str]] = {"Referrer-Policy": "same-origin", "Cache-Control": "no-store"}
 
 
 @dataclass
@@ -87,6 +93,7 @@ class SetupPage:
         google: Callable[[], GoogleTokens],
         login_check: LoginCheck = check_login,
         lifetime: float = LIFETIME_SECONDS,
+        audit: AuditLog | None = None,
     ) -> None:
         self._settings_file: Path = settings_file
         self._forget: Forget = forget
@@ -94,6 +101,7 @@ class SetupPage:
         self._google: Callable[[], GoogleTokens] = google
         self._login_check: LoginCheck = login_check
         self._lifetime: float = lifetime
+        self._audit: AuditLog | None = audit
         self._lock: threading.Lock = threading.Lock()
         self._server: uvicorn.Server | None = None
         self._timer: threading.Timer | None = None
@@ -141,16 +149,35 @@ class SetupPage:
         self.stop()
 
     def stop(self) -> None:
-        """Close the page; its address and token stop working."""
+        """Close the page; its address and token stop working, and a waiting sign-in gives up."""
         with self._lock:
             if self._server is not None:
                 self._server.should_exit = True
             if self._timer is not None:
                 self._timer.cancel()
+            pending: _SignIn | None = self._pending
             self._server = None
             self._timer = None
             self._token = ""
             self._pending = None
+        if pending is not None:
+            # Wakes the sign-in thread, which then fails, cleans up and ends.
+            pending.returned.put("")
+
+    # Audit ----------------------------------------------------------------------------------------
+
+    def _audit_started(self, name: str, address: str, kind: str) -> str:
+        """Record the attempt before anything is saved; AuditError refuses it (fail closed)."""
+        if self._audit is None:
+            return ""
+        return self._audit.started(name, _TOOL, {"kind": kind, "address": address})
+
+    def _audit_finished(self, call: str, name: str, outcome: str) -> None:
+        if self._audit is not None and call:
+            try:
+                self._audit.finished(call, name, _TOOL, outcome)
+            except AuditError:
+                pass
 
     # Requests -------------------------------------------------------------------------------------
 
@@ -162,6 +189,12 @@ class SetupPage:
                 Route("/s/{token}/add", self._add, methods=["POST"]),
             ]
         )
+
+    def _shown(self, title: str, body: str, status: int = 200) -> HTMLResponse:
+        return HTMLResponse(_page(title, body), status_code=status, headers=_HEADERS)
+
+    def _again(self, problem: str, status: int = 400) -> HTMLResponse:
+        return self._shown("Add a mailbox", _form(self._token, problem), status)
 
     def _allowed_hosts(self) -> set[str]:
         return {f"127.0.0.1:{self._port}", f"localhost:{self._port}", f"[::1]:{self._port}"}
@@ -181,7 +214,7 @@ class SetupPage:
 
     async def _choose(self, request: Request) -> Response:
         refused: Response | None = self._refusal(request, posted=False)
-        return refused or HTMLResponse(_page("Add a mailbox", _form(self._token, "")))
+        return refused or self._shown("Add a mailbox", _form(self._token, ""))
 
     async def _add(self, request: Request) -> Response:
         refused: Response | None = self._refusal(request, posted=True)
@@ -190,13 +223,11 @@ class SetupPage:
         form: FormData = await request.form()
         kind: str = str(form.get("kind", ""))
         address: str = str(form.get("address", "")).strip()
-        taken: set[str] = set(load_mailboxes(self._settings_file)) if self._settings_file.exists() else set()
-        name: str = str(form.get("name", "")).strip() or _free_name(address, taken)
-        problem: str = _invalid(kind, name, address) or (
-            f"You already have a mailbox called {name}. Choose another name." if name in taken else ""
-        )
+        known: dict[str, Mailbox] = load_mailboxes(self._settings_file) if self._settings_file.exists() else {}
+        name: str = str(form.get("name", "")).strip() or _name_for(address, known)
+        problem: str = _invalid(kind, name, address) or _clash(name, address, known)
         if problem:
-            return HTMLResponse(_page("Add a mailbox", _form(self._token, problem)), status_code=400)
+            return self._again(problem)
         if kind in ("gmail", "password"):
             return await self._add_with_password(form, kind, name, address)
         upload: object = form.get("client_file")
@@ -208,6 +239,17 @@ class SetupPage:
         imap_host: str = str(form.get("imap_host", "")).strip() or known[0]
         smtp_host: str = str(form.get("smtp_host", "")).strip() or known[1]
         password: str = str(form.get("password", ""))
+
+        def nothing_more(prompt: str) -> str:
+            return ""
+
+        def the_password(prompt: str) -> str:
+            return password
+
+        try:
+            call: str = self._audit_started(name, address, kind)
+        except AuditError as error:
+            return self._again(f"Refused, nothing was done: {error}", 503)
         try:
             imap_port: int = int(str(form.get("imap_port", "")).strip() or DEFAULT_IMAP_PORT)
             smtp_port: int = int(str(form.get("smtp_port", "")).strip() or DEFAULT_SMTP_PORT)
@@ -220,43 +262,60 @@ class SetupPage:
                 imap_port,
                 smtp_host,
                 smtp_port,
-                lambda prompt: "",
-                lambda prompt: password,
+                nothing_more,
+                the_password,
                 self._login_check,
                 forget=self._forget,
             )
         except Exception as error:
-            return HTMLResponse(_page("Add a mailbox", _form(self._token, _reason(error))), status_code=400)
+            self._audit_finished(call, name, f"{type(error).__name__}: {_reason(error)}")
+            return self._again(_reason(error))
+        self._audit_finished(call, name, "ok")
         self._finish(done)
-        return HTMLResponse(_page("Mailbox added", _done(done)))
+        return self._shown("Mailbox added", _done(done))
 
     async def _start_sign_in(self, kind: str, name: str, address: str, upload: UploadFile | None) -> Response:
+        if kind == "google" and (upload is None or not upload.filename):
+            return self._again("Choose your Google client file (client_secret_….json).")
+        # Microsoft's app registers `http://localhost` and Google's loopback `http://localhost/`.
+        redirect: str = f"http://localhost:{self._port}" + ("/" if kind == "google" else "")
+        pending: _SignIn = _SignIn(redirect)
+        with self._lock:
+            if self._pending is not None:
+                busy: bool = True
+            else:
+                busy = False
+                self._pending = pending
+        if busy:
+            return self._again("A sign-in is already open in another tab. Finish it there, or close this page.", 409)
+        try:
+            call: str = self._audit_started(name, address, kind)
+        except AuditError as error:
+            with self._lock:
+                self._pending = None
+            return self._again(f"Refused, nothing was done: {error}", 503)
         client_folder: Path | None = None
         client_file: Path = Path()
-        if kind == "google":
-            if upload is None or not upload.filename:
-                return HTMLResponse(
-                    _page(
-                        "Add a mailbox", _form(self._token, "Choose your Google client file (client_secret_….json).")
-                    ),
-                    status_code=400,
-                )
+        if upload is not None and kind == "google":
             client_folder = Path(tempfile.mkdtemp(prefix="email-tool-"))
             client_file = client_folder / "client.json"
             client_file.write_bytes(await upload.read())
             client_file.chmod(0o600)
-        # Microsoft's app registers `http://localhost` and Google's loopback `http://localhost/`.
-        redirect: str = f"http://localhost:{self._port}" + ("/" if kind == "google" else "")
-        pending: _SignIn = _SignIn(redirect)
-        self._pending = pending
 
-        def show(text: str) -> None:
-            found: re.Match[str] | None = _SIGN_IN_ADDRESS.search(text)
-            if found is not None and pending.address.empty():
-                pending.address.put(found.group(0))
+        def forget_client_file() -> None:
+            if client_folder is not None:
+                shutil.rmtree(client_folder, ignore_errors=True)
+
+        def open_address(sign_in_address: str) -> None:
+            # Google has read the client file by now: it is not kept a moment longer.
+            forget_client_file()
+            pending.address.put(sign_in_address)
 
         def wait_for_browser(prompt: str) -> str:
             return pending.returned.get(timeout=self._lifetime)
+
+        def no_terminal(text: str) -> None:
+            return None
 
         def sign_in() -> None:
             try:
@@ -267,11 +326,12 @@ class SetupPage:
                         self._microsoft(),
                         address,
                         "",
-                        show=show,
+                        show=no_terminal,
                         login_check=self._login_check,
                         forget=self._forget,
                         paste=wait_for_browser,
                         redirect=redirect,
+                        open_address=open_address,
                     )
                 else:
                     done = add_google_mailbox(
@@ -280,20 +340,24 @@ class SetupPage:
                         self._google(),
                         address,
                         str(client_file),
-                        show=show,
+                        show=no_terminal,
                         login_check=self._login_check,
                         forget=self._forget,
                         paste=wait_for_browser,
                         redirect=redirect,
+                        open_address=open_address,
                     )
-                pending.outcome.put((True, done))
             except Exception as error:
+                self._audit_finished(call, name, f"{type(error).__name__}: {_reason(error)}")
                 pending.outcome.put((False, _reason(error)))
+            else:
+                self._audit_finished(call, name, "ok")
+                # Recorded here, not by the page, so a page that stopped waiting still reports it.
+                self._finish(done)
+                pending.outcome.put((True, done))
             finally:
-                if client_folder is not None:
-                    shutil.rmtree(client_folder, ignore_errors=True)
-                if pending.address.empty():
-                    pending.address.put("")
+                forget_client_file()
+                pending.address.put("")
 
         threading.Thread(target=sign_in, daemon=True).start()
         try:
@@ -301,60 +365,110 @@ class SetupPage:
         except queue.Empty:
             target = ""
         if not target:
+            self.stop()
             failed: str = (
                 pending.outcome.get_nowait()[1] if not pending.outcome.empty() else "the sign-in did not start"
             )
-            return HTMLResponse(_page("Add a mailbox", _form(self._token, failed)), status_code=400)
-        return RedirectResponse(target, status_code=303)
+            return self._again(failed)
+        return RedirectResponse(target, status_code=303, headers=_HEADERS)
 
     async def _returned(self, request: Request) -> Response:
         """Where Microsoft or Google send the browser back, with a one-time code or an error."""
         refused: Response | None = self._refusal(request, posted=False)
         if refused is not None:
             return refused
-        pending: _SignIn | None = self._pending
         query: str = request.url.query
-        if pending is None or not query:
+        with self._lock:
+            pending: _SignIn | None = self._pending if query else None
+            self._pending = None
+        if pending is None:
             return Response("No sign-in is waiting here.", status_code=404)
-        self._pending = None
         said: dict[str, list[str]] = parse_qs(query)
         if "code" not in said:
             explained: str = (said.get("error_description") or said.get("error") or ["the sign-in was cancelled"])[0]
             pending.returned.put("")
-            return HTMLResponse(_page("Add a mailbox", _form(self._token, f"The sign-in did not finish: {explained}")))
+            return self._again(f"The sign-in did not finish: {explained}")
         pending.returned.put(f"{pending.redirect}?{query}")
         try:
             succeeded: bool
             message: str
-            succeeded, message = await run_in_threadpool(pending.outcome.get, True, _FINISH_SECONDS)
+            succeeded, message = await run_in_threadpool(pending.outcome.get, True, self._lifetime)
         except queue.Empty:
-            return HTMLResponse(_page("Add a mailbox", _form(self._token, "The login check took too long.")), 504)
+            return self._shown(
+                "Still checking",
+                "<p>The login check is taking long. Go back to your assistant and ask whether the mailbox "
+                "was added.</p>",
+                202,
+            )
         if not succeeded:
-            return HTMLResponse(_page("Add a mailbox", _form(self._token, message)), status_code=400)
-        self._finish(message)
-        return HTMLResponse(_page("Mailbox added", _done(message)))
+            return self._again(message)
+        return self._shown("Mailbox added", _done(message))
+
+
+def _listener(family: socket.AddressFamily, address: tuple[str, int]) -> socket.socket:
+    """A listening socket no other program can share (no SO_REUSEADDR; exclusive on Windows)."""
+    listener: socket.socket = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        exclusive: int | None = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if exclusive is not None:
+            listener.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        if family == socket.AF_INET6:
+            listener.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        listener.bind(address)
+        listener.listen()
+    except OSError:
+        listener.close()
+        raise
+    return listener
+
+
+def _has_ipv6_loopback() -> bool:
+    if not socket.has_ipv6:
+        return False
+    try:
+        _listener(socket.AF_INET6, ("::1", 0)).close()
+    except OSError:
+        return False
+    return True
 
 
 def _loopback_sockets() -> list[socket.socket]:
-    """A listening socket on 127.0.0.1 at a free port, plus ::1 on the same port when available.
+    """127.0.0.1 at a free port, plus ::1 on the same port whenever this computer has ::1.
 
-    Both, because browsers may resolve `localhost` to either loopback address.
+    Both, because browsers may resolve `localhost` to either; a port whose ::1 side is taken is
+    never used, so no other program can receive a sign-in code meant for this page.
     """
-    first: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    first.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    first.bind(("127.0.0.1", 0))
-    first.listen()
-    sockets: list[socket.socket] = [first]
-    if socket.has_ipv6:
-        second: socket.socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    both: bool = _has_ipv6_loopback()
+    _attempt: int
+    for _attempt in range(20):
+        first: socket.socket = _listener(socket.AF_INET, ("127.0.0.1", 0))
+        if not both:
+            return [first]
         try:
-            second.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
-            second.bind(("::1", int(first.getsockname()[1])))
-            second.listen()
-            sockets.append(second)
+            second: socket.socket = _listener(socket.AF_INET6, ("::1", int(first.getsockname()[1])))
         except OSError:
-            second.close()
-    return sockets
+            first.close()
+            continue
+        return [first, second]
+    raise RuntimeError("no port is free on both 127.0.0.1 and ::1; nothing was started")
+
+
+def _name_for(address: str, known: dict[str, Mailbox]) -> str:
+    """The name of the mailbox already enrolled for `address`, or a new one from its provider."""
+    mailbox: Mailbox
+    for mailbox in known.values():
+        if mailbox.address.lower() == address.lower():
+            return mailbox.name
+    return _free_name(address, set(known))
+
+
+def _clash(name: str, address: str, known: dict[str, Mailbox]) -> str:
+    """Why `name` cannot be used for `address`: it names another address's mailbox. "" when free,
+    or when it is this address's own mailbox, which is then signed in again."""
+    existing: Mailbox | None = known.get(name)
+    if existing is None or existing.address.lower() == address.lower():
+        return ""
+    return f"You already have a mailbox called {name}, for {existing.address}. Choose another name."
 
 
 def _free_name(address: str, taken: set[str]) -> str:
@@ -437,7 +551,6 @@ def _form(token: str, problem: str) -> str:
 def _page(title: str, body: str) -> str:
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="referrer" content="no-referrer">
 <title>email-tool: {html.escape(title)}</title>
 <style>
 body {{ font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; }}

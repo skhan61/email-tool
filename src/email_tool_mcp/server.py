@@ -209,7 +209,7 @@ def opening_page(run: Callable[..., Awaitable[str]], page: SetupPage) -> Callabl
     async def add_mailbox(ctx: Context) -> str:
         added: str = page.take_result()
         if added:
-            return added + " Call list_mailboxes to see every mailbox."
+            return added + " Call list_mailboxes to see every mailbox, or add_mailbox again to add another."
         address: str = await run()
         if can_open_pages(ctx.client_capabilities):
             raise UrlElicitationRequiredError(

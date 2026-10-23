@@ -160,6 +160,7 @@ def add_microsoft_mailbox(
     forget: Forget,
     paste: Ask | None = None,
     redirect: str = MICROSOFT_REDIRECT,
+    open_address: Callable[[str], None] | None = None,
 ) -> str:
     """Sign in with Microsoft, check IMAP and SMTP with the token, then keep the sign-in and save.
 
@@ -176,7 +177,7 @@ def add_microsoft_mailbox(
     client_id = client_id or DEFAULT_CLIENT_ID
     provisional: Mailbox = microsoft_preset(name, address, client_id, tenant, cloud)
     (policy if policy is not None else Policy(policy_paths())).check_fips(name, address, keeps_sign_in=True)
-    signed: SignIn = tokens.sign_in(provisional, device_code, show, paste, redirect)
+    signed: SignIn = tokens.sign_in(provisional, device_code, show, paste, redirect, open_address)
     mailbox: Mailbox = signed.complete(provisional)
     # The real login decides: a Microsoft 365 user name may differ from the address it opens.
     show(f"Signed in as {signed.username}; checking IMAP and SMTP for {address}.")
@@ -204,6 +205,7 @@ def add_google_mailbox(
     forget: Forget,
     paste: Ask | None = None,
     redirect: str = GOOGLE_REDIRECT,
+    open_address: Callable[[str], None] | None = None,
 ) -> str:
     """Sign in with Google, check IMAP and SMTP with the token, then keep the sign-in and save.
 
@@ -221,7 +223,7 @@ def add_google_mailbox(
         )
     provisional: Mailbox = google_preset(name, address)
     (policy if policy is not None else Policy(policy_paths())).check_fips(name, address, keeps_sign_in=True)
-    signed: GoogleSignIn = tokens.sign_in(provisional, secrets, show, paste, redirect)
+    signed: GoogleSignIn = tokens.sign_in(provisional, secrets, show, paste, redirect, open_address)
     mailbox: Mailbox = signed.complete(provisional)
     return finish_sign_in(
         settings_file,

@@ -219,6 +219,7 @@ def test_require_fips_refuses_a_microsoft_add_before_any_sign_in(
             show: Callable[[str], None],
             paste: Callable[[str], str] | None = None,
             redirect: str = REDIRECT,
+            open_address: Callable[[str], None] | None = None,
         ) -> SignIn:
             raise AssertionError("refused before the browser opens")
 
