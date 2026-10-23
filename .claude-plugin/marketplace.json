@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Email for any MCP client: IMAP/SMTP mailbox access.",
-    "version": "5.4.3"
+    "version": "5.4.4"
   },
   "plugins": [
     {

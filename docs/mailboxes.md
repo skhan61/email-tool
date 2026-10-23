@@ -134,7 +134,7 @@ The sign-in is kept encrypted on your computer and renews itself. If it ever exp
 assistant tells you the command to run again.
 
 **If your account belongs to several Microsoft 365 organizations**, add
-`--tenant <directory ID>` to sign in to one of them. Your IT department can give you the
+`--tenant <directory ID>` to sign in to one of them (on the setup page: **Directory (tenant) ID**). Your IT department can give you the
 directory (tenant) ID.
 
 **If no browser opens**, the terminal prints the Microsoft sign-in address instead. Open it in
@@ -146,7 +146,7 @@ a browser on any computer, sign in, and paste back the address the browser ends 
 IT department to grant admin consent to email-tool, application ID
 `82731d7a-ac7f-4a5e-88d3-acce522f85ce`, or to give you the ID of the organization's own app
 (see [For administrators](administrators.md#your-own-microsoft-app)), which you add with
-`--client-id <id>`.
+`--client-id <id>` (on the setup page: **App (client) ID**).
 
 ## GCC High
 

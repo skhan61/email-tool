@@ -1,6 +1,6 @@
 {
   "name": "email-tool",
-  "version": "5.4.3",
+  "version": "5.4.4",
   "description": "IMAP/SMTP email: read, search, draft and send mail. One MCP server for all your mailboxes; passwords in the OS keyring.",
   "keywords": ["email", "imap", "smtp", "gmail", "mcp"],
   "skills": "./skills/",
