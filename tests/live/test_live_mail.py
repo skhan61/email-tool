@@ -54,7 +54,7 @@ _SENT: Final[tuple[str, ...]] = ("[Gmail]/Sent Mail", "Sent", "Sent Items")
 # Last, in this order: a message deleted from All Mail moves to Trash.
 _GMAIL_LAST: Final[tuple[str, ...]] = ("[Gmail]/All Mail", "[Gmail]/Trash")
 BODY: Final[str] = (
-    "Hello,\n\nThis is the weekly check that email-tool can send, receive and reply. It removes "
+    "Hello,\n\nThis is the check before each email-tool release that it can send, receive and reply. It removes "
     "itself when the check finishes.\n\nBest regards,\nemail-tool\n"
 )
 # Built at run time so the repository's private-key hook does not flag this file.
@@ -175,7 +175,7 @@ def address_of(book: MailboxBook, name: str) -> str:
 async def test_a_real_round_trip_send_receive_attachment_reply_and_drafts(tmp_path: Path) -> None:
     book: MailboxBook = open_book(os.environ, with_policy=False)
     code: str = f"email-tool live test {secrets.token_hex(4)}"
-    payload: bytes = f"email-tool weekly check\nReference: {code}\nEverything below is a test.\n".encode()
+    payload: bytes = f"email-tool release check\nReference: {code}\nEverything below is a test.\n".encode()
     attachment: Path = tmp_path / "live-report.txt"
     attachment.write_bytes(payload)
     async with Client(build_server(book, AuditLog(tmp_path / "audit.jsonl"))) as client:
