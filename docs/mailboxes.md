@@ -77,9 +77,18 @@ Keychain or GNOME Keyring). To use other ports, add `--imap-port 993 --smtp-port
 Gmail accepts an **App Password**, a 16-letter password made for one app.
 
 1. Turn on 2-Step Verification for your Google account, if it is off.
-2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords),
-   type `email-tool` as the name, and select **Create**.
-3. Run the command below and paste the App Password when asked:
+2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
+   Google may ask for your password first. Type `email-tool` as the **App name** and select
+   **Create**:
+
+    ![The App passwords page with email-tool typed as the app name](assets/screens/gmail-app-password-name.png)
+
+3. Google shows your App Password in the box: four groups of four letters (hidden in this
+   picture). Copy it, then select **Done**. Google shows it only once.
+
+    ![Google shows the generated app password in a box, hidden in this picture](assets/screens/gmail-app-password-shown.png)
+
+4. Run the command below and paste the App Password when asked:
 
     ```bash
     email-tool-mcp add personal
@@ -99,8 +108,14 @@ For Outlook.com, Hotmail, Live and Microsoft 365. No password is stored.
     email-tool-mcp add work --auth microsoft --address you@company.com
     ```
 
-2. Your browser opens on Microsoft's sign-in page. Sign in and select **Accept** to let
-   **email-tool** read and send your mail.
+2. Your browser opens on Microsoft's sign-in page. Sign in. Microsoft then asks
+   **Let this app access your info?** and lists what **email-tool** may do: read and write
+   your mail, send mail, keep access, and see your basic profile. Microsoft marks the app
+   **unverified** because no company publisher is registered for it; that is expected.
+   Select **Accept**:
+
+    ![Microsoft asks whether email-tool may access your mail, with Deny and Accept](assets/screens/microsoft-consent.png){ width="440" }
+
 3. Return to the terminal. It prints `Mailbox 'work' ... added` when both the reading and
    the sending checks pass.
 

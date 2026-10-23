@@ -47,6 +47,8 @@ nav:
 
 markdown_extensions:
   - admonition
+  # Image sizes, such as `{ width="440" }` after a screenshot.
+  - attr_list
   - tables
   - toc:
       permalink: true
