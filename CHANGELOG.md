@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+- Merging a release pull request publishes the release; `python -m tools.release prepare`
+  makes that pull request. Release files are now signed by `release.yml@refs/heads/main`
+  instead of the tag: CONTRIBUTING.md shows the `sigstore verify` command.
+
 ## 5.4.4
 
 ### Added

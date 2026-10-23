@@ -1,18 +1,25 @@
-# Push a tag `vX.Y.Z` (matching pyproject.toml) to publish a GitHub release
-# carrying the wheel, the sdist and the Claude Desktop bundle, each signed with
+# Merging a release pull request publishes it. On every push to main, the `version` job reads
+# pyproject.toml; when tag `v<version>` exists already (an ordinary merge), every other job
+# is skipped. When it does not (a release PR made by `python -m tools.release prepare` just
+# merged), the build runs, the `tag` job tags the commit, and the same run publishes a GitHub
+# release carrying the wheel, the sdist and the Claude Desktop bundle, each signed with
 # Sigstore (`*.sigstore.json`), plus SLSA build provenance (`*.intoto.jsonl`).
 # With the repository variable PYPI_PUBLISH set to "true", the wheel and sdist
 # also go to PyPI by trusted publishing (no token stored anywhere), then server.json
 # to the official MCP Registry (GitHub OIDC, no secret).
 #
+# Pushing a tag `vX.Y.Z` (matching pyproject.toml, on main) by hand still releases it: the
+# fallback when the automatic run cannot be re-run.
+#
 # A pull request that changes this workflow runs it as a dry run: GitHub checks every job,
 # skipped ones included (their permissions, the workflows they call), when the run starts,
 # so a mistake fails the pull request instead of the release. The dry run builds and packs;
-# it does not check a tag, sign, generate provenance or publish.
+# it does not tag, check a tag, sign, generate provenance or publish.
 name: release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   pull_request:
     paths:
@@ -26,8 +33,50 @@ on:
 permissions:
   contents: read
 
+# Pushes to main and tag pushes run one at a time, so two merges close together cannot both
+# find the tag missing. GitHub keeps one waiting run per group and cancels an older waiting one;
+# the newer run is on a later main, so it still finds and releases any untagged version.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('release-dry-run-{0}', github.ref) || 'release' }}
+  cancel-in-progress: false
+
 jobs:
+  # What this run releases, if anything: `publish` is "true" for a version with no tag yet on
+  # main, and for a tag push. Read with the runner's Python, so no third-party code runs here.
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      publish: ${{ steps.read.outputs.publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: read
+        run: |
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            publish=false
+          elif [ "$GITHUB_REF_TYPE" = tag ]; then
+            publish=true
+          else
+            # --exit-code: 0 the tag exists, 2 it does not; anything else is an error, not "missing".
+            found=0
+            git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null || found=$?
+            case "$found" in
+              0) publish=false ;;
+              2) publish=true ;;
+              *) echo "::error::cannot list the repository's tags (git exit $found)"; exit 1 ;;
+            esac
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "version $version, publish $publish"
+
   build:
+    needs: version
+    if: github.event_name == 'pull_request' || needs.version.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -39,10 +88,10 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       # main only takes merged PRs that passed the full CI matrix.
       - name: Tag is on main
-        if: github.event_name == 'push'
+        if: github.ref_type == 'tag'
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Tag matches the package version
-        if: github.event_name == 'push'
+        if: github.ref_type == 'tag'
         run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
       - run: uv run --locked pytest -q
       # Built outside the checkout, so the bundle below never packs them. Checked with the twine
@@ -73,16 +122,34 @@ jobs:
           name: dist
           path: dist/
 
+  # A release PR just merged: tag its commit with this workflow's token, after the tests passed.
+  # An event the GITHUB_TOKEN causes starts no new workflow run (except workflow_dispatch and
+  # repository_dispatch; GitHub docs, "GITHUB_TOKEN"), so this tag does not start the
+  # `push: tags` release again: the release continues in this run. On a tag push it does nothing.
+  tag:
+    if: github.event_name == 'push'
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - if: github.ref_type == 'branch'
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$VERSION" -f sha="$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+
   # Provenance first, so the release is published once, with every file attached.
   provenance:
     if: github.event_name == 'push'
-    needs: build
+    needs: [build, tag]
     # The generator's own upload job declares contents: write even with upload-assets
     # off, and a called workflow may not ask for more than this job grants. That write
     # grant goes to a third-party workflow referenced by tag (below), so a moved or
     # compromised v2.1.0 tag could use it; SLSA allows no hash pin. Scorecard lists it.
-    # A tag push is the first time this file runs, so release-workflow changes need a
-    # dry run before tagging (tracked for v5.2).
+    # Not tied to a tag: with upload-assets off it runs on a branch push too (the generator's
+    # README), and the provenance records the ref the run had, refs/heads/main or the tag.
     permissions:
       actions: read
       id-token: write
@@ -95,9 +162,11 @@ jobs:
 
   github-release:
     if: github.event_name == 'push'
-    needs: [build, provenance]
+    needs: [version, build, provenance]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     permissions:
       contents: write
       # Sigstore signs with a short-lived certificate for this workflow's identity.
@@ -119,8 +188,9 @@ jobs:
         with:
           inputs: ./dist/*.whl ./dist/*.tar.gz ./dist/*.mcpb ./dist/Install-email-tool.cmd ./dist/*.zip
       # The CHANGELOG section for this version, then GitHub's list of merged PRs.
-      - run: awk -v v="## ${GITHUB_REF_NAME#v}" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
-      - run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --notes-file notes.md --generate-notes
+      - run: awk -v v="## $VERSION" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
+      # --verify-tag: release the tag the `tag` job (or a hand push) made; never create one here.
+      - run: gh release create "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --notes-file notes.md --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
 
