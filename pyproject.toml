@@ -47,6 +47,9 @@ dev = [
     "pygithub==2.10.0",
     "pytest==9.1.1",
     "pytest-timeout==2.5.0",
+    # `tools.clean_install` checks the install steps on a clean home and saves each one's real
+    # terminal output as SVG for docs/.
+    "rich==13.9.4",
     "ruff==0.16.10",
 ]
 

@@ -31,11 +31,22 @@ uv is a free tool from Astral that downloads and runs Python programs. You insta
     curl -LsSf https://astral.sh/uv/install.sh | sh
     ```
 
+The installer ends with **everything's installed!**:
+
+![The uv installer in a terminal, ending with everything's installed](assets/screens/uv-install.svg)
+
 Close and reopen the terminal, then check that it works:
 
 ```bash
 uvx --version
 ```
+
+![uvx --version prints the uv version](assets/screens/uv-check.svg)
+
+If the terminal says it cannot find `uvx` (`command not found`, or on Windows
+`The term 'uvx' is not recognized`), it has not picked up the new folder yet. Close every
+terminal window and open a new one. On macOS and Linux you can instead run
+`source $HOME/.local/bin/env` in the open terminal (`source $HOME/.local/bin/env.fish` in fish).
 
 !!! note "Desktop apps on macOS"
     Apps you open from the Dock do not see your terminal's settings, so they may not find
@@ -46,15 +57,27 @@ uvx --version
 
 === "Claude Code"
 
-    In Claude Code, run:
+    1. In a terminal, add the email-tool marketplace:
 
-    ```text
-    /plugin marketplace add skhan61/email-tool
-    /plugin install email-tool@email-tool
-    ```
+        ```bash
+        claude plugin marketplace add skhan61/email-tool
+        ```
 
-    Restart Claude Code. The plugin also adds the `/inbox`, `/email-search` and
-    `/email-send` commands.
+        ![Claude Code adds the email-tool marketplace](assets/screens/claude-marketplace.svg)
+
+    2. Install the plugin:
+
+        ```bash
+        claude plugin install email-tool@email-tool
+        ```
+
+        ![Claude Code installs the email-tool plugin](assets/screens/claude-install.svg)
+
+    3. Close Claude Code and open it again. The email tools load only when Claude Code starts.
+
+    You can also type the same two commands inside Claude Code, as
+    `/plugin marketplace add skhan61/email-tool` and `/plugin install email-tool@email-tool`.
+    The plugin also adds the `/inbox`, `/email-search` and `/email-send` commands.
 
 === "Claude Desktop and Cowork"
 

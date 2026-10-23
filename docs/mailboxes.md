@@ -5,11 +5,36 @@ send before it saves anything, so a typo never leaves a half-working mailbox beh
 
 ## Before you start
 
-Install the `email-tool-mcp` command once:
+1. Install the `email-tool-mcp` command once:
 
-```bash
-uv tool install git+https://github.com/skhan61/email-tool
-```
+    ```bash
+    uv tool install git+https://github.com/skhan61/email-tool
+    ```
+
+    It ends with **Installed 1 executable: email-tool-mcp**:
+
+    ![uv installs the email-tool-mcp command](assets/screens/tool-install.svg)
+
+2. Check that the command works:
+
+    ```bash
+    email-tool-mcp --help
+    ```
+
+    You see every command, such as **add**, **check** and **list**. If the help fills the
+    window, scroll with the arrow keys and press **q** to close it:
+
+    ![email-tool-mcp --help lists the commands](assets/screens/tool-help.svg)
+
+    If you see `email-tool-mcp: command not found`, close the terminal and open a new one.
+
+3. List your mailboxes. On a new computer there are none yet:
+
+    ```bash
+    email-tool-mcp list
+    ```
+
+    ![email-tool-mcp list shows no mailboxes yet](assets/screens/tool-list.svg)
 
 Each mailbox gets a short **name** you choose, such as `work` or `personal`. You use that
 name when you talk to your assistant ("check my work inbox").
