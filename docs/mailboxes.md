@@ -83,10 +83,10 @@ Gmail accepts an **App Password**, a 16-letter password made for one app.
 
     ![The App passwords page with email-tool typed as the app name](assets/screens/gmail-app-password-name.png)
 
-3. Google shows your App Password in a box: four groups of four letters. Copy it, then
-   select **Done**. Google shows it only once.
+3. Google shows your App Password in the box: four groups of four letters (hidden in this
+   picture). Copy it, then select **Done**. Google shows it only once.
 
-    ![Google shows the generated app password, blurred here](assets/screens/gmail-app-password-shown.png)
+    ![Google shows the generated app password in a box, hidden in this picture](assets/screens/gmail-app-password-shown.png)
 
 4. Run the command below and paste the App Password when asked:
 
