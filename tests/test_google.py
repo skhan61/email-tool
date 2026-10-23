@@ -26,7 +26,7 @@ from email_tool_mcp.google import GoogleTokens, SignIn, SignInRequired, preset
 from email_tool_mcp.settings import Mailbox, load_mailboxes
 from email_tool_mcp.token_store import TokenStore
 
-ADDRESS: str = "sk7467@g.rit.edu"
+ADDRESS: str = "student@g.example.edu"
 RIT: Mailbox = preset("rit", ADDRESS)
 
 
@@ -110,8 +110,8 @@ def test_sign_in_asks_for_consent_and_keeps_nothing_yet(tmp_path: Path) -> None:
 
 
 def test_another_google_account_is_refused(tmp_path: Path) -> None:
-    tokens: GoogleTokens = tokens_with(tmp_path, FakeFlow(email="sk7467@rit.edu"))
-    with pytest.raises(RuntimeError, match="use --address sk7467@rit.edu"):
+    tokens: GoogleTokens = tokens_with(tmp_path, FakeFlow(email="student@example.edu"))
+    with pytest.raises(RuntimeError, match="use --address student@example.edu"):
         tokens.sign_in(RIT, client_file(tmp_path), print)
 
 
