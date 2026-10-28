@@ -98,7 +98,10 @@ def message_markings(message: EmailMessage) -> list[str]:
     attached: list[str] = []
     unreadable: list[str] = []
     for part in message.walk():
-        if not part.get_filename() or part.get_content_type() in ("text/plain", "text/html"):
+        # EVERY ATTACHMENT, whatever its name or type (#127): only the message's own body text,
+        # read above, is skipped. A PDF named pricing.txt is still a PDF.
+        is_body: bool = not part.get_filename() and part.get_content_type() in ("text/plain", "text/html")
+        if part.is_multipart() or is_body:
             continue
         try:
             attached.append(attachment_text(part))

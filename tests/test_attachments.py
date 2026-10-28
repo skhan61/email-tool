@@ -11,6 +11,7 @@ import io
 import json
 import re
 import zipfile
+from collections.abc import Callable
 from email import message_from_bytes
 from email.message import EmailMessage, Message
 from pathlib import Path
@@ -574,13 +575,13 @@ def test_a_pdf_is_read_whatever_its_name(tmp_path: Path) -> None:
 def test_a_pdf_is_read_only_up_to_the_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     """#127: every page was extracted before the limit was applied."""
     writer: PdfWriter = PdfWriter()
-    page: Any = PdfReader(io.BytesIO(pdf_with_text("CUI page"))).pages[0]
+    page: PageObject = PdfReader(io.BytesIO(pdf_with_text("CUI page"))).pages[0]
     for _ in range(5):
         writer.add_page(page)
     out: io.BytesIO = io.BytesIO()
     writer.write(out)
     read: list[int] = []
-    extract: Any = PageObject.extract_text
+    extract: Callable[..., str] = PageObject.extract_text
 
     def counted(self: PageObject, *args: Any, **kwargs: Any) -> str:
         read.append(1)
@@ -590,3 +591,61 @@ def test_a_pdf_is_read_only_up_to_the_limit(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(attachments_module, "_TEXT_LIMIT", 5)
     assert attachments_module.pdf_text(out.getvalue()) == "CUI p"
     assert len(read) == 1
+
+
+@pytest.mark.parametrize(
+    ("name", "content"),
+    [
+        ("pricing.txt", pdf_with_text("CUI//SP-PROPIN")),  # a PDF typed as text
+        ("pricing", b"\n" + pdf_with_text("CUI//SP-PROPIN")),  # a byte before the header
+        ("pricing", docx_with_text("CUI//SP-PROPIN")),  # a Word file without its name
+    ],
+)
+def test_a_renamed_file_is_read_as_what_it_is(tmp_path: Path, name: str, content: bytes) -> None:
+    """#127 review: the kind came from the name, so a renamed CUI file was never read."""
+    path: Path = tmp_path / name
+    path.write_bytes(content)
+    message: EmailMessage = compose("me@example.com", "you@example.com", "s", "b", "", "", load([str(path)]))
+    assert any("CUI//SP-PROPIN" in found for found in message_markings(message))
+
+
+@pytest.mark.parametrize(
+    ("name", "content", "why"),
+    [
+        ("pricing.doc", bytes.fromhex("d0cf11e0a1b11ae1") + b"\0" * 512, "old or password-protected Office"),
+        ("scan.pdf", pdf_with_text(""), "scanned document"),
+    ],
+)
+def test_what_the_check_cannot_read_counts_as_marked(tmp_path: Path, name: str, content: bytes, why: str) -> None:
+    """#127 review: an old Office file and a PDF with no text cannot be read for markings either."""
+    path: Path = tmp_path / name
+    path.write_bytes(content)
+    message: EmailMessage = compose("me@example.com", "you@example.com", "s", "b", "", "", load([str(path)]))
+    found: list[str] = message_markings(message)
+    assert any(item.startswith(f"unreadable attachment: {name}") and why in item for item in found), found
+
+
+def test_an_attachment_without_a_name_is_checked() -> None:
+    """#127 review: only parts with a file name were read."""
+    message: EmailMessage = EmailMessage()
+    message["Subject"] = "Prices"
+    message.set_content("See attached.")
+    message.add_attachment(pdf_with_text("CUI//SP-PROPIN"), maintype="application", subtype="pdf")
+    assert any("CUI//SP-PROPIN" in found for found in message_markings(message))
+
+
+def test_an_unreadable_attachment_is_named_as_the_user_named_it() -> None:
+    """#127 review: an RFC 2047 file name was shown encoded in the refusal."""
+    part: Message = message_from_bytes(
+        b"Content-Type: application/pdf\r\n"
+        b'Content-Disposition: attachment; filename="=?utf-8?b?cHLDqHMucGRm?="\r\n\r\n%PDF-1.4 broken'
+    )
+    with pytest.raises(UnreadableAttachment, match=r"^près\.pdf \("):
+        attachment_text(part)
+
+
+def test_an_office_file_is_read_only_up_to_its_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#127 review: every part was inflated in full, so a small zip could expand to gigabytes."""
+    monkeypatch.setattr(attachments_module, "_XML_BUDGET", 100)
+    content: bytes = docx_with_text("CUI//SP-PROPIN " + "x" * 10_000)
+    assert len(attachments_module.office_text(".docx", content)) <= 100

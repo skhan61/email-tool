@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import logging
 import mimetypes
 import re
 import zipfile
@@ -24,12 +25,29 @@ from typing import Final
 
 from pypdf import PdfReader
 
-from email_tool_mcp.message_render import decode_text
+from email_tool_mcp.message_render import decode_header_value, decode_text
 
 # Gmail and Outlook both refuse messages much above 25 MB.
 MAX_TOTAL_BYTES: Final[int] = 25 * 1024 * 1024
 # Text read from one attachment for the CUI check; enough for any banner or portion mark.
 _TEXT_LIMIT: Final[int] = 2_000_000
+# WHAT THE CUI CHECK READS IS FOUND BY CONTENT, NOT ONLY BY NAME (#127): a renamed file is the same file.
+_PDF_HEAD: Final[bytes] = b"%PDF-"
+_PDF_SEARCH: Final[int] = 1024
+"""PDF readers accept the header anywhere in the first kilobyte."""
+_OLE_HEAD: Final[bytes] = bytes.fromhex("d0cf11e0a1b11ae1")
+"""Old Office files (.doc, .xls, .ppt) and password-protected new ones: not read here."""
+_OLD_OFFICE: Final[frozenset[str]] = frozenset({".doc", ".dot", ".xls", ".xlt", ".ppt", ".pot"})
+_OFFICE_TYPES: Final[dict[str, str]] = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+}
+_OFFICE_FOLDERS: Final[tuple[tuple[str, str], ...]] = ((".docx", "word/"), (".xlsx", "xl/"), (".pptx", "ppt/"))
+_XML_BUDGET: Final[int] = 4 * _TEXT_LIMIT
+"""Bytes of Office XML read at most: a small zip can expand to gigabytes (#127)."""
+
+LOG: Final[logging.Logger] = logging.getLogger(__name__)
 
 _SENSITIVE_NAMES: Final[dict[str, str]] = {
     "id_rsa": "an SSH private key",
@@ -256,48 +274,66 @@ def attachment_bytes(part: Message) -> bytes:
     return b""
 
 
-def office_text(name: str, content: bytes) -> str:
-    """The text of a Word, Excel or PowerPoint file, from every part that holds text."""
-    wanted: re.Pattern[str] = _OFFICE_TEXT[Path(name).suffix.lower()]
+def office_text(kind: str, content: bytes) -> str:
+    """The text of a Word, Excel or PowerPoint file of `kind` (".docx", ...), from every part that
+    holds text, reading no more than `_XML_BUDGET` bytes of XML (#127).
+    """
+    wanted: re.Pattern[str] = _OFFICE_TEXT[kind]
+    chunks: list[str] = []
+    left: int = _XML_BUDGET
     archive: zipfile.ZipFile
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
-        parts: list[str] = sorted(member for member in archive.namelist() if wanted.match(member))
-        xml: str = "\n".join(archive.read(member).decode("utf-8", "replace") for member in parts)
-    return _XML_TAG.sub("", _XML_BREAK.sub("\n", xml))
+        member: str
+        for member in sorted(name for name in archive.namelist() if wanted.match(name)):
+            with archive.open(member) as stream:
+                data: bytes = stream.read(left)
+            chunks.append(data.decode("utf-8", "replace"))
+            left -= len(data)
+            if left <= 0:
+                break
+    return _XML_TAG.sub("", _XML_BREAK.sub("\n", "\n".join(chunks)))
 
 
 class UnreadableAttachment(ValueError):
-    """A PDF or Office attachment the CUI check could not read; its message is the file's name."""
+    """A PDF or Office attachment the CUI check could not read: "<name> (<why>)"."""
+
+    def __init__(self, name: str, why: str) -> None:
+        super().__init__(f"{name} ({why})")
 
 
-def attachment_text(part: Message) -> str:
-    """Readable text of one attached part (text, Office, PDF), for the CUI check; "" when it is of
-    no kind the check reads (an image, an archive).
-
-    Raises `UnreadableAttachment` when a PDF or Office file cannot be read (#127): a check that
-    passed what it could not read let an encrypted CUI PDF go out unflagged.
-    """
-    name: str = (part.get_filename() or "").lower()
-    content: bytes = attachment_bytes(part)
+def office_kind(name: str, part: Message, content: bytes) -> str | None:
+    """The Office kind (".docx", ".xlsx", ".pptx") by name, type or contents, or None (#127)."""
+    suffix: str = Path(name).suffix
+    if suffix in _OFFICE_TEXT:
+        return suffix
+    typed: str | None = _OFFICE_TYPES.get(part.get_content_type())
+    if typed is not None:
+        return typed
+    if not content.startswith(b"PK"):
+        return None
     try:
-        if Path(name).suffix in _OFFICE_TEXT:
-            return office_text(name, content)[:_TEXT_LIMIT]
-        if is_pdf(name, part, content):
-            return pdf_text(content)
-    except Exception as error:
-        raise UnreadableAttachment(part.get_filename() or "an attachment") from error
-    if part.get_content_maintype() == "text" or name.endswith((".csv", ".md", ".txt", ".html", ".htm")):
-        return decode_text(content, part.get_content_charset())[:_TEXT_LIMIT]
-    return ""
+        archive: zipfile.ZipFile
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            names: list[str] = archive.namelist()
+    except zipfile.BadZipFile:
+        return None
+    kind: str
+    folder: str
+    for kind, folder in _OFFICE_FOLDERS:
+        if any(member.startswith(folder) for member in names):
+            return kind
+    return None
 
 
 def is_pdf(name: str, part: Message, content: bytes) -> bool:
-    """A PDF by its name, its type or its own header (#127): a CUI PDF attached as `pricing` is a PDF."""
-    return name.endswith(".pdf") or part.get_content_type() == "application/pdf" or content.startswith(b"%PDF-")
+    """A PDF by its name, its type or its header in the first kilobyte (#127)."""
+    return name.endswith(".pdf") or part.get_content_type() == "application/pdf" or _PDF_HEAD in content[:_PDF_SEARCH]
 
 
 def pdf_text(content: bytes) -> str:
-    """The text of a PDF's pages, read only until `_TEXT_LIMIT` characters (#127)."""
+    """The text of a PDF's pages, read only until `_TEXT_LIMIT` characters (#127). A PDF with
+    pages and no text (a scan) raises ValueError: its words cannot be read either.
+    """
     reader: PdfReader = PdfReader(io.BytesIO(content))
     pages: list[str] = []
     read: int = 0
@@ -307,7 +343,36 @@ def pdf_text(content: bytes) -> str:
         read += len(text) + 1
         if read >= _TEXT_LIMIT:
             break
+    if pages and not any(text.strip() for text in pages):
+        raise ValueError("no text to read, as in a scanned document")
     return "\n".join(pages)[:_TEXT_LIMIT]
+
+
+def attachment_text(part: Message) -> str:
+    """Readable text of one attached part (text, Office, PDF), for the CUI check; "" when it is of
+    no kind the check reads (an image, an archive).
+
+    Raises `UnreadableAttachment` for a PDF or Office file it cannot read (#127): a check that
+    passed what it could not read let an encrypted CUI PDF go out unflagged. The kind is found by
+    name, type and contents, so a renamed file is read as what it is.
+    """
+    shown: str = decode_header_value(part.get_filename()) or "an attachment without a name"
+    name: str = shown.lower()
+    content: bytes = attachment_bytes(part)
+    if content.startswith(_OLE_HEAD) or Path(name).suffix in _OLD_OFFICE:
+        raise UnreadableAttachment(shown, "an old or password-protected Office file")
+    try:
+        kind: str | None = office_kind(name, part, content)
+        if kind is not None:
+            return office_text(kind, content)[:_TEXT_LIMIT]
+        if is_pdf(name, part, content):
+            return pdf_text(content)
+    except Exception as error:
+        LOG.warning("the CUI check could not read %s: %s: %s", shown, type(error).__name__, error)
+        raise UnreadableAttachment(shown, f"{type(error).__name__}: {error}") from error
+    if part.get_content_maintype() == "text" or name.endswith((".csv", ".md", ".txt", ".html", ".htm")):
+        return decode_text(content, part.get_content_charset())[:_TEXT_LIMIT]
+    return ""
 
 
 def save_directory(given: str) -> Path:
