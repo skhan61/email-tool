@@ -13,12 +13,11 @@ import pytest
 from mcp import Client
 from mcp_types import CallToolResult
 
+from email_tool_mcp import policy
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.passwords import store_password
 from email_tool_mcp.policy import (
-    LINUX_ADMIN_DIRECTORY,
-    MACOS_ADMIN_DIRECTORY,
     POLICY_FILE,
     Policy,
     PolicyRefusal,
@@ -145,13 +144,36 @@ async def test_the_server_refuses_by_policy_and_records_it(
     assert "PolicyRefusal" in audit.path.read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize(("platform", "folder"), [("darwin", MACOS_ADMIN_DIRECTORY), ("linux", LINUX_ADMIN_DIRECTORY)])
+@pytest.mark.parametrize(
+    ("platform", "administrator"),
+    [
+        ("darwin", Path("/Library/Application Support/email-tool/policy.toml")),
+        ("linux", Path("/etc/email-tool/policy.toml")),
+        ("freebsd14", Path("/etc/email-tool/policy.toml")),
+        ("win32", Path("C:/ProgramData/email-tool/policy.toml")),
+    ],
+)
 def test_the_administrators_file_does_not_move_with_the_environment(
-    monkeypatch: pytest.MonkeyPatch, platform: str, folder: Path
+    monkeypatch: pytest.MonkeyPatch, platform: str, administrator: Path
 ) -> None:
-    """#122: on macOS platformdirs' folder honoured $XDG_CONFIG_DIRS, so whoever launched the
-    server chose the administrator's file."""
+    """#122: platformdirs' folders follow $XDG_CONFIG_DIRS and, on Windows,
+    $WIN_PD_OVERRIDE_COMMON_APPDATA, so whoever launched the server chose the administrator's file.
+    """
     monkeypatch.setenv("XDG_CONFIG_DIRS", "/tmp/chosen-by-whoever-launches")
+    monkeypatch.setenv("WIN_PD_OVERRIDE_COMMON_APPDATA", "/tmp/chosen-by-whoever-launches")
     monkeypatch.setattr(sys, "platform", platform)
-    administrator: Path = policy_paths()[0]
-    assert administrator == folder / POLICY_FILE
+    assert policy_paths()[0] == administrator
+
+
+def test_a_policy_left_at_the_old_place_is_refused_not_dropped(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """#122: releases before it read platformdirs' folder on macOS, which with a Homebrew Python
+    is not the fixed one. A policy still there would silently stop applying; it is refused.
+    """
+    old: Path = tmp_path / "old"
+    (old / "email-tool").mkdir(parents=True)
+    (old / "email-tool" / POLICY_FILE).write_text("[default]\nread_only = true\n", encoding="utf-8")
+    monkeypatch.setenv("XDG_CONFIG_DIRS", str(old))  # where this host's platformdirs looks
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(policy, "MACOS_ADMIN_DIRECTORY", tmp_path / "fixed")
+    with pytest.raises(SettingsError, match="no longer looks"):
+        Policy(policy_paths()).rules_for("work", "me@example.com")

@@ -43,11 +43,14 @@ from email_tool_mcp.settings import APP_NAME, SettingsError
 from email_tool_mcp.tls import fips_enabled, sign_in_storage_fips_enabled
 
 POLICY_FILE: Final[str] = "policy.toml"
-# Fixed, not $XDG_CONFIG_DIRS: whoever launches the server must not choose the administrator's file.
+# THE ADMINISTRATOR'S FOLDER IS FIXED ON EVERY OS (#122): whoever launches the server must not
+# choose the administrator's file. platformdirs' folders follow $XDG_CONFIG_DIRS (Linux, macOS,
+# the BSDs), $WIN_PD_OVERRIDE_COMMON_APPDATA (Windows) and, on macOS, a Homebrew Python to a folder
+# its user can write (an opt-linked one already in 4.12, a Cellar one too from 4.13).
 LINUX_ADMIN_DIRECTORY: Final[Path] = Path("/etc") / APP_NAME
-# Fixed on macOS too (#122): platformdirs' folder there honours $XDG_CONFIG_DIRS and, from 4.13.0,
-# follows a Homebrew Python to a folder its user can write.
+"""Linux and every other POSIX system but macOS."""
 MACOS_ADMIN_DIRECTORY: Final[Path] = Path("/Library/Application Support") / APP_NAME
+WINDOWS_ADMIN_DIRECTORY: Final[Path] = Path("C:/ProgramData") / APP_NAME
 
 
 class PolicyRefusal(PermissionError):
@@ -105,13 +108,25 @@ def combine(rules: Iterable[Rules]) -> Rules:
 def policy_paths() -> tuple[Path, Path]:
     """The administrator's and the user's policy file locations on this OS."""
     admin_directory: Path
-    if sys.platform.startswith("linux"):
-        admin_directory = LINUX_ADMIN_DIRECTORY
+    if sys.platform == "win32":
+        admin_directory = WINDOWS_ADMIN_DIRECTORY
     elif sys.platform == "darwin":
         admin_directory = MACOS_ADMIN_DIRECTORY
     else:
-        admin_directory = site_config_path(APP_NAME, appauthor=False)
+        admin_directory = LINUX_ADMIN_DIRECTORY
     return admin_directory / POLICY_FILE, user_config_path(APP_NAME, appauthor=False) / POLICY_FILE
+
+
+def stray_admin_policy() -> Path | None:
+    """An administrator's policy left where releases before #122 read it on macOS and Windows
+    (platformdirs' folder), while the fixed file is absent; None when there is none. Linux always
+    read /etc/email-tool.
+    """
+    if sys.platform.startswith("linux"):
+        return None
+    admin: Path = policy_paths()[0]
+    old: Path = site_config_path(APP_NAME, appauthor=False) / POLICY_FILE
+    return old if old != admin and old.is_file() and not admin.is_file() else None
 
 
 def parse_tables(path: Path, text: str) -> tuple[Rules, dict[str, Rules]]:
@@ -154,6 +169,13 @@ class Policy:
                 return cached[1]
             tables: tuple[Rules, dict[str, Rules]] = parse_tables(path, path.read_text(encoding="utf-8"))
         except FileNotFoundError:
+            # A POLICY LEFT AT THE OLD PLACE IS NOT "NO POLICY" (#122): that would drop every
+            # restriction an administrator set, without a word. Refused until it is moved.
+            stray: Path | None = stray_admin_policy() if path == policy_paths()[0] else None
+            if stray is not None:
+                raise SettingsError(
+                    f"an administrator's policy is at {stray}, where email-tool no longer looks; move it to {path}"
+                ) from None
             return Rules(), {}
         except OSError as error:
             # An existing policy that cannot be read is refused, never treated as "no policy".
