@@ -54,7 +54,7 @@ dev = [
 ]
 
 # Coverage-guided fuzzing of the mail and file parsers (fuzz/, .github/workflows/fuzz.yml).
-# Atheris 3.0.0 ships wheels for Python 3.11 to 3.13.
+# Atheris 3.1.0 ships wheels for Python 3.12 to 3.14 on Linux x86_64 only, and no source package.
 fuzz = [
     "atheris==3.1.0",
 ]

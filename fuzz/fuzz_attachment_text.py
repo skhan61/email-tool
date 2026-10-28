@@ -5,8 +5,8 @@ Placement: fuzz/, one target per file, run by .github/workflows/fuzz.yml.
 
 `attachment_text` reads attachments for the CUI check. The fuzzer picks the file name, the
 content type and the charset the sender declares (an unknown one included), as an incoming
-message can; any exception, a hang over libFuzzer's `-timeout` or memory over `-rss_limit_mb`
-is a finding.
+message can; any exception but `UnreadableAttachment` (#127, by design), a hang over
+libFuzzer's `-timeout` or memory over `-rss_limit_mb` is a finding.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from typing import Final
 
 import atheris
 
-from email_tool_mcp.attachments import attachment_text
+from email_tool_mcp.attachments import UnreadableAttachment, attachment_text
 from fuzz._run import run
 
 _NAMES: Final[tuple[str, ...]] = (
@@ -53,7 +53,10 @@ def test_one_input(data: bytes) -> None:
         "Content-Transfer-Encoding: base64\r\n\r\n"
     ).encode() + base64.encodebytes(content)
     part: Message = message_from_bytes(raw)
-    attachment_text(part)
+    try:
+        attachment_text(part)
+    except UnreadableAttachment:
+        pass  # a file the CUI check cannot read is refused by design (#127), not a crash
 
 
 if __name__ == "__main__":

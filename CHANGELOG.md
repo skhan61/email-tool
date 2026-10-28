@@ -15,6 +15,12 @@
   name, and PDFs and Office files are recognised by their contents, whatever their name. Reading
   stops at the text limit, also for a compressed Office file (#127).
 
+### Security
+- pypdf 6.21.2 (was 6.21.1): two denial-of-service fixes in reading PDFs (#124).
+- filelock 4.2.1 (was 4.1.2): six advisories, in lock types email-tool does not use (#126).
+- virtualenv 21.14.13 (was 21.14.12), a development tool only (#125).
+- The audit log's file path is made absolute, so its lock never sits on a relative path (#131).
+
 ## 5.5.0
 
 ### Added
