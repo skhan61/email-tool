@@ -220,25 +220,18 @@ def test_a_pyproject_without_a_version_is_refused_plainly(tmp_path: Path) -> Non
 
 def test_every_tracked_file_that_carries_the_version_is_one_prepare_updates() -> None:
     """A new manifest that carries the version must be added to LOCATIONS, or this fails."""
+    # .github/tools pins third-party CI tools, whose versions can equal ours by chance
+    # (pretty-bytes 5.6.0 in the bundle tool's lockfile).
     listed: subprocess.CompletedProcess[str] = subprocess.run(
-        ["git", "ls-files", "*.json", "*.toml", "*.yml", "*.yaml"],
+        ["git", "ls-files", "*.json", "*.toml", "*.yml", "*.yaml", ":(exclude).github/tools/"],
         cwd=ROOT,
         capture_output=True,
         text=True,
         check=True,
     )
     version: str = version_of(ROOT)
-    # A lockfile carries its dependencies' versions, and one can equal ours by chance
-    # (pretty-bytes 5.6.0 in the bundle tool's lockfile).
-    carrying: set[str] = {
-        name
-        for name in listed.stdout.split()
-        if Path(name).name != "package-lock.json"
-        and (
-            f'"{version}"' in (ROOT / name).read_text(encoding="utf-8")
-            or f"=={version}" in (ROOT / name).read_text(encoding="utf-8")
-        )
-    }
+    texts: dict[str, str] = {name: (ROOT / name).read_text(encoding="utf-8") for name in listed.stdout.split()}
+    carrying: set[str] = {name for name, text in texts.items() if f'"{version}"' in text or f"=={version}" in text}
     assert carrying == {"pyproject.toml", *(location.file for location in LOCATIONS)}
 
 
