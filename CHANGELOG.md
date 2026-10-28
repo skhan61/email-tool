@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 5.5.1
+
 ### Fixed
 - The administrator's policy file is at a fixed place on every system: `/etc/email-tool` on
   Linux, `/Library/Application Support/email-tool` on macOS, `C:\ProgramData\email-tool` on

@@ -1,6 +1,6 @@
 [project]
 name = "email-tool-mcp"
-version = "5.5.0"
+version = "5.5.1"
 description = "IMAP/SMTP email for any MCP client: read, search, draft and send mail."
 readme = "README.md"
 requires-python = ">=3.11"
