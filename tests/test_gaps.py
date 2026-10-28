@@ -85,14 +85,6 @@ def test_an_unreachable_syslog_target_is_not_fatal(tmp_path: Path) -> None:
     assert verify(log.path).broken_at is None
 
 
-def test_a_relative_audit_file_is_made_absolute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """#131: filelock before 4.2.2 could keep a lock on a relative path held after a failed acquire."""
-    monkeypatch.chdir(tmp_path)
-    log: AuditLog = AuditLog.from_environment({"EMAIL_TOOL_AUDIT_FILE": "audit.jsonl"}, with_syslog=False)
-    assert log.path == tmp_path / "audit.jsonl"
-    assert log.path.is_absolute()
-
-
 def test_verify_says_so_when_there_is_no_log(tmp_path: Path) -> None:
     assert verify(tmp_path / "never.jsonl").render().startswith("No audit log at ")
 

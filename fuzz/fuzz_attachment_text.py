@@ -12,6 +12,7 @@ libFuzzer's `-timeout` or memory over `-rss_limit_mb` is a finding.
 from __future__ import annotations
 
 import base64
+from contextlib import suppress
 from email import message_from_bytes
 from email.message import Message
 from typing import Final
@@ -53,10 +54,8 @@ def test_one_input(data: bytes) -> None:
         "Content-Transfer-Encoding: base64\r\n\r\n"
     ).encode() + base64.encodebytes(content)
     part: Message = message_from_bytes(raw)
-    try:
+    with suppress(UnreadableAttachment):  # refused by design (#127), not a crash
         attachment_text(part)
-    except UnreadableAttachment:
-        pass  # a file the CUI check cannot read is refused by design (#127), not a crash
 
 
 if __name__ == "__main__":

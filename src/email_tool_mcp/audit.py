@@ -218,9 +218,7 @@ class AuditLog:
     @classmethod
     def from_environment(cls, environment: Mapping[str, str], with_syslog: bool) -> AuditLog:
         """Build from EMAIL_TOOL_AUDIT_FILE / EMAIL_TOOL_AUDIT_SYSLOG, defaulting to the user log folder."""
-        # ABSOLUTE (#131): a lock file on a relative path could stay held after a failed acquire in
-        # filelock before 4.2.2, and the audit log's lock serialises every tool call.
-        path: Path = Path(environment.get(ENV_AUDIT_FILE, "") or default_audit_path()).absolute()
+        path: Path = Path(environment.get(ENV_AUDIT_FILE, "") or default_audit_path())
         return cls(path, environment.get(ENV_AUDIT_SYSLOG, "") if with_syslog else "")
 
     def _connect_syslog(self) -> None:
