@@ -6,6 +6,7 @@ Placement: tests/test_policy.py, beside the module it tests (pytest's tests/ lay
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -15,7 +16,15 @@ from mcp_types import CallToolResult
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.passwords import store_password
-from email_tool_mcp.policy import Policy, PolicyRefusal, Rules
+from email_tool_mcp.policy import (
+    LINUX_ADMIN_DIRECTORY,
+    MACOS_ADMIN_DIRECTORY,
+    POLICY_FILE,
+    Policy,
+    PolicyRefusal,
+    Rules,
+    policy_paths,
+)
 from email_tool_mcp.server import build_server
 from email_tool_mcp.settings import SettingsError
 from tests.fakes import FakeMailServer
@@ -134,3 +143,15 @@ async def test_the_server_refuses_by_policy_and_records_it(
     assert result.is_error
     assert mail_server.sent == []
     assert "PolicyRefusal" in audit.path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(("platform", "folder"), [("darwin", MACOS_ADMIN_DIRECTORY), ("linux", LINUX_ADMIN_DIRECTORY)])
+def test_the_administrators_file_does_not_move_with_the_environment(
+    monkeypatch: pytest.MonkeyPatch, platform: str, folder: Path
+) -> None:
+    """#122: on macOS platformdirs' folder honoured $XDG_CONFIG_DIRS, so whoever launched the
+    server chose the administrator's file."""
+    monkeypatch.setenv("XDG_CONFIG_DIRS", "/tmp/chosen-by-whoever-launches")
+    monkeypatch.setattr(sys, "platform", platform)
+    administrator: Path = policy_paths()[0]
+    assert administrator == folder / POLICY_FILE

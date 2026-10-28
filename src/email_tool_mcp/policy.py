@@ -45,6 +45,9 @@ from email_tool_mcp.tls import fips_enabled, sign_in_storage_fips_enabled
 POLICY_FILE: Final[str] = "policy.toml"
 # Fixed, not $XDG_CONFIG_DIRS: whoever launches the server must not choose the administrator's file.
 LINUX_ADMIN_DIRECTORY: Final[Path] = Path("/etc") / APP_NAME
+# Fixed on macOS too (#122): platformdirs' folder there honours $XDG_CONFIG_DIRS and, from 4.13.0,
+# follows a Homebrew Python to a folder its user can write.
+MACOS_ADMIN_DIRECTORY: Final[Path] = Path("/Library/Application Support") / APP_NAME
 
 
 class PolicyRefusal(PermissionError):
@@ -101,9 +104,13 @@ def combine(rules: Iterable[Rules]) -> Rules:
 
 def policy_paths() -> tuple[Path, Path]:
     """The administrator's and the user's policy file locations on this OS."""
-    admin_directory: Path = (
-        LINUX_ADMIN_DIRECTORY if sys.platform.startswith("linux") else site_config_path(APP_NAME, appauthor=False)
-    )
+    admin_directory: Path
+    if sys.platform.startswith("linux"):
+        admin_directory = LINUX_ADMIN_DIRECTORY
+    elif sys.platform == "darwin":
+        admin_directory = MACOS_ADMIN_DIRECTORY
+    else:
+        admin_directory = site_config_path(APP_NAME, appauthor=False)
     return admin_directory / POLICY_FILE, user_config_path(APP_NAME, appauthor=False) / POLICY_FILE
 
 

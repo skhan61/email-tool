@@ -44,8 +44,9 @@ CUI).
 
 ## Configuration for a CMMC environment
 
-Administrator file, `/etc/email-tool/policy.toml` on Linux (`email-tool-mcp policy
-paths` shows the macOS and Windows location), writable only by administrators:
+Administrator file, `/etc/email-tool/policy.toml` on Linux and
+`/Library/Application Support/email-tool/policy.toml` on macOS (`email-tool-mcp policy
+paths` shows the Windows location), writable only by administrators:
 
 ```toml
 [default]
