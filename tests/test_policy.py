@@ -172,7 +172,8 @@ def test_a_policy_left_at_the_old_place_is_refused_not_dropped(monkeypatch: pyte
     old: Path = tmp_path / "old"
     (old / "email-tool").mkdir(parents=True)
     (old / "email-tool" / POLICY_FILE).write_text("[default]\nread_only = true\n", encoding="utf-8")
-    monkeypatch.setenv("XDG_CONFIG_DIRS", str(old))  # where this host's platformdirs looks
+    # platformdirs' folder, where releases before #122 looked: the test host's own would differ.
+    monkeypatch.setattr(policy, "site_config_path", lambda *_args, **_kwargs: old / "email-tool")
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(policy, "MACOS_ADMIN_DIRECTORY", tmp_path / "fixed")
     with pytest.raises(SettingsError, match="no longer looks"):
