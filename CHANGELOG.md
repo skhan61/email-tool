@@ -2,10 +2,12 @@
 
 ## Unreleased
 
+## 5.6.0
+
 ### Fixed
 - The administrator's policy file is at a fixed place on every system: `/etc/email-tool` on
   Linux and the BSDs, `/Library/Application Support/email-tool` on macOS, the system's
-  ProgramData folder (`%ProgramData%\email-tool`, asked of Windows) on Windows. It no longer
+  ProgramData folder (normally `C:\ProgramData\email-tool`, asked of Windows) on Windows. It no longer
   moves with `XDG_CONFIG_DIRS`, `WIN_PD_OVERRIDE_COMMON_APPDATA` or a Homebrew Python (#122,
   #134). **Upgrading:** a policy left where 5.5.0 read it is refused until it is moved to the new
   place: on macOS with Homebrew Python `<Homebrew prefix>/share/email-tool/policy.toml`, on the BSDs
