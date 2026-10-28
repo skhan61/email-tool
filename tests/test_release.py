@@ -228,11 +228,16 @@ def test_every_tracked_file_that_carries_the_version_is_one_prepare_updates() ->
         check=True,
     )
     version: str = version_of(ROOT)
+    # A lockfile carries its dependencies' versions, and one can equal ours by chance
+    # (pretty-bytes 5.6.0 in the bundle tool's lockfile).
     carrying: set[str] = {
         name
         for name in listed.stdout.split()
-        if f'"{version}"' in (ROOT / name).read_text(encoding="utf-8")
-        or f"=={version}" in (ROOT / name).read_text(encoding="utf-8")
+        if Path(name).name != "package-lock.json"
+        and (
+            f'"{version}"' in (ROOT / name).read_text(encoding="utf-8")
+            or f"=={version}" in (ROOT / name).read_text(encoding="utf-8")
+        )
     }
     assert carrying == {"pyproject.toml", *(location.file for location in LOCATIONS)}
 
