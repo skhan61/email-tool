@@ -4,7 +4,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "email-tool-mcp==5.5.0",
+        "email-tool-mcp==5.6.0",
         "email-tool-mcp",
         "serve"
       ]
