@@ -35,7 +35,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, Final
 
-from platformdirs import site_config_path, user_config_path
+from platformdirs import user_config_path
 from pydantic import ConfigDict, ValidationError
 from pydantic.dataclasses import dataclass
 
@@ -50,7 +50,23 @@ POLICY_FILE: Final[str] = "policy.toml"
 LINUX_ADMIN_DIRECTORY: Final[Path] = Path("/etc") / APP_NAME
 """Linux and every other POSIX system but macOS."""
 MACOS_ADMIN_DIRECTORY: Final[Path] = Path("/Library/Application Support") / APP_NAME
-WINDOWS_ADMIN_DIRECTORY: Final[Path] = Path("C:/ProgramData") / APP_NAME
+# Where releases before #122 read it, as platformdirs put it by default; never from the environment
+# (#134), or the launcher could hide one there from the refusal below. Windows read ProgramData,
+# where it still is; Linux read /etc/email-tool.
+MACOS_OLD_ADMIN_DIRECTORIES: Final[tuple[Path, ...]] = (
+    Path("/opt/homebrew/share") / APP_NAME,
+    Path("/usr/local/share") / APP_NAME,
+)
+POSIX_OLD_ADMIN_DIRECTORIES: Final[tuple[Path, ...]] = (Path("/etc/xdg") / APP_NAME,)
+
+
+def windows_program_data() -> Path:
+    """The system's ProgramData folder, asked of Windows itself, not an environment variable (#134):
+    it is not on C: on every machine.
+    """
+    from platformdirs.windows import get_win_folder_via_ctypes  # noqa: PLC0415  (Windows only)
+
+    return Path(get_win_folder_via_ctypes("CSIDL_COMMON_APPDATA"))
 
 
 class PolicyRefusal(PermissionError):
@@ -109,7 +125,7 @@ def policy_paths() -> tuple[Path, Path]:
     """The administrator's and the user's policy file locations on this OS."""
     admin_directory: Path
     if sys.platform == "win32":
-        admin_directory = WINDOWS_ADMIN_DIRECTORY
+        admin_directory = windows_program_data() / APP_NAME
     elif sys.platform == "darwin":
         admin_directory = MACOS_ADMIN_DIRECTORY
     else:
@@ -117,16 +133,28 @@ def policy_paths() -> tuple[Path, Path]:
     return admin_directory / POLICY_FILE, user_config_path(APP_NAME, appauthor=False) / POLICY_FILE
 
 
+def old_admin_directories() -> tuple[Path, ...]:
+    """Where releases before #122 read the administrator's file on this OS, fixed paths only."""
+    if sys.platform == "darwin":
+        return MACOS_OLD_ADMIN_DIRECTORIES
+    if sys.platform == "win32" or sys.platform.startswith("linux"):
+        return ()
+    return POSIX_OLD_ADMIN_DIRECTORIES
+
+
 def stray_admin_policy() -> Path | None:
-    """An administrator's policy left where releases before #122 read it on macOS and Windows
-    (platformdirs' folder), while the fixed file is absent; None when there is none. Linux always
-    read /etc/email-tool.
+    """An administrator's policy left where releases before #122 read it, while the fixed file is
+    absent; None when there is none.
     """
-    if sys.platform.startswith("linux"):
-        return None
     admin: Path = policy_paths()[0]
-    old: Path = site_config_path(APP_NAME, appauthor=False) / POLICY_FILE
-    return old if old != admin and old.is_file() and not admin.is_file() else None
+    if admin.is_file():
+        return None
+    folder: Path
+    for folder in old_admin_directories():
+        old: Path = folder / POLICY_FILE
+        if old.is_file():
+            return old
+    return None
 
 
 def parse_tables(path: Path, text: str) -> tuple[Rules, dict[str, Rules]]:

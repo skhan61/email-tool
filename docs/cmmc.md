@@ -21,7 +21,7 @@ CUI).
 | Requirement | What email-tool does | Evidence for the assessor | Still the organization's job |
 |---|---|---|---|
 | **3.1.1** Limit system access to authorized users and processes | Each mailbox is enrolled per user and machine (`email-tool-mcp add`, login checked); the agent uses only enrolled mailboxes, plus at most one mailbox an app (Claude Desktop) describes in its environment, which never replaces an enrolled one and which `allow_environment_mailbox = false` switches off | `email-tool-mcp list`; settings file per user; policy file | Account management on the mail server; who may install the tool; set `allow_environment_mailbox = false` |
-| **3.1.2** Limit access to permitted transactions and functions | Administrator policy: `read_only`, `allowed_tools`; `require_approval` makes the human approve every send, delete and draft replacement in the app's own prompt, after seeing the delivered recipients and the whole message, or for a delete the headers of the message removed; the model cannot approve for itself | the administrator file (`/etc/email-tool/policy.toml`, `/Library/Application Support/email-tool/policy.toml`, `C:\ProgramData\email-tool\policy.toml`); `email-tool-mcp policy show <mailbox>`; audit outcomes `ok (approved by the user)` | Writing the policy; deciding which roles get which mailboxes |
+| **3.1.2** Limit access to permitted transactions and functions | Administrator policy: `read_only`, `allowed_tools`; `require_approval` makes the human approve every send, delete and draft replacement in the app's own prompt, after seeing the delivered recipients and the whole message, or for a delete the headers of the message removed; the model cannot approve for itself | the administrator file (`/etc/email-tool/policy.toml`, `/Library/Application Support/email-tool/policy.toml`, `%ProgramData%\email-tool\policy.toml`); `email-tool-mcp policy show <mailbox>`; audit outcomes `ok (approved by the user)` | Writing the policy; deciding which roles get which mailboxes |
 | **3.1.3** Control the flow of CUI per approved authorizations | `cui_recipient_domains`: mail carrying a CUI marking (banner, portion mark or subject, per DoDI 5200.48) is refused unless every recipient is in an approved domain; `allowed_recipient_domains` limits all mail | Policy file; refusals in the audit log naming the marking | Marking CUI correctly; deciding the approved domains; unmarked CUI is not detected |
 | **3.1.5** Employ least privilege | Most-restrictive combination of administrator and user policy: a user can tighten, never loosen. Rules keyed by mailbox address (`[mailboxes."you@company.com"]`) bind whatever name the account is enrolled under | `policy show` output | Keying administrator rules by address; least privilege on the mail accounts themselves |
 | **3.3.1** Create and retain audit records | Every agent action is recorded before it runs and with its outcome: time, OS account, host, mailbox, tool, folder, UIDs, recipients | `email-tool-mcp audit path` (run with the same `EMAIL_TOOL_AUDIT_FILE` as the agent, if set); the JSON Lines file | Retention period and storage; forwarding to your SIEM |
@@ -46,7 +46,7 @@ CUI).
 
 Administrator file, `/etc/email-tool/policy.toml` on Linux,
 `/Library/Application Support/email-tool/policy.toml` on macOS and
-`C:\ProgramData\email-tool\policy.toml` on Windows, writable only by administrators:
+`%ProgramData%\email-tool\policy.toml` on Windows (the system's ProgramData folder), writable only by administrators:
 
 ```toml
 [default]

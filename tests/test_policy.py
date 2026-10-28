@@ -162,18 +162,30 @@ def test_the_administrators_file_does_not_move_with_the_environment(
     monkeypatch.setenv("XDG_CONFIG_DIRS", "/tmp/chosen-by-whoever-launches")
     monkeypatch.setenv("WIN_PD_OVERRIDE_COMMON_APPDATA", "/tmp/chosen-by-whoever-launches")
     monkeypatch.setattr(sys, "platform", platform)
+    # Windows is asked for ProgramData itself (#134); this test may run on any OS.
+    monkeypatch.setattr(policy, "windows_program_data", lambda: Path("C:/ProgramData"))
     assert policy_paths()[0] == administrator
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="asks Windows itself")
+def test_windows_program_data_is_asked_of_windows_not_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#134: platformdirs reads $WIN_PD_OVERRIDE_COMMON_APPDATA before asking Windows."""
+    real: Path = policy.windows_program_data()
+    monkeypatch.setenv("WIN_PD_OVERRIDE_COMMON_APPDATA", "C:/chosen-by-whoever-launches")
+    assert policy.windows_program_data() == real
+    assert policy_paths()[0] == real / "email-tool" / POLICY_FILE
 
 
 def test_a_policy_left_at_the_old_place_is_refused_not_dropped(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """#122: releases before it read platformdirs' folder on macOS, which with a Homebrew Python
-    is not the fixed one. A policy still there would silently stop applying; it is refused.
+    is not the fixed one. A policy still there would silently stop applying; it is refused, and
+    #134: the environment cannot hide it from the refusal.
     """
     old: Path = tmp_path / "old"
     (old / "email-tool").mkdir(parents=True)
     (old / "email-tool" / POLICY_FILE).write_text("[default]\nread_only = true\n", encoding="utf-8")
-    # platformdirs' folder, where releases before #122 looked: the test host's own would differ.
-    monkeypatch.setattr(policy, "site_config_path", lambda *_args, **_kwargs: old / "email-tool")
+    monkeypatch.setattr(policy, "MACOS_OLD_ADMIN_DIRECTORIES", (old / "email-tool",))
+    monkeypatch.setenv("XDG_CONFIG_DIRS", str(tmp_path / "somewhere-else"))
     monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(policy, "MACOS_ADMIN_DIRECTORY", tmp_path / "fixed")
     with pytest.raises(SettingsError, match="no longer looks"):
