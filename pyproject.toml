@@ -8,10 +8,10 @@ license = "MIT"
 authors = [{ name = "Sayem Khan", email = "s.khan@alchlight.com" }]
 maintainers = [{ name = "Sayem Khan", email = "s.khan@alchlight.com" }]
 dependencies = [
-    "filelock==4.0.12",
+    "filelock==4.1.2",
     "cryptography==50.0.2",
     "fire==0.7.1",
-    "google-auth==2.61.0",
+    "google-auth==2.62.0",
     "google-auth-oauthlib==1.5.0",
     "imapclient==4.1.0",
     "keyring==25.7.0",
@@ -19,8 +19,8 @@ dependencies = [
     "pypdf==6.21.1",
     "mcp==2.3.0",
     "mcp-types==2.3.0",
-    "platformdirs==4.12.4",
-    "pydantic==2.14.0",
+    "platformdirs==4.13.0",
+    "pydantic==2.14.1",
     # tls.py mounts its own HTTPS adapter (TLS context, timeout) for MSAL and google-auth.
     "requests==2.34.2",
     "tomli-w==1.2.0",
