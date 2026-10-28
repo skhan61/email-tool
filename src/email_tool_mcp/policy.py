@@ -29,6 +29,7 @@ deployment) where that matters.
 
 from __future__ import annotations
 
+import re
 import sys
 import tomllib
 from collections.abc import Callable, Iterable
@@ -50,7 +51,29 @@ POLICY_FILE: Final[str] = "policy.toml"
 LINUX_ADMIN_DIRECTORY: Final[Path] = Path("/etc") / APP_NAME
 """Linux and every other POSIX system but macOS."""
 MACOS_ADMIN_DIRECTORY: Final[Path] = Path("/Library/Application Support") / APP_NAME
-WINDOWS_ADMIN_DIRECTORY: Final[Path] = Path("C:/ProgramData") / APP_NAME
+# Where releases before #122 read it, as platformdirs put it by default. The refusal below checks
+# these fixed places, the Homebrew prefix of the running Python and, only to refuse more, where the
+# environment points: nothing a launcher sets can hide an old policy from it (#134). Linux always
+# read /etc/email-tool.
+MACOS_OLD_ADMIN_DIRECTORIES: Final[tuple[Path, ...]] = (
+    Path("/opt/homebrew/share") / APP_NAME,
+    Path("/usr/local/share") / APP_NAME,
+)
+POSIX_OLD_ADMIN_DIRECTORIES: Final[tuple[Path, ...]] = (Path("/etc/xdg") / APP_NAME,)
+# A Homebrew Python's own prefix, from the interpreter's path (as platformdirs reads it), not the environment.
+_HOMEBREW_PYTHON: Final[re.Pattern[str]] = re.compile(r"^(?P<prefix>.+)/(?:opt|Cellar)/python[^/]*/")
+
+
+def windows_program_data() -> Path:
+    """The system's ProgramData folder, asked of Windows itself, not an environment variable (#134):
+    it is not on C: on every machine.
+    """
+    try:
+        from platformdirs.windows import get_win_folder_via_ctypes  # noqa: PLC0415  (Windows only)
+
+        return Path(get_win_folder_via_ctypes("CSIDL_COMMON_APPDATA"))
+    except Exception as error:
+        raise SettingsError(f"Windows did not give its ProgramData folder: {error}") from error
 
 
 class PolicyRefusal(PermissionError):
@@ -109,7 +132,7 @@ def policy_paths() -> tuple[Path, Path]:
     """The administrator's and the user's policy file locations on this OS."""
     admin_directory: Path
     if sys.platform == "win32":
-        admin_directory = WINDOWS_ADMIN_DIRECTORY
+        admin_directory = windows_program_data() / APP_NAME
     elif sys.platform == "darwin":
         admin_directory = MACOS_ADMIN_DIRECTORY
     else:
@@ -117,16 +140,35 @@ def policy_paths() -> tuple[Path, Path]:
     return admin_directory / POLICY_FILE, user_config_path(APP_NAME, appauthor=False) / POLICY_FILE
 
 
-def stray_admin_policy() -> Path | None:
-    """An administrator's policy left where releases before #122 read it on macOS and Windows
-    (platformdirs' folder), while the fixed file is absent; None when there is none. Linux always
-    read /etc/email-tool.
+def old_admin_directories() -> tuple[Path, ...]:
+    """Where releases before #122 may have read the administrator's file on this OS: the fixed
+    places, the running Python's Homebrew prefix and, since it can only add places to refuse,
+    where platformdirs points now (the environment, Android, iOS).
     """
     if sys.platform.startswith("linux"):
-        return None
-    admin: Path = policy_paths()[0]
-    old: Path = site_config_path(APP_NAME, appauthor=False) / POLICY_FILE
-    return old if old != admin and old.is_file() and not admin.is_file() else None
+        return ()
+    places: list[Path] = []
+    if sys.platform == "darwin":
+        places.extend(MACOS_OLD_ADMIN_DIRECTORIES)
+        brewed: re.Match[str] | None = _HOMEBREW_PYTHON.match(sys.base_prefix)
+        if brewed is not None:
+            places.append(Path(brewed.group("prefix")) / "share" / APP_NAME)
+    elif sys.platform != "win32":
+        places.extend(POSIX_OLD_ADMIN_DIRECTORIES)
+    places.append(site_config_path(APP_NAME, appauthor=False))
+    return tuple(dict.fromkeys(places))
+
+
+def stray_admin_policy(admin: Path) -> Path | None:
+    """An administrator's policy left where releases before #122 read it, while `admin`, the fixed
+    file, is absent; None when there is none.
+    """
+    folder: Path
+    for folder in old_admin_directories():
+        old: Path = folder / POLICY_FILE
+        if old != admin and old.is_file():
+            return old
+    return None
 
 
 def parse_tables(path: Path, text: str) -> tuple[Rules, dict[str, Rules]]:
@@ -159,6 +201,8 @@ class Policy:
 
     def __init__(self, paths: Iterable[Path]) -> None:
         self._paths: tuple[Path, ...] = tuple(paths)
+        # Found once, not on every call: the file whose absence the old-place check runs on.
+        self._admin: Path = policy_paths()[0]
         self._cache: dict[Path, tuple[int, tuple[Rules, dict[str, Rules]]]] = {}
 
     def _tables(self, path: Path) -> tuple[Rules, dict[str, Rules]]:
@@ -171,7 +215,7 @@ class Policy:
         except FileNotFoundError:
             # A POLICY LEFT AT THE OLD PLACE IS NOT "NO POLICY" (#122): that would drop every
             # restriction an administrator set, without a word. Refused until it is moved.
-            stray: Path | None = stray_admin_policy() if path == policy_paths()[0] else None
+            stray: Path | None = stray_admin_policy(path) if path == self._admin else None
             if stray is not None:
                 raise SettingsError(
                     f"an administrator's policy is at {stray}, where email-tool no longer looks; move it to {path}"

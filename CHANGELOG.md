@@ -4,10 +4,13 @@
 
 ### Fixed
 - The administrator's policy file is at a fixed place on every system: `/etc/email-tool` on
-  Linux, `/Library/Application Support/email-tool` on macOS, `C:\ProgramData\email-tool` on
-  Windows. It no longer moves with `XDG_CONFIG_DIRS`, `WIN_PD_OVERRIDE_COMMON_APPDATA` or a
-  Homebrew Python (#122). **macOS with Homebrew Python:** a policy at the old place
-  (`$(brew --prefix)/share/email-tool/policy.toml`) is refused until it is moved to the new one.
+  Linux and the BSDs, `/Library/Application Support/email-tool` on macOS, the system's
+  ProgramData folder (`%ProgramData%\email-tool`, asked of Windows) on Windows. It no longer
+  moves with `XDG_CONFIG_DIRS`, `WIN_PD_OVERRIDE_COMMON_APPDATA` or a Homebrew Python (#122,
+  #134). **Upgrading:** a policy left where 5.5.0 read it is refused until it is moved to the new
+  place: on macOS with Homebrew Python `<Homebrew prefix>/share/email-tool/policy.toml`, on the BSDs
+  `/etc/xdg/email-tool/policy.toml`, and wherever `XDG_CONFIG_DIRS` or
+  `WIN_PD_OVERRIDE_COMMON_APPDATA` pointed.
 - The CUI check no longer passes what it cannot read: under a `cui_recipient_domains` rule, a PDF
   or Office attachment it cannot read counts as CUI-marked, and the refusal names the file and the
   reason. That covers encrypted or damaged files, old and password-protected Office files (.doc,
@@ -17,8 +20,14 @@
 
 ### Security
 - pypdf 6.21.2 (was 6.21.1): two denial-of-service fixes in reading PDFs (#124).
-- filelock 4.2.1 (was 4.1.2): six advisories, in lock types email-tool does not use (#126).
+- filelock 4.2.4 (was 4.0.12): six advisories, in lock types email-tool does not use, and a lock
+  on a relative path that could stay held after a failed acquire, which the audit log's lock can
+  be (#126, #134; taken before the usual 14-day wait, as a bug fix).
 - virtualenv 21.14.13 (was 21.14.12), a development tool only (#125).
+
+### Changed
+- google-auth 2.62.0 (was 2.61.0), platformdirs 4.13.0 (was 4.12.4), pydantic 2.14.1 (was
+  2.14.0) (#119).
 
 ## 5.5.0
 
