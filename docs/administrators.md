@@ -47,7 +47,8 @@ if the user adds the same account under another name. If an existing policy file
 read, every action is refused.
 
 `cui_recipient_domains` also reads attachments: text, CSV, Markdown, HTML, Word (.docx) and
-PDF files. The audit log records each attachment's name, size and SHA-256 fingerprint, never
+PDF files (a PDF by its contents, whatever its name). A PDF or Word file it cannot open, such as
+an encrypted one, counts as CUI-marked, so it goes only to `cui_recipient_domains`. The audit log records each attachment's name, size and SHA-256 fingerprint, never
 its contents. Saving an attachment changes no mail, so `read_only` allows it.
 
 Every refusal names the rule and is recorded in the audit log. Recipients are checked on the

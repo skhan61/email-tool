@@ -19,9 +19,17 @@ from typing import Any
 import pytest
 from mcp import Client
 from mcp_types import CallToolResult, TextContent
+from pypdf import PageObject, PdfReader, PdfWriter
 
 from email_tool_mcp import attachments as attachments_module
-from email_tool_mcp.attachments import Attachment, attachment_text, load, safe_file_name, sensitive
+from email_tool_mcp.attachments import (
+    Attachment,
+    UnreadableAttachment,
+    attachment_text,
+    load,
+    safe_file_name,
+    sensitive,
+)
 from email_tool_mcp.audit import AuditLog
 from email_tool_mcp.cui import message_markings
 from email_tool_mcp.mailbox_book import MailboxBook
@@ -35,6 +43,15 @@ from tests.test_approval import Person
 # A fake key's first line, joined at run time so no file holds it whole (the repository's
 # private-key hook scans for that line).
 KEY_HEADER: str = "-----BEGIN " + "OPENSSH PRIVATE KEY-----"
+
+
+def _encrypted(content: bytes) -> bytes:
+    """`content`, a PDF, encrypted with a password the CUI check does not have."""
+    writer: PdfWriter = PdfWriter(clone_from=PdfReader(io.BytesIO(content)))
+    writer.encrypt("not-known-here")
+    out: io.BytesIO = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
 
 
 def pdf_with_text(text: str) -> bytes:
@@ -274,8 +291,16 @@ def test_cui_markings_inside_attachments_are_found(tmp_path: Path, name: str, co
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("name", "content"),
+    [
+        ("pricing.docx", docx_with_text("CUI//SP-PROPIN")),
+        # #127: one the check cannot read may be CUI, so it is refused the same way.
+        ("pricing.pdf", _encrypted(pdf_with_text("CUI//SP-PROPIN"))),
+    ],
+)
 async def test_a_cui_attachment_to_an_outside_domain_is_refused(
-    settings_file: Path, tmp_path: Path, mail_server: FakeMailServer, audit: AuditLog
+    settings_file: Path, tmp_path: Path, mail_server: FakeMailServer, audit: AuditLog, name: str, content: bytes
 ) -> None:
     store_password("work", "pw")
     policy_file: Path = tmp_path / "admin.toml"
@@ -283,8 +308,8 @@ async def test_a_cui_attachment_to_an_outside_domain_is_refused(
     book: MailboxBook = MailboxBook(
         settings_file, {}, mail_server.open_imap, mail_server.open_smtp, policy=Policy([policy_file])
     )
-    path: Path = tmp_path / "pricing.docx"
-    path.write_bytes(docx_with_text("CUI//SP-PROPIN"))
+    path: Path = tmp_path / name
+    path.write_bytes(content)
     result: CallToolResult = await call(
         book,
         audit,
@@ -524,3 +549,44 @@ def test_an_attachment_in_an_unknown_charset_is_still_read() -> None:
         b"CUI//SP-PROPIN\r\nPrices inside.\r\n"
     )
     assert "CUI//SP-PROPIN" in attachment_text(part)
+
+
+def test_a_pdf_that_cannot_be_read_counts_as_cui_marked(tmp_path: Path) -> None:
+    """#127: an unreadable PDF counted as having no markings, so an encrypted CUI PDF went out
+    unflagged under a cui_recipient_domains rule. It is now listed, so the rule applies to it.
+    """
+    path: Path = tmp_path / "pricing.pdf"
+    path.write_bytes(_encrypted(pdf_with_text("CUI//SP-PROPIN")))
+    message: EmailMessage = compose("me@example.com", "you@example.com", "s", "b", "", "", load([str(path)]))
+    with pytest.raises(UnreadableAttachment):
+        attachment_text(next(part for part in message.walk() if part.get_filename()))
+    assert any(found.startswith("unreadable attachment: pricing.pdf") for found in message_markings(message))
+
+
+def test_a_pdf_is_read_whatever_its_name(tmp_path: Path) -> None:
+    """#127: a PDF was read only when its name ended in .pdf, so one attached as `pricing` was not."""
+    path: Path = tmp_path / "pricing"
+    path.write_bytes(pdf_with_text("CUI//SP-PROPIN"))
+    message: EmailMessage = compose("me@example.com", "you@example.com", "s", "b", "", "", load([str(path)]))
+    assert any("CUI//SP-PROPIN" in found for found in message_markings(message))
+
+
+def test_a_pdf_is_read_only_up_to_the_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#127: every page was extracted before the limit was applied."""
+    writer: PdfWriter = PdfWriter()
+    page: Any = PdfReader(io.BytesIO(pdf_with_text("CUI page"))).pages[0]
+    for _ in range(5):
+        writer.add_page(page)
+    out: io.BytesIO = io.BytesIO()
+    writer.write(out)
+    read: list[int] = []
+    extract: Any = PageObject.extract_text
+
+    def counted(self: PageObject, *args: Any, **kwargs: Any) -> str:
+        read.append(1)
+        return str(extract(self, *args, **kwargs))
+
+    monkeypatch.setattr(PageObject, "extract_text", counted)
+    monkeypatch.setattr(attachments_module, "_TEXT_LIMIT", 5)
+    assert attachments_module.pdf_text(out.getvalue()) == "CUI p"
+    assert len(read) == 1

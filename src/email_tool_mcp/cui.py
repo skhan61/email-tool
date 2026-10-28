@@ -22,7 +22,7 @@ from email.message import EmailMessage
 from html.parser import HTMLParser
 from typing import Final
 
-from email_tool_mcp.attachments import attachment_text
+from email_tool_mcp.attachments import UnreadableAttachment, attachment_text
 from email_tool_mcp.message_render import every_text
 
 # One or more category groups: `//` between groups, `/` inside one, optional spaces.
@@ -89,15 +89,21 @@ def markings(subject: str, body: str) -> list[str]:
 
 
 def message_markings(message: EmailMessage) -> list[str]:
-    """CUI markings in the subject, every text part and every readable attachment (text, Word, PDF).
+    """CUI markings in the subject, every text part and every attachment (text, Word, PDF); an
+    attachment of those kinds that cannot be read is listed as unreadable, so it counts as marked.
 
     HTML is read both as rendered text and tag by tag.
     """
     html_parts: list[str] = [part.get_content() for part in message.walk() if part.get_content_type() == "text/html"]
-    attached: list[str] = [
-        attachment_text(part)
-        for part in message.walk()
-        if part.get_filename() and part.get_content_type() not in ("text/plain", "text/html")
-    ]
+    attached: list[str] = []
+    unreadable: list[str] = []
+    for part in message.walk():
+        if not part.get_filename() or part.get_content_type() in ("text/plain", "text/html"):
+            continue
+        try:
+            attached.append(attachment_text(part))
+        except UnreadableAttachment as error:
+            # WHAT CANNOT BE READ MAY BE CUI (#127): it counts as marked, so it goes only where CUI may.
+            unreadable.append(f"unreadable attachment: {error} (cannot be checked for CUI markings)")
     body: str = "\n".join([every_text(message), *(tag_lines(html) for html in html_parts), *attached])
-    return list(dict.fromkeys(markings(str(message.get("Subject", "")), body)))
+    return list(dict.fromkeys([*markings(str(message.get("Subject", "")), body), *unreadable]))

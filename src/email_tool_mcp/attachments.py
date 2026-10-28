@@ -266,22 +266,48 @@ def office_text(name: str, content: bytes) -> str:
     return _XML_TAG.sub("", _XML_BREAK.sub("\n", xml))
 
 
+class UnreadableAttachment(ValueError):
+    """A PDF or Office attachment the CUI check could not read; its message is the file's name."""
+
+
 def attachment_text(part: Message) -> str:
-    """Readable text of one attached part (text, Office, PDF), for the CUI check; "" when there is none."""
+    """Readable text of one attached part (text, Office, PDF), for the CUI check; "" when it is of
+    no kind the check reads (an image, an archive).
+
+    Raises `UnreadableAttachment` when a PDF or Office file cannot be read (#127): a check that
+    passed what it could not read let an encrypted CUI PDF go out unflagged.
+    """
     name: str = (part.get_filename() or "").lower()
     content: bytes = attachment_bytes(part)
     try:
         if Path(name).suffix in _OFFICE_TEXT:
             return office_text(name, content)[:_TEXT_LIMIT]
-        if name.endswith(".pdf"):
-            reader: PdfReader = PdfReader(io.BytesIO(content))
-            return "\n".join(page.extract_text() or "" for page in reader.pages)[:_TEXT_LIMIT]
-    except Exception:
-        # An unreadable file has no markings this check can read; the policy still applies to the rest.
-        return ""
+        if is_pdf(name, part, content):
+            return pdf_text(content)
+    except Exception as error:
+        raise UnreadableAttachment(part.get_filename() or "an attachment") from error
     if part.get_content_maintype() == "text" or name.endswith((".csv", ".md", ".txt", ".html", ".htm")):
         return decode_text(content, part.get_content_charset())[:_TEXT_LIMIT]
     return ""
+
+
+def is_pdf(name: str, part: Message, content: bytes) -> bool:
+    """A PDF by its name, its type or its own header (#127): a CUI PDF attached as `pricing` is a PDF."""
+    return name.endswith(".pdf") or part.get_content_type() == "application/pdf" or content.startswith(b"%PDF-")
+
+
+def pdf_text(content: bytes) -> str:
+    """The text of a PDF's pages, read only until `_TEXT_LIMIT` characters (#127)."""
+    reader: PdfReader = PdfReader(io.BytesIO(content))
+    pages: list[str] = []
+    read: int = 0
+    for page in reader.pages:
+        text: str = page.extract_text() or ""
+        pages.append(text)
+        read += len(text) + 1
+        if read >= _TEXT_LIMIT:
+            break
+    return "\n".join(pages)[:_TEXT_LIMIT]
 
 
 def save_directory(given: str) -> Path:

@@ -8,6 +8,10 @@
   Windows. It no longer moves with `XDG_CONFIG_DIRS`, `WIN_PD_OVERRIDE_COMMON_APPDATA` or a
   Homebrew Python (#122). **macOS with Homebrew Python:** a policy at the old place
   (`$(brew --prefix)/share/email-tool/policy.toml`) is refused until it is moved to the new one.
+- The CUI check no longer passes what it cannot read: under a `cui_recipient_domains` rule, a PDF
+  or Office attachment that cannot be opened (encrypted, damaged) counts as CUI-marked, and the
+  refusal names it. A PDF is recognised by its contents, whatever its name, and is read only up to
+  the text limit (#127).
 
 ## 5.5.0
 
