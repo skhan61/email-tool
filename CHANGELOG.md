@@ -8,8 +8,9 @@
   ProgramData folder (`%ProgramData%\email-tool`, asked of Windows) on Windows. It no longer
   moves with `XDG_CONFIG_DIRS`, `WIN_PD_OVERRIDE_COMMON_APPDATA` or a Homebrew Python (#122,
   #134). **Upgrading:** a policy left where 5.5.0 read it is refused until it is moved to the new
-  place: on macOS with Homebrew Python `/opt/homebrew/share/email-tool/policy.toml` or
-  `/usr/local/share/email-tool/policy.toml`, on the BSDs `/etc/xdg/email-tool/policy.toml`.
+  place: on macOS with Homebrew Python `<Homebrew prefix>/share/email-tool/policy.toml`, on the BSDs
+  `/etc/xdg/email-tool/policy.toml`, and wherever `XDG_CONFIG_DIRS` or
+  `WIN_PD_OVERRIDE_COMMON_APPDATA` pointed.
 - The CUI check no longer passes what it cannot read: under a `cui_recipient_domains` rule, a PDF
   or Office attachment it cannot read counts as CUI-marked, and the refusal names the file and the
   reason. That covers encrypted or damaged files, old and password-protected Office files (.doc,

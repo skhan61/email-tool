@@ -6,6 +6,7 @@ Placement: tests/test_policy.py, beside the module it tests (pytest's tests/ lay
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -171,6 +172,7 @@ def test_the_administrators_file_does_not_move_with_the_environment(
 def test_windows_program_data_is_asked_of_windows_not_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """#134: platformdirs reads $WIN_PD_OVERRIDE_COMMON_APPDATA before asking Windows."""
     real: Path = policy.windows_program_data()
+    assert real == Path(os.environ["ProgramData"])  # the runner's own, before anything is set
     monkeypatch.setenv("WIN_PD_OVERRIDE_COMMON_APPDATA", "C:/chosen-by-whoever-launches")
     assert policy.windows_program_data() == real
     assert policy_paths()[0] == real / "email-tool" / POLICY_FILE
@@ -190,3 +192,34 @@ def test_a_policy_left_at_the_old_place_is_refused_not_dropped(monkeypatch: pyte
     monkeypatch.setattr(policy, "MACOS_ADMIN_DIRECTORY", tmp_path / "fixed")
     with pytest.raises(SettingsError, match="no longer looks"):
         Policy(policy_paths()).rules_for("work", "me@example.com")
+
+
+@pytest.mark.parametrize(
+    ("platform", "base_prefix", "old"),
+    [
+        (
+            "darwin",
+            "/Users/me/homebrew/opt/python@3.13/Frameworks/Python.framework/Versions/3.13",
+            [
+                Path("/opt/homebrew/share/email-tool"),
+                Path("/usr/local/share/email-tool"),
+                Path("/Users/me/homebrew/share/email-tool"),
+                Path("/from-the-environment/email-tool"),
+            ],
+        ),
+        ("freebsd14", "/usr/local", [Path("/etc/xdg/email-tool"), Path("/from-the-environment/email-tool")]),
+        ("win32", "C:/Python313", [Path("/from-the-environment/email-tool")]),
+        ("linux", "/usr", []),
+    ],
+)
+def test_the_old_places_are_fixed_and_the_environment_only_adds(
+    monkeypatch: pytest.MonkeyPatch, platform: str, base_prefix: str, old: list[Path]
+) -> None:
+    """#134: the places checked for an old administrator's policy are fixed per OS, plus the running
+    Python's Homebrew prefix; where the environment points is added, so it can only refuse more.
+    Linux always read /etc/email-tool, so it has none.
+    """
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(sys, "base_prefix", base_prefix)
+    monkeypatch.setattr(policy, "site_config_path", lambda *_args, **_kwargs: Path("/from-the-environment/email-tool"))
+    assert list(policy.old_admin_directories()) == old

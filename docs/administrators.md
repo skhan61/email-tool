@@ -11,9 +11,9 @@ email-tool-mcp policy paths          # where both files are
 email-tool-mcp policy show work      # the rules that apply to one mailbox
 ```
 
-The administrator file is `/etc/email-tool/policy.toml` on Linux,
+The administrator file is `/etc/email-tool/policy.toml` on Linux and the BSDs,
 `/Library/Application Support/email-tool/policy.toml` on macOS and
-`%ProgramData%\email-tool\policy.toml` on Windows (the system's ProgramData folder), whatever the environment says. Run
+the system's ProgramData folder on Windows (normally `C:\ProgramData\email-tool\policy.toml`; it does not follow environment variables). None of them moves with the environment. Run
 `email-tool-mcp policy paths` to see both files. Changes apply on the next
 action, without a restart.
 
