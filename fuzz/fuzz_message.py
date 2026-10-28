@@ -7,14 +7,16 @@ Incoming mail is parsed as the read tools parse it (`parse_message`, the classic
 every attached part is read as the CUI check reads it. The same bytes, as text, then become an
 outgoing message's subject, body and HTML, which an incoming email can steer, and go through
 `message_markings`. Nothing here may raise, except `thread_headers`, which refuses a parent
-without a Message-ID with ValueError by design.
+without a Message-ID with ValueError, and `attachment_text`, which refuses an attachment the CUI
+check cannot read with UnreadableAttachment (#127), both by design.
 """
 
 from __future__ import annotations
 
+from contextlib import suppress
 from email.message import EmailMessage, Message
 
-from email_tool_mcp.attachments import attachment_text
+from email_tool_mcp.attachments import UnreadableAttachment, attachment_text
 from email_tool_mcp.cui import message_markings
 from email_tool_mcp.message_compose import compose, message_ids, thread_headers
 from email_tool_mcp.message_render import attachment_names, every_text, extract_body, header_block, parse_message
@@ -31,7 +33,8 @@ def test_one_input(data: bytes) -> None:
     part: Message
     for part in incoming.walk():
         if part.get_filename():
-            attachment_text(part)
+            with suppress(UnreadableAttachment):  # refused by design (#127), not a crash
+                attachment_text(part)
     message_ids(incoming.get("References"))
     try:
         thread_headers(incoming)
