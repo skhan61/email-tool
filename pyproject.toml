@@ -40,23 +40,23 @@ packages = ["src/email_tool_mcp"]
 # The pre-commit hooks run these exact versions.
 dev = [
     # Property-based (fuzz) tests in tests/test_fuzz.py.
-    "hypothesis==6.168.5",
+    "hypothesis==6.169.1",
     "mypy==2.4.0",
-    "pre-commit==4.6.2",
+    "pre-commit==4.7.0",
     # `tools.bot_pr` signs in as the GitHub App that opens this repository's issues and PRs.
     "pygithub==2.10.0",
     "pytest==9.1.1",
     "pytest-timeout==2.5.0",
     # `tools.clean_install` checks the install steps on a clean home and saves each one's real
     # terminal output as SVG for docs/.
-    "rich==13.9.4",
-    "ruff==0.16.10",
+    "rich==15.0.0",
+    "ruff==0.17.0",
 ]
 
 # Coverage-guided fuzzing of the mail and file parsers (fuzz/, .github/workflows/fuzz.yml).
 # Atheris 3.0.0 ships wheels for Python 3.11 to 3.13.
 fuzz = [
-    "atheris==3.0.0",
+    "atheris==3.1.0",
 ]
 
 # The documentation site (mkdocs.yml, docs/): `uv run --group docs mkdocs serve`.
