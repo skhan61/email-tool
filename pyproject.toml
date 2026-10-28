@@ -8,7 +8,7 @@ license = "MIT"
 authors = [{ name = "Sayem Khan", email = "s.khan@alchlight.com" }]
 maintainers = [{ name = "Sayem Khan", email = "s.khan@alchlight.com" }]
 dependencies = [
-    "filelock==4.1.2",
+    "filelock==4.2.1",
     "cryptography==50.0.2",
     "fire==0.7.1",
     "google-auth==2.62.0",
