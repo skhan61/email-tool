@@ -19,7 +19,7 @@ dependencies = [
     "pypdf==6.21.2",
     "mcp==2.3.0",
     "mcp-types==2.3.0",
-    "platformdirs==4.13.0",
+    "platformdirs==4.13.5",
     "pydantic==2.14.1",
     # tls.py mounts its own HTTPS adapter (TLS context, timeout) for MSAL and google-auth.
     "requests==2.34.2",
