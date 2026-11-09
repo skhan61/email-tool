@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Start here has steps with screenshots for ChatGPT desktop on Linux, in Codex and in Work (#148).
+
 ### Fixed
 - ChatGPT desktop and Claude Desktop show the plugin as `email-tool`, the name the docs use (#145).
 - ChatGPT desktop and Codex on Linux reach the keyring, and the first start has 120 seconds instead of 10 (#147).
