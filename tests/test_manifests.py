@@ -88,6 +88,14 @@ def test_registry_entry_names_this_release_and_the_readme_proves_it() -> None:
     assert f"<!-- mcp-name: {server['name']} -->" in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
+def test_codex_plugin_can_reach_the_keyring_and_start_for_the_first_time() -> None:
+    server: dict[str, Any] = read_json(".codex-mcp.json")["mcpServers"]["email"]
+    # Codex starts a stdio server with a reduced environment; the Linux keyring needs these two.
+    assert server["env_vars"] == ["DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR"]
+    # The first start downloads Python and the package; Codex's default limit is 10 seconds.
+    assert server["startup_timeout_sec"] >= 60
+
+
 def test_codex_plugin_runs_the_release_matching_its_version() -> None:
     arguments: list[str] = read_json(".codex-mcp.json")["mcpServers"]["email"]["args"]
     assert f"email-tool-mcp=={package_version()}" in arguments
