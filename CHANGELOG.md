@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- ChatGPT desktop and Claude Desktop show the plugin as `email-tool`, the name the docs use (#145).
+
 ## 5.6.0
 
 ### Fixed
