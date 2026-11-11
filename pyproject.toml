@@ -40,17 +40,17 @@ packages = ["src/email_tool_mcp"]
 # The pre-commit hooks run these exact versions.
 dev = [
     # Property-based (fuzz) tests in tests/test_fuzz.py.
-    "hypothesis==6.169.1",
+    "hypothesis==6.170.12",
     "mypy==2.4.0",
     "pre-commit==4.7.0",
     # `tools.bot_pr` signs in as the GitHub App that opens this repository's issues and PRs.
     "pygithub==2.10.0",
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     "pytest-timeout==2.5.0",
     # `tools.clean_install` checks the install steps on a clean home and saves each one's real
     # terminal output as SVG for docs/.
     "rich==15.0.0",
-    "ruff==0.17.0",
+    "ruff==0.17.3",
 ]
 
 # Coverage-guided fuzzing of the mail and file parsers (fuzz/, .github/workflows/fuzz.yml).
@@ -62,7 +62,7 @@ fuzz = [
 # The documentation site (mkdocs.yml, docs/): `uv run --group docs mkdocs serve`.
 docs = [
     "mkdocs==1.6.1",
-    "mkdocs-material==9.7.7",
+    "mkdocs-material==9.8.0",
 ]
 
 [tool.ruff]
