@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 5.7.0
+
 ### Added
 - Start here has steps with screenshots for ChatGPT desktop on Linux, in Codex and in Work (#148).
 - Start here has steps with screenshots for ChatGPT desktop on Windows and macOS too, in Codex and
