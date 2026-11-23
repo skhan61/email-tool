@@ -6,6 +6,8 @@
 - Start here has steps with screenshots for ChatGPT desktop on Linux, in Codex and in Work (#148).
 - Start here has steps with screenshots for ChatGPT desktop on Windows and macOS too, in Codex and
   in Work, checked on both systems.
+- Start here shows the setup page inside ChatGPT on Windows too, and full form examples; the macOS
+  Work steps no longer need the Deny step (#163).
 - A reply quotes the earlier message below the new text, as mail programs do: `> ` lines in the
   plain part and a quote block in the HTML part, with the earlier quotes kept. The parent's own
   HTML is never copied, only its text. `quote_parent=false` sends the new text alone (#154).

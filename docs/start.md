@@ -82,6 +82,8 @@ Three steps, for any AI app. No terminal.
 
         3. The **Add a mailbox** page opens in ChatGPT.
 
+            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-windows/codex-page.png)
+
     === "Work"
 
         1. Select the Home icon, and then select **Work**. In the message box, type
@@ -95,6 +97,8 @@ Three steps, for any AI app. No terminal.
 
         3. The **Add a mailbox** page opens in ChatGPT.
 
+            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-windows/work-page.png)
+
     **Fill in the page**
 
     This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
@@ -107,9 +111,7 @@ Three steps, for any AI app. No terminal.
        **SMTP server**.
     5. Select **Add mailbox**. When the page says **Mailbox added**, go back to ChatGPT.
 
-    The page is the same on every system; this picture is from macOS.
-
-    ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-mac/form-example.png)
+    ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-windows/form-example.png)
 
 === "ChatGPT desktop on macOS"
 
@@ -190,11 +192,6 @@ Three steps, for any AI app. No terminal.
 
             ![add my mailbox typed in the Work message box, with the Work tab highlighted](assets/screens/chatgpt-mac/work-type.png)
 
-            If ChatGPT asks **Allow ChatGPT to access 127.0.0.1 with the cloud browser?**, select
-            **Deny**, and then type **give me the setup link**. The setup page is where you type your
-            password, so only you should open it.
-
-            ![ChatGPT asks to open the setup page itself, with Deny highlighted](assets/screens/chatgpt-mac/work-cloud-browser.png)
 
         2. In the reply, select the link to the setup page. The link lasts 10 minutes.
 
