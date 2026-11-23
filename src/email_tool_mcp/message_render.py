@@ -94,14 +94,18 @@ def read_headers(session: ImapSession, folder: str, uid: int) -> Message:
 
 
 def read_text_message(session: ImapSession, folder: str, uid: int) -> Message:
-    """Message `uid` in `folder` with its headers and only its text parts, never its attachments.
+    """Message `uid` in `folder` with its headers and only its text parts, never its attachments when it can.
 
     The parts hang under one multipart container, so `extract_body` reads them as it reads a whole message.
     """
     session.select(folder, readonly=True)
     fetched: TextParts | None = session.fetch_text_parts(uid)
     if fetched is None:
-        raise LookupError(f"no message with uid {uid} in folder {folder!r}; nothing was done")
+        # The server could not give the text parts with their headers: read the whole message instead.
+        raw: bytes | None = session.fetch_message(uid)
+        if raw is None:
+            raise LookupError(f"no message with uid {uid} in folder {folder!r}; nothing was done")
+        return parse_message(raw)
     message: Message = parse_message(fetched.headers)
     for name in _BODY_HEADERS:
         del message[name]

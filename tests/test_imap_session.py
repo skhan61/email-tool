@@ -224,20 +224,28 @@ class TextStub(StubClient):
         self.structure: BodyData = BodyData.create(parse_response([structure])[0])
         self.requests: list[list[str]] = []
         self.fetch_nothing: bool = False
+        self.empty_mime: bool = False
+        self.no_structure: bool = False
 
     def fetch(self, uids: list[int], items: list[str]) -> dict[int, dict[bytes, Any]]:
         self.requests.append(items)
         if items[0] == "BODY.PEEK[HEADER]":
-            return {uids[0]: {b"BODY[HEADER]": b"Subject: Plan\r\n\r\n", b"BODYSTRUCTURE": self.structure}}
+            overview: dict[bytes, Any] = {b"BODY[HEADER]": b"Subject: Plan\r\n\r\n", b"BODYSTRUCTURE": self.structure}
+            if self.no_structure:
+                del overview[b"BODYSTRUCTURE"]
+            return {uids[0]: overview}
         if self.fetch_nothing:
             return {}
-        return {
-            uids[0]: {
-                item.replace(".PEEK", "").encode(): item.encode()
-                for item in items
-                if self.serves_mime or not item.endswith(".MIME]")
-            }
-        }
+        answer: dict[bytes, Any] = {}
+        for item in items:
+            if item.endswith(".MIME]"):
+                if self.serves_mime:
+                    answer[item.replace(".PEEK", "").encode()] = (
+                        b"" if self.empty_mime else b"Content-Type: text/plain\r\n\r\n"
+                    )
+            else:
+                answer[item.replace(".PEEK", "").encode()] = item.encode()
+        return {uids[0]: answer}
 
 
 def test_only_the_text_parts_are_fetched_never_the_attachment() -> None:
@@ -254,24 +262,44 @@ def test_a_single_html_part_is_fetched_as_section_one() -> None:
     assert client.requests[1] == ["BODY.PEEK[1]", "BODY.PEEK[1.MIME]"]
 
 
-def test_a_server_without_mime_headers_still_quotes_from_the_structure() -> None:
+def test_a_server_without_mime_headers_gives_way_to_the_whole_message() -> None:
+    """A part is never read without its own header: the caller reads the whole message instead."""
     client: TextStub = TextStub(PLAIN_LEAF, serves_mime=False)
-    fetched: TextParts | None = session_over(client).fetch_text_parts(7)
-    assert fetched is not None
-    assert (
-        fetched.parts[0].mime == b'Content-Type: text/plain; charset="utf-8"\r\nContent-Transfer-Encoding: 7bit\r\n\r\n'
-    )
+    assert session_over(client).fetch_text_parts(7) is None
 
 
-def test_a_body_with_only_a_content_type_name_is_still_text() -> None:
+def test_an_empty_mime_header_gives_way_to_the_whole_message() -> None:
+    client: TextStub = TextStub(PLAIN_LEAF)
+    client.empty_mime = True
+    assert session_over(client).fetch_text_parts(7) is None
+
+
+def test_a_part_named_in_its_content_type_counts_as_a_file_as_get_email_does() -> None:
     leaf: bytes = b'("text" "plain" ("charset" "utf-8" "name" "message.txt") NIL NIL "7bit" 5 1 NIL NIL NIL)'
     client: TextStub = TextStub(leaf)
-    assert session_over(client).fetch_text_parts(7) is not None
-    assert client.requests[1] == ["BODY.PEEK[1]", "BODY.PEEK[1.MIME]"]
-
-
-def test_text_that_cannot_be_fetched_leaves_the_headers_alone() -> None:
-    client: TextStub = TextStub(PLAIN_LEAF)
-    client.fetch_nothing = True
     fetched: TextParts | None = session_over(client).fetch_text_parts(7)
     assert fetched is not None and fetched.parts == ()
+    assert len(client.requests) == 1
+
+
+def test_text_that_cannot_be_fetched_gives_way_to_the_whole_message() -> None:
+    client: TextStub = TextStub(PLAIN_LEAF)
+    client.fetch_nothing = True
+    assert session_over(client).fetch_text_parts(7) is None
+
+
+def test_a_forwarded_message_inside_gives_way_to_the_whole_message() -> None:
+    forwarded: bytes = (
+        b'(("message" "rfc822" NIL NIL NIL "7bit" 200 (NIL "Fwd" NIL NIL NIL NIL NIL NIL NIL NIL) '
+        + PLAIN_LEAF
+        + b' 10 NIL NIL NIL NIL) "mixed" ("boundary" "m") NIL NIL)'
+    )
+    client: TextStub = TextStub(forwarded)
+    assert session_over(client).fetch_text_parts(7) is None
+    assert len(client.requests) == 1
+
+
+def test_an_answer_without_a_structure_gives_way_to_the_whole_message() -> None:
+    client: TextStub = TextStub(PLAIN_LEAF)
+    client.no_structure = True
+    assert session_over(client).fetch_text_parts(7) is None

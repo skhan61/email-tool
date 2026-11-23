@@ -119,11 +119,17 @@ class FakeSession:
         if raw is None:
             return None
         message: Message = message_from_bytes(raw)
+        if any(part.get_content_maintype() == "message" for part in message.walk()):
+            return None  # as the real session: a message inside a message is read whole
         leaves: list[tuple[str, Message]] = _leaves(message, "")
+        # The real rule (text_parts._is_attachment): a filename, a Content-Type name or an attachment disposition.
         texts: list[tuple[str, Message]] = [
             (section, leaf)
             for section, leaf in leaves
-            if leaf.get_content_maintype() == "text" and not leaf.get_filename()
+            if leaf.get_content_maintype() == "text"
+            and not leaf.get_filename()
+            and not leaf.get_param("name")
+            and leaf.get_content_disposition() != "attachment"
         ]
         chosen: list[tuple[str, Message]] = [pair for pair in texts if pair[1].get_content_subtype() == "plain"] or [
             pair for pair in texts if pair[1].get_content_subtype() == "html"
