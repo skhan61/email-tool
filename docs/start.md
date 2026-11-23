@@ -68,50 +68,8 @@ Three steps, for any AI app. No terminal.
 
         ![email-tool highlighted in the Installed list](assets/screens/chatgpt-windows/installed.png)
 
-    **Open the setup page**
+    Next, [add your mailbox](#2-add-your-mailbox).
 
-    === "Codex"
-
-        1. Select the Home icon. In the message box, type **add my mailbox** and press Enter.
-
-            ![add my mailbox typed in the Codex message box](assets/screens/chatgpt-windows/codex-type.png)
-
-        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
-
-            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-windows/codex-link.png)
-
-        3. The **Add a mailbox** page opens in ChatGPT.
-
-            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-windows/codex-page.png)
-
-    === "Work"
-
-        1. Select the Home icon, and then select **Work**. In the message box, type
-           **add my mailbox** and press Enter.
-
-            ![add my mailbox typed in the Work message box, with the Work tab highlighted](assets/screens/chatgpt-windows/work-type.png)
-
-        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
-
-            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-windows/work-link.png)
-
-        3. The **Add a mailbox** page opens in ChatGPT.
-
-            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-windows/work-page.png)
-
-    **Fill in the page**
-
-    This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
-    other kinds, see [Add your mailbox](#2-add-your-mailbox).
-
-    1. Select **Any other mailbox**.
-    2. Type your email address.
-    3. Type your password. Type it only on this page, never in the chat.
-    4. Select **Any other mailbox: server names**, and type your provider's **IMAP server** and
-       **SMTP server**.
-    5. Select **Add mailbox**. When the page says **Mailbox added**, go back to ChatGPT.
-
-    ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-windows/form-example.png)
 
 === "ChatGPT desktop on macOS"
 
@@ -169,51 +127,8 @@ Three steps, for any AI app. No terminal.
 
         ![email-tool highlighted in the Installed list](assets/screens/chatgpt-mac/installed.png)
 
-    **Open the setup page**
+    Next, [add your mailbox](#2-add-your-mailbox).
 
-    === "Codex"
-
-        1. Select the Home icon. In the message box, type **add my mailbox** and press Enter.
-
-            ![add my mailbox typed in the Codex message box](assets/screens/chatgpt-mac/codex-type.png)
-
-        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
-
-            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-mac/codex-link.png)
-
-        3. The **Add a mailbox** page opens in ChatGPT.
-
-            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-mac/codex-page.png)
-
-    === "Work"
-
-        1. Select the Home icon, and then select **Work**. In the message box, type
-           **add my mailbox** and press Enter.
-
-            ![add my mailbox typed in the Work message box, with the Work tab highlighted](assets/screens/chatgpt-mac/work-type.png)
-
-
-        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
-
-            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-mac/work-link.png)
-
-        3. The **Add a mailbox** page opens in ChatGPT.
-
-            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-mac/work-page.png)
-
-    **Fill in the page**
-
-    This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
-    other kinds, see [Add your mailbox](#2-add-your-mailbox).
-
-    1. Select **Any other mailbox**.
-    2. Type your email address.
-    3. Type your password. Type it only on this page, never in the chat.
-    4. Select **Any other mailbox: server names**, and type your provider's **IMAP server** and
-       **SMTP server**.
-    5. Select **Add mailbox**. When the page says **Mailbox added**, go back to ChatGPT.
-
-    ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-mac/form-example.png)
 
 === "ChatGPT desktop on Linux"
 
@@ -274,50 +189,8 @@ Three steps, for any AI app. No terminal.
 
         ![email-tool highlighted in the Installed list](assets/screens/chatgpt-linux/installed.png)
 
-    **Open the setup page**
+    Next, [add your mailbox](#2-add-your-mailbox).
 
-    === "Codex"
-
-        1. Select the Home icon. In the message box, type **add my mailbox** and press Enter.
-
-            ![add my mailbox typed in the Codex message box](assets/screens/chatgpt-linux/codex-type.png)
-
-        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
-
-            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-linux/codex-link.png)
-
-        3. The **Add a mailbox** page opens in ChatGPT.
-
-            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-linux/codex-page.png)
-
-    === "Work"
-
-        1. Select the Home icon, and then select **Work**. In the message box, type
-           **add my mailbox** and press Enter.
-
-            ![add my mailbox typed in the Work message box, with the Work tab highlighted](assets/screens/chatgpt-linux/work-type.png)
-
-        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
-
-            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-linux/work-link.png)
-
-        3. The **Add a mailbox** page opens in ChatGPT.
-
-            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-linux/work-page.png)
-
-    **Fill in the page**
-
-    This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
-    other kinds, see [Add your mailbox](#2-add-your-mailbox).
-
-    1. Select **Any other mailbox**.
-    2. Type your email address.
-    3. Type your password. Type it only on this page, never in the chat.
-    4. Select **Any other mailbox: server names**, and type your provider's **IMAP server** and
-       **SMTP server**.
-    5. Select **Add mailbox**. When the page says **Mailbox added**, go back to ChatGPT.
-
-    ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-linux/form-example.png)
 
 === "Claude Code"
 
@@ -372,6 +245,152 @@ instead, open the link.
 4. Select **Add mailbox**. When the page says **Mailbox added**, go back to your app.
 
 Your password never passes through the AI assistant. To add another mailbox, ask again.
+
+### Step by step in ChatGPT desktop
+
+Numbers in a picture show the order of the actions in that step.
+
+=== "ChatGPT desktop on Windows"
+
+    **Open the setup page**
+
+    === "Codex"
+
+        1. Select the Home icon. In the message box, type **add my mailbox** and press Enter.
+
+            ![add my mailbox typed in the Codex message box](assets/screens/chatgpt-windows/codex-type.png)
+
+        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
+
+            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-windows/codex-link.png)
+
+        3. The **Add a mailbox** page opens in ChatGPT.
+
+            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-windows/codex-page.png)
+
+    === "Work"
+
+        1. Select the Home icon, and then select **Work**. In the message box, type
+           **add my mailbox** and press Enter.
+
+            ![add my mailbox typed in the Work message box, with the Work tab highlighted](assets/screens/chatgpt-windows/work-type.png)
+
+        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
+
+            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-windows/work-link.png)
+
+        3. The **Add a mailbox** page opens in ChatGPT.
+
+            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-windows/work-page.png)
+
+    **Fill in the page**
+
+    This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
+    other kinds, see the steps above.
+
+    1. Select **Any other mailbox**.
+    2. Type your email address.
+    3. Type your password. Type it only on this page, never in the chat.
+    4. Select **Any other mailbox: server names**, and type your provider's **IMAP server**.
+    5. Type your provider's **SMTP server**.
+    6. Select **Add mailbox**. When the page says **Mailbox added**, go back to ChatGPT.
+
+    ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-windows/form-example.png)
+
+=== "ChatGPT desktop on macOS"
+
+    **Open the setup page**
+
+    === "Codex"
+
+        1. Select the Home icon. In the message box, type **add my mailbox** and press Enter.
+
+            ![add my mailbox typed in the Codex message box](assets/screens/chatgpt-mac/codex-type.png)
+
+        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
+
+            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-mac/codex-link.png)
+
+        3. The **Add a mailbox** page opens in ChatGPT.
+
+            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-mac/codex-page.png)
+
+    === "Work"
+
+        1. Select the Home icon, and then select **Work**. In the message box, type
+           **add my mailbox** and press Enter.
+
+            ![add my mailbox typed in the Work message box, with the Work tab highlighted](assets/screens/chatgpt-mac/work-type.png)
+
+
+        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
+
+            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-mac/work-link.png)
+
+        3. The **Add a mailbox** page opens in ChatGPT.
+
+            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-mac/work-page.png)
+
+    **Fill in the page**
+
+    This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
+    other kinds, see the steps above.
+
+    1. Select **Any other mailbox**.
+    2. Type your email address.
+    3. Type your password. Type it only on this page, never in the chat.
+    4. Select **Any other mailbox: server names**, and type your provider's **IMAP server**.
+    5. Type your provider's **SMTP server**.
+    6. Select **Add mailbox**. When the page says **Mailbox added**, go back to ChatGPT.
+
+    ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-mac/form-example.png)
+
+=== "ChatGPT desktop on Linux"
+
+    **Open the setup page**
+
+    === "Codex"
+
+        1. Select the Home icon. In the message box, type **add my mailbox** and press Enter.
+
+            ![add my mailbox typed in the Codex message box](assets/screens/chatgpt-linux/codex-type.png)
+
+        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
+
+            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-linux/codex-link.png)
+
+        3. The **Add a mailbox** page opens in ChatGPT.
+
+            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-linux/codex-page.png)
+
+    === "Work"
+
+        1. Select the Home icon, and then select **Work**. In the message box, type
+           **add my mailbox** and press Enter.
+
+            ![add my mailbox typed in the Work message box, with the Work tab highlighted](assets/screens/chatgpt-linux/work-type.png)
+
+        2. In the reply, select the link to the setup page. The link lasts 10 minutes.
+
+            ![The reply from ChatGPT with the mailbox setup link highlighted](assets/screens/chatgpt-linux/work-link.png)
+
+        3. The **Add a mailbox** page opens in ChatGPT.
+
+            ![The Add a mailbox page open in a tab inside ChatGPT](assets/screens/chatgpt-linux/work-page.png)
+
+    **Fill in the page**
+
+    This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
+    other kinds, see the steps above.
+
+    1. Select **Any other mailbox**.
+    2. Type your email address.
+    3. Type your password. Type it only on this page, never in the chat.
+    4. Select **Any other mailbox: server names**, and type your provider's **IMAP server**.
+    5. Type your provider's **SMTP server**.
+    6. Select **Add mailbox**. When the page says **Mailbox added**, go back to ChatGPT.
+
+    ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-linux/form-example.png)
 
 ## 3. Try it
 

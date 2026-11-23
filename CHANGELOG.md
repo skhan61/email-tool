@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+- Start here keeps installing in step 1 and adding a mailbox in step 2 for ChatGPT desktop too; the form
+  steps match the picture's numbers, and every Windows picture has its highlight (#166).
+
 ## 5.7.0
 
 ### Added
