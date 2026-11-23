@@ -13,7 +13,7 @@ from email.utils import formatdate, getaddresses, make_msgid
 from typing import Final
 
 from email_tool_mcp.attachments import Attachment, attach
-from email_tool_mcp.reply_quote import quoted_html, quoted_plain
+from email_tool_mcp.reply_quote import quoted_html, quoted_plain, without_quote, without_quote_html
 
 # One message ID in its angle-bracket form (RFC 5322 section 3.6.4); nothing else of a header is copied.
 _MESSAGE_ID: Final[re.Pattern[str]] = re.compile(r"<[^<>\s()]+>")
@@ -110,8 +110,10 @@ def compose(
         message["In-Reply-To"] = in_reply_to
         message["References"] = references
         if quote:
-            body = quoted_plain(body, parent)
-            html = quoted_html(html, parent) if html else ""
+            # A quote email-tool wrote before goes first, so a draft read back and edited, or moved to
+            # another conversation, carries exactly one quote: this parent's.
+            body = quoted_plain(without_quote(body), parent)
+            html = quoted_html(without_quote_html(html), parent) if html else ""
     message.set_content(body)
     if html:
         message.add_alternative(html, subtype="html")
