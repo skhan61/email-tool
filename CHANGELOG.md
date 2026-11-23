@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 5.7.1
+
 ### Fixed
 - The Windows installer works when started from PowerShell 7 (it failed loading Windows PowerShell's
   modules), and the macOS installer exits 0 with no keyboard; CI now runs both on clean machines (#170).
