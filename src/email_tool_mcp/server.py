@@ -241,6 +241,7 @@ def opening_page(run: Callable[..., Awaitable[str]], page: SetupPage) -> Callabl
             )
         return (
             f"Show the user this link and ask them to open it in their browser: {address}\n"
+            "Do not open the link yourself or with a browser tool: the user types a password on that page. "
             "It runs on their computer only and closes after one mailbox or 10 minutes. When they say they are "
             "done, call add_mailbox again to see what was added. Never ask for a password in the chat."
         )

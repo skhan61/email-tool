@@ -17,7 +17,8 @@ class SetupTools:
 
     def add_mailbox(self) -> str:
         """Open a setup page in the user's browser to add a mailbox: Gmail, Outlook or Microsoft 365, Google
-        Workspace, or any other. The user types any password on that page only; never ask for it in the chat.
+        Workspace, or any other. The user types any password on that page only; never ask for it in the chat,
+        and never open the page yourself or with a browser tool: give the user the link.
         Closing the app's page box can read as "canceled" even after a mailbox was added: then call
         list_mailboxes to see whether it was.
         """
