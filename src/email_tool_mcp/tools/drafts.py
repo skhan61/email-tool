@@ -117,6 +117,8 @@ class DraftTools:
 
         IMAP has no in-place edit: the replacement is stored first, then the original deleted.
         A reply draft stays in its conversation; `in_reply_to_uid` moves it to another one.
+        The quote of the earlier message is added only with `in_reply_to_uid`, and never twice:
+        a body read back with get_draft keeps the quote it already has.
         """
         sender: Mailbox = self._book.resolve(mailbox)
         files: list[Attachment] = load(attachments or [])

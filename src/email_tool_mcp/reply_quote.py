@@ -18,16 +18,27 @@ from typing import Final
 from email_tool_mcp.message_render import decode_header_value, extract_body
 
 _BODY_END: Final[re.Pattern[str]] = re.compile(r"</body\s*>", re.IGNORECASE)
-_QUOTE_STYLE: Final[str] = "margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex"
+_QUOTE_STYLE: Final[str] = "margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex;white-space:pre-wrap"
+
+
+def _header(parent: Message, field: str) -> str:
+    """A header decoded, or as it came when its charset is unknown or its bytes are broken."""
+    try:
+        return decode_header_value(parent.get(field))
+    except (LookupError, UnicodeError):
+        return str(parent.get(field) or "")
 
 
 def attribution(parent: Message) -> str:
-    """'On Sat, Nov 21, 2026 at 3:09 AM, Jane <jane@x.com> wrote:', with the raw date when it does not parse."""
-    sender: str = decode_header_value(parent.get("From")) or "someone"
-    raw_date: str = decode_header_value(parent.get("Date"))
+    """'On Sat, Nov 21, 2026 at 3:09 AM, Jane <jane@x.com> wrote:', in this computer's time zone.
+
+    The raw date is kept when it does not parse.
+    """
+    sender: str = _header(parent, "From") or "someone"
+    raw_date: str = _header(parent, "Date")
     when: str = raw_date
     try:
-        sent: datetime = parsedate_to_datetime(raw_date)
+        sent: datetime = parsedate_to_datetime(raw_date).astimezone()
         hour: int = sent.hour % 12 or 12
         when = f"{sent:%a, %b} {sent.day}, {sent.year} at {hour}:{sent:%M} {'AM' if sent.hour < 12 else 'PM'}"
     except (TypeError, ValueError, IndexError):
@@ -41,12 +52,22 @@ def quote_lines(text: str) -> str:
     return "\n".join(">" + line if line.startswith(">") else ("> " + line if line else ">") for line in lines)
 
 
+def _already_quoted(text: str, parent: Message) -> bool:
+    """True when `text` carries the parent's quote already, as an edited reply draft does."""
+    return attribution(parent) in html.unescape(text)
+
+
 def quoted_plain(body: str, parent: Message) -> str:
-    """`body`, a blank line, the attribution and the parent's text quoted; `body` alone when the parent has no text."""
+    """`body`, a blank line, the attribution and the parent's text quoted.
+
+    `body` alone when the parent has no text, or when `body` already quotes it (a reply draft
+    read back and edited keeps one quote, never two).
+    """
     earlier: str = extract_body(parent).strip("\n")
-    if not earlier.strip():
+    if not earlier.strip() or _already_quoted(body, parent):
         return body
-    return f"{body.rstrip()}\n\n{attribution(parent)}\n{quote_lines(earlier)}\n"
+    lead: str = f"{body.rstrip()}\n\n" if body.strip() else ""
+    return f"{lead}{attribution(parent)}\n{quote_lines(earlier)}\n"
 
 
 def quoted_html(markup: str, parent: Message) -> str:
@@ -56,12 +77,12 @@ def quoted_html(markup: str, parent: Message) -> str:
     scripts, styles or tracking images into a message this mailbox sends.
     """
     earlier: str = extract_body(parent).strip("\n")
-    if not earlier.strip():
+    if not earlier.strip() or _already_quoted(markup, parent):
         return markup
+    lines: str = "<br>".join(html.escape(line) for line in earlier.splitlines())
     block: str = (
         f"<br><div>{html.escape(attribution(parent))}</div>"
-        f'<blockquote type="cite" style="{_QUOTE_STYLE}">'
-        f"{html.escape(earlier).replace(chr(10), '<br>')}</blockquote>"
+        f'<blockquote type="cite" style="{_QUOTE_STYLE}">{lines}</blockquote>'
     )
     ends: list[re.Match[str]] = list(_BODY_END.finditer(markup))
     if not ends:
