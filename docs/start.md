@@ -107,6 +107,8 @@ Three steps, for any AI app. No terminal.
        **SMTP server**.
     5. Select **Add mailbox**. When the page says **Mailbox added**, go back to ChatGPT.
 
+    The page is the same on every system; this picture is from macOS.
+
     ![The Add a mailbox form with example values, and each box to fill in highlighted](assets/screens/chatgpt-mac/form-example.png)
 
 === "ChatGPT desktop on macOS"
