@@ -12,7 +12,7 @@ from typing import Final
 from email_tool_mcp.attachments import Attachment, load, sensitive
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose, keep_thread
-from email_tool_mcp.message_render import MessageSummary, parse_message, read_headers
+from email_tool_mcp.message_render import MessageSummary, parse_message, read_parent
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import (
     Attachments,
@@ -24,6 +24,7 @@ from email_tool_mcp.tools.params import (
     InReplyToUid,
     Limit,
     MailboxName,
+    QuoteParent,
     Subject,
     To,
     Uid,
@@ -60,19 +61,21 @@ class DraftTools:
         attachments: Attachments = None,
         in_reply_to_uid: InReplyToUid = 0,
         in_reply_to_folder: InReplyToFolder = "INBOX",
+        quote_parent: QuoteParent = True,
     ) -> str:
         """Save a new draft into the drafts folder, with any attachments. Does not send it.
 
-        For a reply, `in_reply_to_uid` names the message answered, so the draft joins its conversation.
+        For a reply, `in_reply_to_uid` names the message answered, so the draft joins its conversation
+        and quotes it below the new text.
         """
         sender: Mailbox = self._book.resolve(mailbox)
         files: list[Attachment] = load(attachments or [])
         with self._book.imap(sender) as session:
             parent: Message | None = (
-                read_headers(session, in_reply_to_folder, in_reply_to_uid) if in_reply_to_uid else None
+                read_parent(session, in_reply_to_folder, in_reply_to_uid, quote_parent) if in_reply_to_uid else None
             )
             message: EmailMessage = compose(
-                sender.address, to, subject, body, cc, html, attachments=files, parent=parent
+                sender.address, to, subject, body, cc, html, attachments=files, parent=parent, quote=quote_parent
             )
             self._book.approve(sender, message)
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
@@ -108,6 +111,7 @@ class DraftTools:
         attachments: Attachments = None,
         in_reply_to_uid: InReplyToUid = 0,
         in_reply_to_folder: InReplyToFolder = "INBOX",
+        quote_parent: QuoteParent = True,
     ) -> str:
         """Replace an existing draft with new content and attachments, keyed by UID.
 
@@ -118,14 +122,14 @@ class DraftTools:
         files: list[Attachment] = load(attachments or [])
         with self._book.imap(sender) as session:
             parent: Message | None = (
-                read_headers(session, in_reply_to_folder, in_reply_to_uid) if in_reply_to_uid else None
+                read_parent(session, in_reply_to_folder, in_reply_to_uid, quote_parent) if in_reply_to_uid else None
             )
             session.select(folder, readonly=False)
             previous: dict[int, bytes] = session.fetch_headers([uid])
             if uid not in previous:
                 raise LookupError(f"no draft with uid {uid} in folder {folder!r}; nothing was changed")
             message: EmailMessage = compose(
-                sender.address, to, subject, body, cc, html, attachments=files, parent=parent
+                sender.address, to, subject, body, cc, html, attachments=files, parent=parent, quote=quote_parent
             )
             keep_thread(message, parse_message(previous[uid]))
             self._book.approve(sender, message)

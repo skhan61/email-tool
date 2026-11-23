@@ -159,6 +159,8 @@ async def test_a_reply_prompt_names_the_message_it_answers(
     async with Client(build_server(approving_book, audit), elicitation_callback=person) as client:
         await client.call_tool("send_email", {**SEND, "in_reply_to_uid": uid})
     assert "In reply to:" in person.shown[0] and "Signed contract" in person.shown[0]
+    # The prompt shows the quote the reply carries, built by the same compose call (#154).
+    assert "boss@example.com wrote:\n> x" in person.shown[0]
     assert mail_server.sent == []
 
 

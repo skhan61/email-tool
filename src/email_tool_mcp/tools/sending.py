@@ -11,7 +11,7 @@ from email.message import EmailMessage, Message
 from email_tool_mcp.attachments import Attachment, load
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose, envelope_recipients
-from email_tool_mcp.message_render import read_headers
+from email_tool_mcp.message_render import read_parent
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import (
     Attachments,
@@ -22,6 +22,7 @@ from email_tool_mcp.tools.params import (
     InReplyToFolder,
     InReplyToUid,
     MailboxName,
+    QuoteParent,
     Subject,
     To,
 )
@@ -45,11 +46,13 @@ class SendingTools:
         confirm_sensitive: ConfirmSensitive = "",
         in_reply_to_uid: InReplyToUid = 0,
         in_reply_to_folder: InReplyToFolder = "INBOX",
+        quote_parent: QuoteParent = True,
     ) -> str:
         """Send an email immediately from this mailbox, with any attachments. This is not reversible.
 
         Attachments that look sensitive (keys, credentials, CUI) are shown to the user to confirm first.
-        For a reply, `in_reply_to_uid` names the message answered, so the reply joins its conversation.
+        For a reply, `in_reply_to_uid` names the message answered, so the reply joins its conversation
+        and quotes it below the new text.
         """
         # confirm_sensitive is read by the approval step before this runs.
         sender: Mailbox = self._book.resolve(mailbox)
@@ -57,8 +60,10 @@ class SendingTools:
         parent: Message | None = None
         if in_reply_to_uid:
             with self._book.imap(sender) as session:
-                parent = read_headers(session, in_reply_to_folder, in_reply_to_uid)
-        message: EmailMessage = compose(sender.address, to, subject, body, cc, html, attachments=files, parent=parent)
+                parent = read_parent(session, in_reply_to_folder, in_reply_to_uid, quote_parent)
+        message: EmailMessage = compose(
+            sender.address, to, subject, body, cc, html, attachments=files, parent=parent, quote=quote_parent
+        )
         refused: dict[str, tuple[int, bytes]] = self._book.send(sender, message)
         if refused:
             return f"Sent, but {len(refused)} recipient(s) were refused: {sorted(refused)}"

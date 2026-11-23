@@ -168,6 +168,44 @@ async def test_a_sent_reply_joins_the_parents_thread(
     assert mail_server.sent[0][0]["In-Reply-To"] == PARENT_ID
 
 
+def body_text(message: Message) -> str:
+    part: object = message.get_payload(decode=True) if not message.is_multipart() else None
+    assert isinstance(part, bytes)
+    return part.decode()
+
+
+async def test_a_reply_quotes_the_message_it_answers(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    """#154: the draft and the sent reply both carry the earlier message below the new text."""
+    store_password("work", "secret")
+    uid: int = add_parent(mail_server)
+    reply: dict[str, object] = {"mailbox": "work", "to": "jane@example.com", "body": "Yes.", "in_reply_to_uid": uid}
+    assert not (await call(book, audit, "create_draft", {**reply, "folder": "Drafts"})).is_error
+    assert not (await call(book, audit, "send_email", {**reply, "subject": "Re: Plan"})).is_error
+    for saved in (saved_draft(mail_server), mail_server.sent[0][0]):
+        text: str = body_text(saved)
+        assert text.startswith("Yes.\n\nOn ") and "jane@example.com wrote:\n> Thoughts?" in text
+
+
+async def test_a_reply_can_leave_the_earlier_message_out(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    store_password("work", "secret")
+    uid: int = add_parent(mail_server)
+    arguments: dict[str, object] = {
+        "mailbox": "work",
+        "to": "jane@example.com",
+        "subject": "Re: Plan",
+        "body": "Yes.",
+        "in_reply_to_uid": uid,
+        "quote_parent": False,
+    }
+    assert not (await call(book, audit, "send_email", arguments)).is_error
+    assert body_text(mail_server.sent[0][0]) == "Yes.\n"
+    assert mail_server.sent[0][0]["In-Reply-To"] == PARENT_ID
+
+
 @pytest.mark.parametrize("tool", ["create_draft", "send_email"])
 async def test_a_reply_to_a_missing_message_saves_and_sends_nothing(
     tool: str, book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer

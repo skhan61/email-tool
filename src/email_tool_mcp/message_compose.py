@@ -13,6 +13,7 @@ from email.utils import formatdate, getaddresses, make_msgid
 from typing import Final
 
 from email_tool_mcp.attachments import Attachment, attach
+from email_tool_mcp.reply_quote import quoted_html, quoted_plain
 
 # One message ID in its angle-bracket form (RFC 5322 section 3.6.4); nothing else of a header is copied.
 _MESSAGE_ID: Final[re.Pattern[str]] = re.compile(r"<[^<>\s()]+>")
@@ -76,12 +77,14 @@ def compose(
     html: str,
     attachments: Sequence[Attachment] = (),
     parent: Message | None = None,
+    quote: bool = False,
 ) -> EmailMessage:
     """Build a message from `sender`; with `html` it becomes multipart/alternative, with attachments multipart/mixed.
 
     multipart/alternative makes mail clients show the HTML part and open a saved
     draft in rich-text mode, with `body` as the plain-text fallback. With `parent`
-    the message is a reply and joins that message's conversation.
+    the message is a reply and joins that message's conversation; with `quote` too,
+    the parent's text (a whole message, not only its headers) is quoted below the reply.
     """
     message: EmailMessage = EmailMessage()
     message["From"] = sender
@@ -106,6 +109,9 @@ def compose(
         in_reply_to, references = thread_headers(parent)
         message["In-Reply-To"] = in_reply_to
         message["References"] = references
+        if quote:
+            body = quoted_plain(body, parent)
+            html = quoted_html(html, parent) if html else ""
     message.set_content(body)
     if html:
         message.add_alternative(html, subtype="html")
