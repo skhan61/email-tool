@@ -90,12 +90,10 @@ def without_quote_html(markup: str) -> str:
 def quoted_plain(body: str, parent: Message) -> str:
     """`body`, a blank line, the attribution and the parent's text quoted.
 
-    `body` alone when the parent has no text, or when `body` already quotes it (a reply draft
-    read back and edited keeps one quote, never two).
+    `body` alone when the parent has no text. Call it on a body without a quote (see without_quote).
     """
     earlier: str = _earlier(parent)
-    # Already there when a reply draft is read back and edited: one quote, never two.
-    if not earlier.strip() or quote_lines(earlier) in "\n".join(body.splitlines()):
+    if not earlier.strip():
         return body
     lead: str = f"{body.rstrip()}\n\n" if body.strip() else ""
     return f"{lead}{attribution(parent)}\n{quote_lines(earlier)}\n"
@@ -109,7 +107,7 @@ def quoted_html(markup: str, parent: Message) -> str:
     """
     earlier: str = _earlier(parent)
     lines: str = _html_lines(earlier)
-    if not earlier.strip() or lines in markup:
+    if not earlier.strip():
         return markup
     block: str = (
         f"<br><div>{html.escape(attribution(parent))}</div>"

@@ -11,9 +11,8 @@ from typing import Final
 
 from email_tool_mcp.attachments import Attachment, load, sensitive
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.message_compose import compose, keep_thread, message_ids
+from email_tool_mcp.message_compose import compose, keep_thread
 from email_tool_mcp.message_render import MessageSummary, parse_message, read_parent
-from email_tool_mcp.reply_quote import without_quote, without_quote_html
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import (
     Attachments,
@@ -133,11 +132,6 @@ class DraftTools:
             if uid not in previous:
                 raise LookupError(f"no draft with uid {uid} in folder {folder!r}; nothing was changed")
             old_draft: Message = parse_message(previous[uid])
-            if parent is not None and message_ids(old_draft.get("In-Reply-To")) != message_ids(
-                parent.get("Message-ID")
-            ):
-                # Moving to another conversation: the old one's quote goes, the new one's comes.
-                body, html = without_quote(body), without_quote_html(html)
             message: EmailMessage = compose(
                 sender.address, to, subject, body, cc, html, attachments=files, parent=parent, quote=quote_parent
             )

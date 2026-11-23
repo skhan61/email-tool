@@ -208,3 +208,18 @@ def test_the_quote_goes_inside_the_html_element() -> None:
     )
     markup: str = text_part(reply, "html")
     assert markup.index("</blockquote>") < markup.index("</html>")
+
+
+def test_a_short_parent_whose_words_appear_in_the_reply_is_still_quoted() -> None:
+    reply: EmailMessage = compose(
+        "me@x.com",
+        "jane@x.com",
+        "Re",
+        "Thanks, see you Monday",
+        "",
+        "<p>Thanks, see you Monday</p>",
+        parent=plain_parent("Thanks\r\n"),
+        quote=True,
+    )
+    assert text_part(reply, "plain").endswith("wrote:\n> Thanks\n")
+    assert '<blockquote type="cite"' in text_part(reply, "html")
