@@ -99,3 +99,17 @@ def test_codex_plugin_can_reach_the_keyring_and_start_for_the_first_time() -> No
 def test_codex_plugin_runs_the_release_matching_its_version() -> None:
     arguments: list[str] = read_json(".codex-mcp.json")["mcpServers"]["email"]["args"]
     assert f"email-tool-mcp=={package_version()}" in arguments
+
+
+@pytest.mark.parametrize(
+    "relative", ["manifest.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json", "server.json"]
+)
+def test_no_manifest_sends_users_to_a_terminal_to_add_a_mailbox(relative: str) -> None:
+    """Mailboxes are added by asking "add my mailbox" since the setup page (#156)."""
+    text: str = (ROOT / relative).read_text(encoding="utf-8")
+    assert "email-tool-mcp add" not in text and "in a terminal" not in text
+
+
+def test_the_chatgpt_plugin_page_says_how_to_add_a_mailbox() -> None:
+    interface: dict[str, Any] = read_json(".codex-plugin/plugin.json")["interface"]
+    assert '"add my mailbox"' in interface["longDescription"]

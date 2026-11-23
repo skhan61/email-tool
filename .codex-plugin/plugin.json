@@ -8,7 +8,7 @@
   "interface": {
     "displayName": "email-tool",
     "shortDescription": "Read, search, draft and send email from your own mailboxes",
-    "longDescription": "Runs on your machine. Add each mailbox once in a terminal with `email-tool-mcp add <name>`; passwords stay in the OS keyring and never leave your computer except to your mail server.",
+    "longDescription": "Runs on your computer. After installing, type \"add my mailbox\": a page opens where you choose Gmail, Outlook or another mailbox and sign in. Passwords stay in the OS keyring and never pass through the assistant.",
     "developerName": "Sayem Khan",
     "category": "Productivity",
     "websiteUrl": "https://github.com/skhan61/email-tool",

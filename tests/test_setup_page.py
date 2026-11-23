@@ -281,6 +281,8 @@ async def test_without_page_support_the_assistant_gets_the_link(
         said: str = text_of(await client.call_tool("add_mailbox", {}))
     assert page.url and page.url in said
     assert "Never ask for a password" in said
+    # The password is typed on that page, so the assistant hands it over instead of opening it (#157).
+    assert "Do not open the link yourself or with a browser tool" in said
     assert '"tool": "add_mailbox"' in audit.path.read_text(encoding="utf-8")
 
 
