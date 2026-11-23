@@ -188,6 +188,23 @@ async def test_a_reply_quotes_the_message_it_answers(
         assert text.startswith("Yes.\n\nOn ") and "jane@example.com wrote:\n> Thoughts?" in text
 
 
+async def test_a_reply_draft_moved_to_another_conversation_quotes_only_the_new_one(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    store_password("work", "secret")
+    first: int = add_parent(mail_server)
+    other: EmailMessage = compose("bob@example.com", "me@example.com", "Budget", "Numbers?", "", "")
+    other.replace_header("Message-ID", "<other@example.com>")
+    second: int = mail_server.add("INBOX", other.as_bytes())
+    draft: dict[str, object] = {"mailbox": "work", "folder": "Drafts", "to": "jane@example.com", "body": "Yes."}
+    assert not (await call(book, audit, "create_draft", {**draft, "in_reply_to_uid": first})).is_error
+    read_back: str = body_text(saved_draft(mail_server))
+    moved: dict[str, object] = {**draft, "uid": 1, "body": read_back, "in_reply_to_uid": second}
+    assert not (await call(book, audit, "update_draft", moved)).is_error
+    text: str = body_text(saved_draft(mail_server))
+    assert "> Numbers?" in text and "Thoughts?" not in text
+
+
 async def test_a_reply_can_leave_the_earlier_message_out(
     book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
 ) -> None:

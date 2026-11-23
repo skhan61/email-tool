@@ -28,7 +28,7 @@ from typing import Any, Final
 
 from mcp.server.mcpserver import Context, Elicit, ElicitationResult
 from mcp_types import ClientCapabilities, ElicitationCapability
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from email_tool_mcp.attachments import (
     Attachment,
@@ -128,7 +128,8 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
         paths: list[str] = attachment_paths(arguments)
         files: list[Attachment] = load(paths)
         parent_uid: int = int(arguments.get("in_reply_to_uid", 0))
-        quote: bool = bool(arguments.get("quote_parent", True))
+        # Read as the tool's own parameter is ("false" is False), so the prompt shows what is sent.
+        quote: bool = TypeAdapter(bool).validate_python(arguments.get("quote_parent", True))
         parent: Message | None = None
         if parent_uid:
             with book.imap(mailbox) as session:

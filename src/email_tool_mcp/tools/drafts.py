@@ -11,8 +11,9 @@ from typing import Final
 
 from email_tool_mcp.attachments import Attachment, load, sensitive
 from email_tool_mcp.mailbox_book import MailboxBook
-from email_tool_mcp.message_compose import compose, keep_thread
+from email_tool_mcp.message_compose import compose, keep_thread, message_ids
 from email_tool_mcp.message_render import MessageSummary, parse_message, read_parent
+from email_tool_mcp.reply_quote import without_quote, without_quote_html
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import (
     Attachments,
@@ -118,7 +119,8 @@ class DraftTools:
         IMAP has no in-place edit: the replacement is stored first, then the original deleted.
         A reply draft stays in its conversation; `in_reply_to_uid` moves it to another one.
         The quote of the earlier message is added only with `in_reply_to_uid`, and never twice:
-        a body read back with get_draft keeps the quote it already has.
+        a body read back with get_draft keeps the quote it already has; moved to another
+        conversation, the old quote is replaced by the new one.
         """
         sender: Mailbox = self._book.resolve(mailbox)
         files: list[Attachment] = load(attachments or [])
@@ -130,10 +132,16 @@ class DraftTools:
             previous: dict[int, bytes] = session.fetch_headers([uid])
             if uid not in previous:
                 raise LookupError(f"no draft with uid {uid} in folder {folder!r}; nothing was changed")
+            old_draft: Message = parse_message(previous[uid])
+            if parent is not None and message_ids(old_draft.get("In-Reply-To")) != message_ids(
+                parent.get("Message-ID")
+            ):
+                # Moving to another conversation: the old one's quote goes, the new one's comes.
+                body, html = without_quote(body), without_quote_html(html)
             message: EmailMessage = compose(
                 sender.address, to, subject, body, cc, html, attachments=files, parent=parent, quote=quote_parent
             )
-            keep_thread(message, parse_message(previous[uid]))
+            keep_thread(message, old_draft)
             self._book.approve(sender, message)
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
             expunged: bool = session.mark_deleted(uid)

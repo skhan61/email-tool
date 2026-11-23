@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import html
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from email.message import Message
 from email.utils import parsedate_to_datetime
 from typing import Final
@@ -18,7 +18,20 @@ from typing import Final
 from email_tool_mcp.message_render import decode_header_value, extract_body
 
 _BODY_END: Final[re.Pattern[str]] = re.compile(r"</body\s*>", re.IGNORECASE)
+_HTML_END: Final[re.Pattern[str]] = re.compile(r"</html\s*>", re.IGNORECASE)
 _QUOTE_STYLE: Final[str] = "margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex;white-space:pre-wrap"
+# The quote block quoted_html writes, found again to take it out when a draft moves to another conversation.
+_HTML_QUOTE: Final[re.Pattern[str]] = re.compile(
+    r"<br><div>On [^<]*wrote:</div><blockquote type=\"cite\" style=\""
+    + re.escape(_QUOTE_STYLE)
+    + r"\">.*?</blockquote>",
+    re.DOTALL,
+)
+# The plain quote quoted_plain writes: an attribution line, then only '>' lines to the end.
+_PLAIN_QUOTE: Final[re.Pattern[str]] = re.compile(r"\n*^On .* wrote:\n(?:>.*(?:\n|$))+\Z", re.MULTILINE)
+# English names, so the line reads the same whatever the computer's language.
+_DAYS: Final[tuple[str, ...]] = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_MONTHS: Final[tuple[str, ...]] = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def _header(parent: Message, field: str) -> str:
@@ -38,9 +51,12 @@ def attribution(parent: Message) -> str:
     raw_date: str = _header(parent, "Date")
     when: str = raw_date
     try:
-        sent: datetime = parsedate_to_datetime(raw_date).astimezone()
+        parsed: datetime = parsedate_to_datetime(raw_date)
+        # A date with no zone ('-0000' or none) is UTC, not this computer's time.
+        sent: datetime = (parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)).astimezone()
         hour: int = sent.hour % 12 or 12
-        when = f"{sent:%a, %b} {sent.day}, {sent.year} at {hour}:{sent:%M} {'AM' if sent.hour < 12 else 'PM'}"
+        day: str = f"{_DAYS[sent.weekday()]}, {_MONTHS[sent.month - 1]} {sent.day}, {sent.year}"
+        when = f"{day} at {hour}:{sent.minute:02d} {'AM' if sent.hour < 12 else 'PM'}"
     except (TypeError, ValueError, IndexError):
         pass
     return f"On {when}, {sender} wrote:" if when else f"{sender} wrote:"
@@ -52,9 +68,23 @@ def quote_lines(text: str) -> str:
     return "\n".join(">" + line if line.startswith(">") else ("> " + line if line else ">") for line in lines)
 
 
-def _already_quoted(text: str, parent: Message) -> bool:
-    """True when `text` carries the parent's quote already, as an edited reply draft does."""
-    return attribution(parent) in html.unescape(text)
+def _earlier(parent: Message) -> str:
+    """The parent's text with its line endings made '\n' and blank lines trimmed from both ends."""
+    return "\n".join(extract_body(parent).splitlines()).strip("\n")
+
+
+def _html_lines(earlier: str) -> str:
+    return "<br>".join(html.escape(line) for line in earlier.splitlines())
+
+
+def without_quote(body: str) -> str:
+    """`body` without a quote quoted_plain wrote at its end, for a draft moving to another conversation."""
+    return _PLAIN_QUOTE.sub("", "\n".join(body.splitlines())).rstrip("\n") + ("\n" if body.endswith("\n") else "")
+
+
+def without_quote_html(markup: str) -> str:
+    """`markup` without the quote block quoted_html wrote."""
+    return _HTML_QUOTE.sub("", markup)
 
 
 def quoted_plain(body: str, parent: Message) -> str:
@@ -63,8 +93,9 @@ def quoted_plain(body: str, parent: Message) -> str:
     `body` alone when the parent has no text, or when `body` already quotes it (a reply draft
     read back and edited keeps one quote, never two).
     """
-    earlier: str = extract_body(parent).strip("\n")
-    if not earlier.strip() or _already_quoted(body, parent):
+    earlier: str = _earlier(parent)
+    # Already there when a reply draft is read back and edited: one quote, never two.
+    if not earlier.strip() or quote_lines(earlier) in "\n".join(body.splitlines()):
         return body
     lead: str = f"{body.rstrip()}\n\n" if body.strip() else ""
     return f"{lead}{attribution(parent)}\n{quote_lines(earlier)}\n"
@@ -76,15 +107,15 @@ def quoted_html(markup: str, parent: Message) -> str:
     The parent's text is escaped, never its own HTML: that came from someone else and could carry
     scripts, styles or tracking images into a message this mailbox sends.
     """
-    earlier: str = extract_body(parent).strip("\n")
-    if not earlier.strip() or _already_quoted(markup, parent):
+    earlier: str = _earlier(parent)
+    lines: str = _html_lines(earlier)
+    if not earlier.strip() or lines in markup:
         return markup
-    lines: str = "<br>".join(html.escape(line) for line in earlier.splitlines())
     block: str = (
         f"<br><div>{html.escape(attribution(parent))}</div>"
         f'<blockquote type="cite" style="{_QUOTE_STYLE}">{lines}</blockquote>'
     )
-    ends: list[re.Match[str]] = list(_BODY_END.finditer(markup))
+    ends: list[re.Match[str]] = list(_BODY_END.finditer(markup)) or list(_HTML_END.finditer(markup))
     if not ends:
         return markup + block
     cut: int = ends[-1].start()

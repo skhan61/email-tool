@@ -15,7 +15,7 @@ from email.message import EmailMessage, Message, MIMEPart
 import pytest
 
 from email_tool_mcp.message_compose import compose
-from email_tool_mcp.reply_quote import attribution, quote_lines
+from email_tool_mcp.reply_quote import attribution, quote_lines, without_quote, without_quote_html
 
 HEAD: str = "Message-ID: <p@x.com>\r\nFrom: Jane Doe <jane@x.com>\r\nDate: Sat, 21 Nov 2026 03:09:15 -0500\r\n"
 # The attribution is in this computer's time zone, so exact times are checked only where the zone can be set.
@@ -151,3 +151,60 @@ def test_the_attribution_names_the_sender_and_the_time_here(date: str, expected:
 
 def test_quote_lines_nests_an_existing_quote_without_a_space() -> None:
     assert quote_lines("a\n> b\n\nc") == "> a\n>> b\n>\n> c"
+
+
+@NEEDS_TZSET
+def test_a_draft_edited_in_another_time_zone_keeps_one_quote(monkeypatch: pytest.MonkeyPatch) -> None:
+    parent: Message = plain_parent("Thoughts?\r\n")
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    first: EmailMessage = compose("me@x.com", "jane@x.com", "Re", "Yes.", "", "<p>Yes.</p>", parent=parent, quote=True)
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
+    try:
+        second: EmailMessage = compose(
+            "me@x.com",
+            "jane@x.com",
+            "Re",
+            text_part(first, "plain"),
+            "",
+            text_part(first, "html"),
+            parent=parent,
+            quote=True,
+        )
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+    assert text_part(second, "plain").count("> Thoughts?") == 1
+    assert text_part(second, "html").count("<blockquote") == 1
+
+
+def test_a_quote_can_be_taken_out_again() -> None:
+    parent: Message = plain_parent("Thoughts?\r\n")
+    reply: EmailMessage = compose("me@x.com", "jane@x.com", "Re", "Yes.", "", "<p>Yes.</p>", parent=parent, quote=True)
+    assert without_quote(text_part(reply, "plain")) == "Yes.\n"
+    assert without_quote_html(text_part(reply, "html")).strip() == "<p>Yes.</p>"
+
+
+def test_blank_lines_around_a_crlf_parent_are_not_quoted() -> None:
+    reply: EmailMessage = compose(
+        "me@x.com", "jane@x.com", "Re", "Ok.", "", "", parent=plain_parent("\r\nHi\r\n\r\n"), quote=True
+    )
+    assert text_part(reply, "plain").endswith("wrote:\n> Hi\n")
+
+
+@NEEDS_TZSET
+@pytest.mark.usefixtures("new_york")
+def test_a_date_without_a_zone_is_read_as_utc() -> None:
+    parent: Message = message_from_bytes(
+        b"From: Jane Doe <jane@x.com>\r\nDate: Sat, 21 Nov 2026 03:09:15 -0000\r\n\r\nx"
+    )
+    assert attribution(parent) == "On Fri, Nov 20, 2026 at 10:09 PM, Jane Doe <jane@x.com> wrote:"
+
+
+def test_the_quote_goes_inside_the_html_element() -> None:
+    reply: EmailMessage = compose(
+        "me@x.com", "jane@x.com", "Re", "Ok.", "", "<html><p>Ok.</p></html>", parent=plain_parent("Hi\r\n"), quote=True
+    )
+    markup: str = text_part(reply, "html")
+    assert markup.index("</blockquote>") < markup.index("</html>")

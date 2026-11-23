@@ -165,6 +165,20 @@ async def test_a_reply_prompt_names_the_message_it_answers(
 
 
 @pytest.mark.anyio
+async def test_a_reply_prompt_reads_quote_parent_as_the_tool_does(
+    approving_book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    """A string "false" turns quoting off for the tool, so the prompt must not show a quote either."""
+    uid: int = mail_server.add(
+        "INBOX", compose("boss@example.com", "me@example.com", "Signed contract", "x", "", "").as_bytes()
+    )
+    person: Person = Person("decline", False)
+    async with Client(build_server(approving_book, audit), elicitation_callback=person) as client:
+        await client.call_tool("send_email", {**SEND, "in_reply_to_uid": uid, "quote_parent": "false"})
+    assert "In reply to:" in person.shown[0] and "wrote:" not in person.shown[0]
+
+
+@pytest.mark.anyio
 async def test_a_send_policy_refuses_is_never_put_to_the_user(
     settings_file: Path, audit: AuditLog, tmp_path: Path, mail_server: FakeMailServer
 ) -> None:
