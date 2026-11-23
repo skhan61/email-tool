@@ -15,8 +15,9 @@ _TEXT: Final[bytes] = b"text"
 _PLAIN: Final[bytes] = b"plain"
 _HTML: Final[bytes] = b"html"
 _ATTACHMENT: Final[bytes] = b"attachment"
-_FILE_NAME_KEYS: Final[tuple[bytes, ...]] = (b"filename", b"name")
+_FILE_NAME_KEY: Final[bytes] = b"filename"
 _PARAMS_INDEX: Final[int] = 2
+_ENCODING_INDEX: Final[int] = 5
 _TEXT_DISPOSITION_INDEX: Final[int] = 9
 
 
@@ -36,18 +37,16 @@ class TextParts:
     parts: tuple[TextPart, ...]
 
 
-def _names_a_file(params: Any) -> bool:
-    """True when a parameter list (flat key, value pairs, or None) carries a file name."""
-    if not params:
-        return False
-    return any(isinstance(key, bytes) and key.lower().startswith(_FILE_NAME_KEYS) for key in params[::2])
-
-
 def _is_attachment(part: BodyData) -> bool:
+    """True when the Content-Disposition says attachment or names a file; a Content-Type name does not count."""
     disposition: Any = part[_TEXT_DISPOSITION_INDEX] if len(part) > _TEXT_DISPOSITION_INDEX else None
-    if disposition and disposition[0].lower() == _ATTACHMENT:
-        return True
-    return _names_a_file(part[_PARAMS_INDEX]) or (bool(disposition) and _names_a_file(disposition[1]))
+    if not disposition:
+        return False
+    params: Any = disposition[1]
+    named: bool = bool(params) and any(
+        isinstance(key, bytes) and key.lower().startswith(_FILE_NAME_KEY) for key in params[::2]
+    )
+    return disposition[0].lower() == _ATTACHMENT or named
 
 
 def _text_leaves(structure: BodyData, prefix: str) -> list[tuple[str, BodyData]]:
@@ -62,11 +61,22 @@ def _text_leaves(structure: BodyData, prefix: str) -> list[tuple[str, BodyData]]
     return [(prefix or "1", structure)]
 
 
-def text_sections(structure: BodyData) -> list[str]:
-    """The sections to fetch: the text/plain parts, or the text/html parts when there is no plain one."""
+def text_leaves(structure: BodyData) -> list[tuple[str, BodyData]]:
+    """The leaves to fetch with their sections: the text/plain parts, or the text/html parts when none is plain."""
     leaves: list[tuple[str, BodyData]] = _text_leaves(structure, "")
     for subtype in (_PLAIN, _HTML):
-        chosen: list[str] = [section for section, leaf in leaves if leaf[1].lower() == subtype]
+        chosen: list[tuple[str, BodyData]] = [pair for pair in leaves if pair[1][1].lower() == subtype]
         if chosen:
             return chosen
     return []
+
+
+def mime_header(leaf: BodyData) -> bytes:
+    """A part's MIME header block rebuilt from its BODYSTRUCTURE, for a server that does not serve `.MIME`."""
+    params: Any = leaf[_PARAMS_INDEX] or ()
+    lines: list[str] = [
+        f"Content-Type: {leaf[0].decode()}/{leaf[1].decode()}"
+        + "".join(f'; {key.decode()}="{value.decode()}"' for key, value in zip(params[::2], params[1::2], strict=True)),
+        f"Content-Transfer-Encoding: {leaf[_ENCODING_INDEX].decode()}",
+    ]
+    return ("\r\n".join(lines) + "\r\n\r\n").encode()

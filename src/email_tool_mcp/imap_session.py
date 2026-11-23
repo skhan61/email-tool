@@ -25,10 +25,11 @@ from imapclient import IMAPClient, imap_utf7
 # such as `{12}` or `(urgent)` is never read as syntax. Its public API quotes a
 # value only when it holds a space, quote or backslash.
 from imapclient.imapclient import _literal
+from imapclient.response_types import BodyData
 
 from email_tool_mcp.credentials import Credential, imap_login
 from email_tool_mcp.settings import NETWORK_TIMEOUT_SECONDS, Mailbox
-from email_tool_mcp.text_parts import TextPart, TextParts, text_sections
+from email_tool_mcp.text_parts import TextPart, TextParts, mime_header, text_leaves
 from email_tool_mcp.tls import client_context, socket_details
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
@@ -206,18 +207,18 @@ class ImapSession:
         headers: Any = overview.get(_HEADER_KEY)
         if not isinstance(headers, bytes):
             return None
-        sections: list[str] = text_sections(overview[_STRUCTURE_KEY])
-        if not sections:
+        leaves: list[tuple[str, BodyData]] = text_leaves(overview[_STRUCTURE_KEY])
+        if not leaves:
             return TextParts(headers, ())
-        requests: list[str] = [f"BODY.PEEK[{section}{suffix}]" for section in sections for suffix in ("", ".MIME")]
-        fetched: dict[bytes, Any] = self._live.fetch([uid], requests)[uid]
-        return TextParts(
-            headers,
-            tuple(
-                TextPart(fetched[f"BODY[{section}.MIME]".encode()], fetched[f"BODY[{section}]".encode()])
-                for section in sections
-            ),
-        )
+        requests: list[str] = [f"BODY.PEEK[{section}{suffix}]" for section, _ in leaves for suffix in ("", ".MIME")]
+        fetched: dict[bytes, Any] = self._live.fetch([uid], requests).get(uid, {})
+        parts: list[TextPart] = []
+        for section, leaf in leaves:
+            content: Any = fetched.get(f"BODY[{section}]".encode())
+            if isinstance(content, bytes):
+                mime: Any = fetched.get(f"BODY[{section}.MIME]".encode())
+                parts.append(TextPart(mime if isinstance(mime, bytes) else mime_header(leaf), content))
+        return TextParts(headers, tuple(parts))
 
     def append(self, folder: str, flags: tuple[str, ...], raw_message: bytes) -> None:
         """Append `raw_message` to `folder` with `flags`."""

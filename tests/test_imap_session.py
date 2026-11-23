@@ -218,16 +218,26 @@ MIXED_STRUCTURE: bytes = (
 class TextStub(StubClient):
     """Answers the two fetches fetch_text_parts makes, and records what was asked for."""
 
-    def __init__(self, structure: bytes) -> None:
+    def __init__(self, structure: bytes, serves_mime: bool = True) -> None:
         super().__init__(uidplus=True, flagged=[])
+        self.serves_mime: bool = serves_mime
         self.structure: BodyData = BodyData.create(parse_response([structure])[0])
         self.requests: list[list[str]] = []
+        self.fetch_nothing: bool = False
 
     def fetch(self, uids: list[int], items: list[str]) -> dict[int, dict[bytes, Any]]:
         self.requests.append(items)
         if items[0] == "BODY.PEEK[HEADER]":
             return {uids[0]: {b"BODY[HEADER]": b"Subject: Plan\r\n\r\n", b"BODYSTRUCTURE": self.structure}}
-        return {uids[0]: {item.replace(".PEEK", "").encode(): item.encode() for item in items}}
+        if self.fetch_nothing:
+            return {}
+        return {
+            uids[0]: {
+                item.replace(".PEEK", "").encode(): item.encode()
+                for item in items
+                if self.serves_mime or not item.endswith(".MIME]")
+            }
+        }
 
 
 def test_only_the_text_parts_are_fetched_never_the_attachment() -> None:
@@ -242,3 +252,26 @@ def test_a_single_html_part_is_fetched_as_section_one() -> None:
     client: TextStub = TextStub(HTML_LEAF)
     assert session_over(client).fetch_text_parts(7) is not None
     assert client.requests[1] == ["BODY.PEEK[1]", "BODY.PEEK[1.MIME]"]
+
+
+def test_a_server_without_mime_headers_still_quotes_from_the_structure() -> None:
+    client: TextStub = TextStub(PLAIN_LEAF, serves_mime=False)
+    fetched: TextParts | None = session_over(client).fetch_text_parts(7)
+    assert fetched is not None
+    assert (
+        fetched.parts[0].mime == b'Content-Type: text/plain; charset="utf-8"\r\nContent-Transfer-Encoding: 7bit\r\n\r\n'
+    )
+
+
+def test_a_body_with_only_a_content_type_name_is_still_text() -> None:
+    leaf: bytes = b'("text" "plain" ("charset" "utf-8" "name" "message.txt") NIL NIL "7bit" 5 1 NIL NIL NIL)'
+    client: TextStub = TextStub(leaf)
+    assert session_over(client).fetch_text_parts(7) is not None
+    assert client.requests[1] == ["BODY.PEEK[1]", "BODY.PEEK[1.MIME]"]
+
+
+def test_text_that_cannot_be_fetched_leaves_the_headers_alone() -> None:
+    client: TextStub = TextStub(PLAIN_LEAF)
+    client.fetch_nothing = True
+    fetched: TextParts | None = session_over(client).fetch_text_parts(7)
+    assert fetched is not None and fetched.parts == ()
