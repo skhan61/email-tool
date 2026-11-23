@@ -15,4 +15,5 @@ echo "  1. Select Plugins, then Add Marketplace, and type skhan61/email-tool"
 echo "  2. Install email-tool, then quit ChatGPT (Command-Q) and open it again"
 echo "  3. In Work or Codex mode, ask: add my mailbox"
 echo
-read -n 1 -s -r -p "Press any key to close."
+# With no keyboard (a script, a test) read fails; the install itself succeeded, so exit 0 (#170).
+read -n 1 -s -r -p "Press any key to close." || true

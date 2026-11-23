@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- The Windows installer works when started from PowerShell 7 (it failed loading Windows PowerShell's
+  modules), and the macOS installer exits 0 with no keyboard; CI now runs both on clean machines (#170).
 - Start here: each ChatGPT desktop tab holds the whole flow, install then adding a mailbox; the form
   steps match the picture's numbers, and every picture has its highlights (#166, #168).
 
