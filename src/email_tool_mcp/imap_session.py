@@ -28,6 +28,7 @@ from imapclient.imapclient import _literal
 
 from email_tool_mcp.credentials import Credential, imap_login
 from email_tool_mcp.settings import NETWORK_TIMEOUT_SECONDS, Mailbox
+from email_tool_mcp.text_parts import TextPart, TextParts, text_sections
 from email_tool_mcp.tls import client_context, socket_details
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ _HEADER_REQUEST: Final[str] = "BODY.PEEK[HEADER]"
 _HEADER_KEY: Final[bytes] = b"BODY[HEADER]"
 _MESSAGE_REQUEST: Final[str] = "BODY.PEEK[]"
 _MESSAGE_KEY: Final[bytes] = b"BODY[]"
+_STRUCTURE_KEY: Final[bytes] = b"BODYSTRUCTURE"
 _FORBIDDEN: Final[tuple[str, ...]] = ("\r", "\n", "\0")
 _TRASH_FLAG: Final[bytes] = b"\\trash"
 _GMAIL_MESSAGE_ID: Final[bytes] = b"X-GM-MSGID"
@@ -194,6 +196,28 @@ class ImapSession:
         response: dict[int, dict[bytes, Any]] = self._live.fetch([uid], [_MESSAGE_REQUEST])
         found: Any = response.get(uid, {}).get(_MESSAGE_KEY)
         return found if isinstance(found, bytes) else None
+
+    def fetch_text_parts(self, uid: int) -> TextParts | None:
+        """Return the headers and only the text parts of `uid` (BODYSTRUCTURE, then one fetch per part).
+
+        Nothing is marked read and no attachment is downloaded; None when the message is absent.
+        """
+        overview: dict[bytes, Any] = self._live.fetch([uid], [_HEADER_REQUEST, _STRUCTURE_KEY.decode()]).get(uid, {})
+        headers: Any = overview.get(_HEADER_KEY)
+        if not isinstance(headers, bytes):
+            return None
+        sections: list[str] = text_sections(overview[_STRUCTURE_KEY])
+        if not sections:
+            return TextParts(headers, ())
+        requests: list[str] = [f"BODY.PEEK[{section}{suffix}]" for section in sections for suffix in ("", ".MIME")]
+        fetched: dict[bytes, Any] = self._live.fetch([uid], requests)[uid]
+        return TextParts(
+            headers,
+            tuple(
+                TextPart(fetched[f"BODY[{section}.MIME]".encode()], fetched[f"BODY[{section}]".encode()])
+                for section in sections
+            ),
+        )
 
     def append(self, folder: str, flags: tuple[str, ...], raw_message: bytes) -> None:
         """Append `raw_message` to `folder` with `flags`."""

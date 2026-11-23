@@ -14,9 +14,12 @@ from imapclient import IMAPClient
 
 # Private, but it is exactly what IMAPClient.search sends; pinned with imapclient==4.1.0.
 from imapclient.imapclient import _literal, _normalise_search_criteria
+from imapclient.response_parser import parse_response
+from imapclient.response_types import BodyData
 
 from email_tool_mcp.credentials import Credential
 from email_tool_mcp.imap_session import ImapSession, SearchItem, decode_folder_name, text
+from email_tool_mcp.text_parts import TextParts
 from tests.conftest import WORK
 
 
@@ -193,3 +196,49 @@ def test_gmail_trash_is_looked_up_once_per_session() -> None:
     session.mark_deleted(5)
     session.mark_deleted(5)
     assert [name for name, _ in client.calls].count("list_folders") == 1
+
+
+PLAIN_LEAF: bytes = b'("text" "plain" ("charset" "utf-8") NIL NIL "7bit" 5 1 NIL NIL NIL)'
+HTML_LEAF: bytes = b'("text" "html" ("charset" "utf-8") NIL NIL "7bit" 12 1 NIL NIL NIL)'
+PDF_LEAF: bytes = (
+    b'("application" "pdf" ("name" "big.pdf") NIL NIL "base64" 99999999 NIL'
+    b' ("attachment" ("filename" "big.pdf")) NIL NIL)'
+)
+# multipart/mixed [ multipart/alternative [ text/plain, text/html ], application/pdf attachment ]
+MIXED_STRUCTURE: bytes = (
+    b"(("
+    + PLAIN_LEAF
+    + HTML_LEAF
+    + b' "alternative" ("boundary" "a") NIL NIL) '
+    + PDF_LEAF
+    + b' "mixed" ("boundary" "m") NIL NIL)'
+)
+
+
+class TextStub(StubClient):
+    """Answers the two fetches fetch_text_parts makes, and records what was asked for."""
+
+    def __init__(self, structure: bytes) -> None:
+        super().__init__(uidplus=True, flagged=[])
+        self.structure: BodyData = BodyData.create(parse_response([structure])[0])
+        self.requests: list[list[str]] = []
+
+    def fetch(self, uids: list[int], items: list[str]) -> dict[int, dict[bytes, Any]]:
+        self.requests.append(items)
+        if items[0] == "BODY.PEEK[HEADER]":
+            return {uids[0]: {b"BODY[HEADER]": b"Subject: Plan\r\n\r\n", b"BODYSTRUCTURE": self.structure}}
+        return {uids[0]: {item.replace(".PEEK", "").encode(): item.encode() for item in items}}
+
+
+def test_only_the_text_parts_are_fetched_never_the_attachment() -> None:
+    client: TextStub = TextStub(MIXED_STRUCTURE)
+    fetched: TextParts | None = session_over(client).fetch_text_parts(7)
+    assert fetched is not None
+    assert client.requests[1] == ["BODY.PEEK[1.1]", "BODY.PEEK[1.1.MIME]"]
+    assert [part.content for part in fetched.parts] == [b"BODY.PEEK[1.1]"]
+
+
+def test_a_single_html_part_is_fetched_as_section_one() -> None:
+    client: TextStub = TextStub(HTML_LEAF)
+    assert session_over(client).fetch_text_parts(7) is not None
+    assert client.requests[1] == ["BODY.PEEK[1]", "BODY.PEEK[1.MIME]"]

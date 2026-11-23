@@ -7,8 +7,10 @@ Placement: tests/fakes.py, imported by conftest.py and the tests.
 from __future__ import annotations
 
 import smtplib
+from copy import copy
 from dataclasses import dataclass, field
-from email.message import EmailMessage
+from email import message_from_bytes
+from email.message import EmailMessage, Message
 from types import TracebackType
 from typing import Any
 
@@ -17,6 +19,7 @@ from imapclient import IMAPClient
 from email_tool_mcp.credentials import Credential, Xoauth2Responder
 from email_tool_mcp.imap_session import ImapSession, SearchItem
 from email_tool_mcp.settings import Mailbox
+from email_tool_mcp.text_parts import TextPart, TextParts
 
 
 @dataclass
@@ -29,6 +32,7 @@ class FakeMailServer:
     token_logins: list[tuple[str, str]] = field(default_factory=list)
     gmail: bool = False
     gmail_queries: list[str] = field(default_factory=list)
+    fetched_sections: list[str] = field(default_factory=list)
 
     def open_imap(self, mailbox: Mailbox, credential: Credential) -> ImapSession:
         """Return a session over this server; the ImapSession factory signature."""
@@ -47,6 +51,16 @@ class FakeMailServer:
         uid: int = max(messages, default=0) + 1
         messages[uid] = raw
         return uid
+
+
+def _leaves(message: Message, prefix: str) -> list[tuple[str, Message]]:
+    """Every non-multipart part with its IMAP section number (RFC 3501 section 6.4.5)."""
+    if not message.is_multipart():
+        return [(prefix or "1", message)]
+    found: list[tuple[str, Message]] = []
+    for number, child in enumerate(message.get_payload(), start=1):
+        found.extend(_leaves(child, f"{prefix}.{number}" if prefix else str(number)))
+    return found
 
 
 class FakeSession:
@@ -98,6 +112,30 @@ class FakeSession:
 
     def fetch_message(self, uid: int) -> bytes | None:
         return self._server.folders[self._folder].get(uid)
+
+    def fetch_text_parts(self, uid: int) -> TextParts | None:
+        """What ImapSession.fetch_text_parts returns, cut from the stored message; records each section fetched."""
+        raw: bytes | None = self._server.folders[self._folder].get(uid)
+        if raw is None:
+            return None
+        message: Message = message_from_bytes(raw)
+        leaves: list[tuple[str, Message]] = _leaves(message, "")
+        texts: list[tuple[str, Message]] = [
+            (section, leaf)
+            for section, leaf in leaves
+            if leaf.get_content_maintype() == "text" and not leaf.get_filename()
+        ]
+        chosen: list[tuple[str, Message]] = [pair for pair in texts if pair[1].get_content_subtype() == "plain"] or [
+            pair for pair in texts if pair[1].get_content_subtype() == "html"
+        ]
+        parts: list[TextPart] = []
+        for section, leaf in chosen:
+            self._server.fetched_sections.append(section)
+            mime, blank, content = leaf.as_bytes().partition(b"\n\n")
+            parts.append(TextPart(mime + blank, content))
+        top: Message = copy(message)
+        top.set_payload("")
+        return TextParts(top.as_bytes(), tuple(parts))
 
     def append(self, folder: str, flags: tuple[str, ...], raw_message: bytes) -> None:
         self._server.add(folder, raw_message)

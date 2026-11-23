@@ -9,6 +9,7 @@
   HTML is never copied, only its text. `quote_parent=false` sends the new text alone (#154).
 
 ### Fixed
+- A quoted reply fetches only the parent's headers and text parts, never its attachments (#158).
 - ChatGPT desktop and Claude Desktop show the plugin as `email-tool`, the name the docs use (#145).
 - ChatGPT desktop and Codex on Linux reach the keyring, and the first start has 120 seconds instead of 10 (#147).
 

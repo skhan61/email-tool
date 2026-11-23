@@ -12,8 +12,10 @@ from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from email_tool_mcp.imap_session import ImapSession
+    from email_tool_mcp.text_parts import TextParts
 
 _HEADER_FIELDS: Final[tuple[str, ...]] = ("Date", "From", "To", "Cc", "Subject")
+_BODY_HEADERS: Final[tuple[str, ...]] = ("Content-Type", "Content-Transfer-Encoding", "MIME-Version")
 _DROPPED_HTML_TAGS: Final[frozenset[str]] = frozenset({"script", "style", "head", "title"})
 _BREAKING_HTML_TAGS: Final[frozenset[str]] = frozenset({"br", "p", "div", "tr", "li", "h1", "h2", "h3"})
 _BLANK_RUN: Final[re.Pattern[str]] = re.compile(r"\n{3,}")
@@ -91,18 +93,28 @@ def read_headers(session: ImapSession, folder: str, uid: int) -> Message:
     return parse_message(headers[uid])
 
 
-def read_message(session: ImapSession, folder: str, uid: int) -> Message:
-    """The whole message `uid` in `folder`, without marking it read; LookupError if absent."""
+def read_text_message(session: ImapSession, folder: str, uid: int) -> Message:
+    """Message `uid` in `folder` with its headers and only its text parts, never its attachments.
+
+    The parts hang under one multipart container, so `extract_body` reads them as it reads a whole message.
+    """
     session.select(folder, readonly=True)
-    raw: bytes | None = session.fetch_message(uid)
-    if raw is None:
+    fetched: TextParts | None = session.fetch_text_parts(uid)
+    if fetched is None:
         raise LookupError(f"no message with uid {uid} in folder {folder!r}; nothing was done")
-    return parse_message(raw)
+    message: Message = parse_message(fetched.headers)
+    for name in _BODY_HEADERS:
+        del message[name]
+    message["Content-Type"] = "multipart/mixed"
+    message.set_payload([])
+    for part in fetched.parts:
+        message.attach(parse_message(part.mime + part.content))
+    return message
 
 
 def read_parent(session: ImapSession, folder: str, uid: int, quote: bool) -> Message:
-    """The message a reply answers: whole when its text is quoted, only its headers otherwise."""
-    return read_message(session, folder, uid) if quote else read_headers(session, folder, uid)
+    """The message a reply answers: its text parts when quoted, only its headers otherwise."""
+    return read_text_message(session, folder, uid) if quote else read_headers(session, folder, uid)
 
 
 def summarize(uid: int, message: Message) -> MessageSummary:
