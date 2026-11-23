@@ -188,6 +188,52 @@ async def test_a_reply_quotes_the_message_it_answers(
         assert text.startswith("Yes.\n\nOn ") and "jane@example.com wrote:\n> Thoughts?" in text
 
 
+async def test_a_reply_to_a_forwarded_message_quotes_the_forwarded_text(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    """A message inside a message is read whole, so its text is still quoted (#158 keeps #154's behavior)."""
+    store_password("work", "secret")
+    inner: EmailMessage = compose("bob@example.com", "jane@example.com", "Numbers", "Budget is 10k.", "", "")
+    outer: EmailMessage = EmailMessage()
+    outer["From"] = "jane@example.com"
+    outer["To"] = "me@example.com"
+    outer["Subject"] = "Fwd: Numbers"
+    outer["Message-ID"] = "<fwd@example.com>"
+    outer.set_content("See below.")
+    outer.add_attachment(inner)  # a message/rfc822 part, as mail programs forward
+    uid: int = mail_server.add("INBOX", outer.as_bytes())
+    arguments: dict[str, object] = {
+        "mailbox": "work",
+        "to": "jane@example.com",
+        "subject": "Re",
+        "body": "Ok.",
+        "in_reply_to_uid": uid,
+    }
+    assert not (await call(book, audit, "send_email", arguments)).is_error
+    assert "> Budget is 10k." in body_text(mail_server.sent[0][0])
+    assert mail_server.fetched_sections == [], "read whole, not part by part"
+
+
+async def test_a_reply_to_a_message_with_an_attachment_never_fetches_the_attachment(
+    book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
+) -> None:
+    """#158: only the parent's text part is fetched, section 1; the attachment is section 2."""
+    store_password("work", "secret")
+    parent: EmailMessage = compose("jane@example.com", "me@example.com", "Plan", "Thoughts?", "", "")
+    parent.add_attachment(b"X" * 100_000, maintype="application", subtype="pdf", filename="big.pdf")
+    uid: int = mail_server.add("INBOX", parent.as_bytes())
+    arguments: dict[str, object] = {
+        "mailbox": "work",
+        "to": "jane@example.com",
+        "subject": "Re: Plan",
+        "body": "Yes.",
+        "in_reply_to_uid": uid,
+    }
+    assert not (await call(book, audit, "send_email", arguments)).is_error
+    assert "> Thoughts?" in body_text(mail_server.sent[0][0])
+    assert mail_server.fetched_sections == ["1"]
+
+
 async def test_a_reply_draft_moved_to_another_conversation_quotes_only_the_new_one(
     book: MailboxBook, audit: AuditLog, mail_server: FakeMailServer
 ) -> None:

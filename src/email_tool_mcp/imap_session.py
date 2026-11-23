@@ -25,9 +25,11 @@ from imapclient import IMAPClient, imap_utf7
 # such as `{12}` or `(urgent)` is never read as syntax. Its public API quotes a
 # value only when it holds a space, quote or backslash.
 from imapclient.imapclient import _literal
+from imapclient.response_types import BodyData
 
 from email_tool_mcp.credentials import Credential, imap_login
 from email_tool_mcp.settings import NETWORK_TIMEOUT_SECONDS, Mailbox
+from email_tool_mcp.text_parts import TextPart, TextParts, complete_header, text_leaves
 from email_tool_mcp.tls import client_context, socket_details
 
 logger: Final[logging.Logger] = logging.getLogger(__name__)
@@ -38,6 +40,7 @@ _HEADER_REQUEST: Final[str] = "BODY.PEEK[HEADER]"
 _HEADER_KEY: Final[bytes] = b"BODY[HEADER]"
 _MESSAGE_REQUEST: Final[str] = "BODY.PEEK[]"
 _MESSAGE_KEY: Final[bytes] = b"BODY[]"
+_STRUCTURE_KEY: Final[bytes] = b"BODYSTRUCTURE"
 _FORBIDDEN: Final[tuple[str, ...]] = ("\r", "\n", "\0")
 _TRASH_FLAG: Final[bytes] = b"\\trash"
 _GMAIL_MESSAGE_ID: Final[bytes] = b"X-GM-MSGID"
@@ -194,6 +197,34 @@ class ImapSession:
         response: dict[int, dict[bytes, Any]] = self._live.fetch([uid], [_MESSAGE_REQUEST])
         found: Any = response.get(uid, {}).get(_MESSAGE_KEY)
         return found if isinstance(found, bytes) else None
+
+    def fetch_text_parts(self, uid: int) -> TextParts | None:
+        """Return the headers and only the text parts of `uid` (BODYSTRUCTURE, then one fetch per part).
+
+        Nothing is marked read and no attachment is downloaded. None when the message is absent, or when
+        the server's answer leaves out a piece (a structure, a part, a part's MIME header) or the message
+        holds another message: then the caller reads the whole message, never a part without its header.
+        """
+        overview: dict[bytes, Any] = self._live.fetch([uid], [_HEADER_REQUEST, _STRUCTURE_KEY.decode()]).get(uid, {})
+        headers: Any = overview.get(_HEADER_KEY)
+        structure: Any = overview.get(_STRUCTURE_KEY)
+        if not isinstance(headers, bytes) or not isinstance(structure, BodyData):
+            return None
+        leaves: list[tuple[str, BodyData]] | None = text_leaves(structure)
+        if leaves is None:
+            return None
+        if not leaves:
+            return TextParts(headers, ())
+        requests: list[str] = [f"BODY.PEEK[{section}{suffix}]" for section, _ in leaves for suffix in ("", ".MIME")]
+        fetched: dict[bytes, Any] = self._live.fetch([uid], requests).get(uid, {})
+        parts: list[TextPart] = []
+        for section, _ in leaves:
+            content: Any = fetched.get(f"BODY[{section}]".encode())
+            mime: Any = fetched.get(f"BODY[{section}.MIME]".encode())
+            if not isinstance(content, bytes) or not complete_header(mime):
+                return None
+            parts.append(TextPart(mime, content))
+        return TextParts(headers, tuple(parts))
 
     def append(self, folder: str, flags: tuple[str, ...], raw_message: bytes) -> None:
         """Append `raw_message` to `folder` with `flags`."""
