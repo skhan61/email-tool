@@ -4,6 +4,8 @@
 
 ### Added
 - Start here has steps with screenshots for ChatGPT desktop on Linux, in Codex and in Work (#148).
+- Start here has steps with screenshots for ChatGPT desktop on Windows and macOS too, in Codex and
+  in Work, checked on both systems.
 - A reply quotes the earlier message below the new text, as mail programs do: `> ` lines in the
   plain part and a quote block in the HTML part, with the earlier quotes kept. The parent's own
   HTML is never copied, only its text. `quote_parent=false` sends the new text alone (#154).
