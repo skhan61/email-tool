@@ -4,6 +4,8 @@
 
 ### Added
 - Start here has steps with screenshots for ChatGPT desktop on Linux, in Codex and in Work (#148).
+- Start here has steps with screenshots for ChatGPT desktop on Windows and macOS too, in Codex and
+  in Work, checked on both systems.
 
 ### Fixed
 - ChatGPT desktop and Claude Desktop show the plugin as `email-tool`, the name the docs use (#145).
