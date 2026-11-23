@@ -34,6 +34,15 @@ InReplyToUid: TypeAlias = Annotated[
     ),
 ]
 InReplyToFolder: TypeAlias = Annotated[str, Field(description="Folder holding the message named by in_reply_to_uid.")]
+QuoteParent: TypeAlias = Annotated[
+    bool,
+    Field(
+        description=(
+            "For a reply: quote the earlier message below the new text, as mail programs do. "
+            "Set false to send only the new text."
+        )
+    ),
+]
 Html: TypeAlias = Annotated[
     str, Field(description="Optional HTML body for links and formatting, sent alongside `body`.")
 ]

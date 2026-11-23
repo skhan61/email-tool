@@ -91,6 +91,20 @@ def read_headers(session: ImapSession, folder: str, uid: int) -> Message:
     return parse_message(headers[uid])
 
 
+def read_message(session: ImapSession, folder: str, uid: int) -> Message:
+    """The whole message `uid` in `folder`, without marking it read; LookupError if absent."""
+    session.select(folder, readonly=True)
+    raw: bytes | None = session.fetch_message(uid)
+    if raw is None:
+        raise LookupError(f"no message with uid {uid} in folder {folder!r}; nothing was done")
+    return parse_message(raw)
+
+
+def read_parent(session: ImapSession, folder: str, uid: int, quote: bool) -> Message:
+    """The message a reply answers: whole when its text is quoted, only its headers otherwise."""
+    return read_message(session, folder, uid) if quote else read_headers(session, folder, uid)
+
+
 def summarize(uid: int, message: Message) -> MessageSummary:
     """Build a MessageSummary from a parsed message's headers."""
     return MessageSummary(

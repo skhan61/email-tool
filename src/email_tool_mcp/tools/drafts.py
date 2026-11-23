@@ -12,7 +12,7 @@ from typing import Final
 from email_tool_mcp.attachments import Attachment, load, sensitive
 from email_tool_mcp.mailbox_book import MailboxBook
 from email_tool_mcp.message_compose import compose, keep_thread
-from email_tool_mcp.message_render import MessageSummary, parse_message, read_headers
+from email_tool_mcp.message_render import MessageSummary, parse_message, read_parent
 from email_tool_mcp.settings import Mailbox
 from email_tool_mcp.tools.params import (
     Attachments,
@@ -24,6 +24,7 @@ from email_tool_mcp.tools.params import (
     InReplyToUid,
     Limit,
     MailboxName,
+    QuoteParent,
     Subject,
     To,
     Uid,
@@ -60,19 +61,21 @@ class DraftTools:
         attachments: Attachments = None,
         in_reply_to_uid: InReplyToUid = 0,
         in_reply_to_folder: InReplyToFolder = "INBOX",
+        quote_parent: QuoteParent = True,
     ) -> str:
         """Save a new draft into the drafts folder, with any attachments. Does not send it.
 
-        For a reply, `in_reply_to_uid` names the message answered, so the draft joins its conversation.
+        For a reply, `in_reply_to_uid` names the message answered, so the draft joins its conversation
+        and quotes it below the new text.
         """
         sender: Mailbox = self._book.resolve(mailbox)
         files: list[Attachment] = load(attachments or [])
         with self._book.imap(sender) as session:
             parent: Message | None = (
-                read_headers(session, in_reply_to_folder, in_reply_to_uid) if in_reply_to_uid else None
+                read_parent(session, in_reply_to_folder, in_reply_to_uid, quote_parent) if in_reply_to_uid else None
             )
             message: EmailMessage = compose(
-                sender.address, to, subject, body, cc, html, attachments=files, parent=parent
+                sender.address, to, subject, body, cc, html, attachments=files, parent=parent, quote=quote_parent
             )
             self._book.approve(sender, message)
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
@@ -108,26 +111,31 @@ class DraftTools:
         attachments: Attachments = None,
         in_reply_to_uid: InReplyToUid = 0,
         in_reply_to_folder: InReplyToFolder = "INBOX",
+        quote_parent: QuoteParent = True,
     ) -> str:
         """Replace an existing draft with new content and attachments, keyed by UID.
 
         IMAP has no in-place edit: the replacement is stored first, then the original deleted.
         A reply draft stays in its conversation; `in_reply_to_uid` moves it to another one.
+        The quote of the earlier message is added only with `in_reply_to_uid`, and never twice:
+        a body read back with get_draft keeps the quote it already has; moved to another
+        conversation, the old quote is replaced by the new one.
         """
         sender: Mailbox = self._book.resolve(mailbox)
         files: list[Attachment] = load(attachments or [])
         with self._book.imap(sender) as session:
             parent: Message | None = (
-                read_headers(session, in_reply_to_folder, in_reply_to_uid) if in_reply_to_uid else None
+                read_parent(session, in_reply_to_folder, in_reply_to_uid, quote_parent) if in_reply_to_uid else None
             )
             session.select(folder, readonly=False)
             previous: dict[int, bytes] = session.fetch_headers([uid])
             if uid not in previous:
                 raise LookupError(f"no draft with uid {uid} in folder {folder!r}; nothing was changed")
+            old_draft: Message = parse_message(previous[uid])
             message: EmailMessage = compose(
-                sender.address, to, subject, body, cc, html, attachments=files, parent=parent
+                sender.address, to, subject, body, cc, html, attachments=files, parent=parent, quote=quote_parent
             )
-            keep_thread(message, parse_message(previous[uid]))
+            keep_thread(message, old_draft)
             self._book.approve(sender, message)
             session.append(folder, _DRAFT_FLAGS, message.as_bytes())
             expunged: bool = session.mark_deleted(uid)

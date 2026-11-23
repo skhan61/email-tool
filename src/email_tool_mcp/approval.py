@@ -28,7 +28,7 @@ from typing import Any, Final
 
 from mcp.server.mcpserver import Context, Elicit, ElicitationResult
 from mcp_types import ClientCapabilities, ElicitationCapability
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from email_tool_mcp.attachments import (
     Attachment,
@@ -50,6 +50,7 @@ from email_tool_mcp.message_render import (
     every_text,
     parse_message,
     read_headers,
+    read_parent,
     summarize,
 )
 from email_tool_mcp.policy import PolicyRefusal
@@ -72,6 +73,7 @@ _QUESTION_ARGUMENTS: Final[tuple[str, ...]] = (
     "confirm_sensitive",
     "in_reply_to_uid",
     "in_reply_to_folder",
+    "quote_parent",
     "report",
 )
 # How long a confirmation code from a refusal stays valid.
@@ -126,10 +128,12 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
         paths: list[str] = attachment_paths(arguments)
         files: list[Attachment] = load(paths)
         parent_uid: int = int(arguments.get("in_reply_to_uid", 0))
+        # Read as the tool's own parameter is ("false" is False), so the prompt shows what is sent.
+        quote: bool = TypeAdapter(bool).validate_python(arguments.get("quote_parent", True))
         parent: Message | None = None
         if parent_uid:
             with book.imap(mailbox) as session:
-                parent = read_headers(session, str(arguments.get("in_reply_to_folder", "INBOX")), parent_uid)
+                parent = read_parent(session, str(arguments.get("in_reply_to_folder", "INBOX")), parent_uid, quote)
         message: EmailMessage = compose(
             mailbox.address,
             str(arguments.get("to", "")),
@@ -139,6 +143,7 @@ def describe(tool: str, book: MailboxBook, mailbox: Mailbox, arguments: Mapping[
             str(arguments.get("html", "")),
             attachments=files,
             parent=parent,
+            quote=quote,
         )
         recipients: list[str] = book.approve(mailbox, message)
         if parent is not None:

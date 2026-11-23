@@ -41,7 +41,9 @@ In Claude Code, the plugin also adds three commands: `/inbox`, `/email-search` a
 | `email_problem_report` | Emails that report to the maintainer from one of your mailboxes, after you approve the exact text |
 
 A reply the assistant drafts or sends joins the conversation it answers, in Gmail, Outlook
-and any other mail program.
+and any other mail program. Like those programs, it quotes the earlier message below your
+text, so the person you answer sees the whole conversation. To send only your new text, say
+so, for example "reply without the earlier message".
 
 ## Approve before sending
 
