@@ -51,6 +51,33 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv run --locked pytest -q
 
+  installers:
+    # The released installers, on clean runners (no setup-uv): each must leave uvx in ~/.local/bin.
+    name: installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Windows, run the installer from PowerShell 7 (the case of #170)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $uvx = Join-Path $env:USERPROFILE '.local\bin\uvx.exe'
+          if (Test-Path $uvx) { throw "uvx was there before the installer ran" }
+          $null | cmd /c install\Install-email-tool.cmd
+          if ($LASTEXITCODE -ne 0) { throw "the installer exited with $LASTEXITCODE" }
+          if (-not (Test-Path $uvx)) { throw "the installer did not install uvx" }
+      - name: macOS, run the installer with no keyboard
+        if: runner.os == 'macOS'
+        run: |
+          test ! -e ~/.local/bin/uvx
+          bash install/Install-email-tool.command < /dev/null
+          test -x ~/.local/bin/uvx
+
   build:
     name: package build
     runs-on: ubuntu-latest

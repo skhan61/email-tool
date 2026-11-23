@@ -3,7 +3,10 @@ rem email-tool setup for ChatGPT desktop and Codex on Windows: installs uv, whic
 rem The same command as the Install page in the documentation, so nothing needs typing.
 echo Installing uv, the program that runs email-tool. This takes about a minute.
 echo.
-powershell -ExecutionPolicy ByPass -NoProfile -Command "irm https://astral.sh/uv/install.ps1 | iex"
+rem Windows PowerShell by its full path, with PSModulePath cleared: started from PowerShell 7 it would
+rem inherit PowerShell 7's module folders and fail to load its own modules (#170).
+set "PSModulePath="
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy ByPass -NoProfile -Command "irm https://astral.sh/uv/install.ps1 | iex"
 if errorlevel 1 (
   echo.
   echo The installation did not finish. See https://skhan61.github.io/email-tool/troubleshooting/
