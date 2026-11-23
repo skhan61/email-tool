@@ -7,6 +7,9 @@
 
 ### Fixed
 - ChatGPT desktop and Claude Desktop show the plugin as `email-tool`, the name the docs use (#145).
+- The plugin page in ChatGPT desktop says to type "add my mailbox", not to use a terminal (#156).
+- The setup link tells the assistant to give the link to the user and not open the page itself,
+  where the password is typed; ChatGPT Work on macOS tried to open it (#157).
 - ChatGPT desktop and Codex on Linux reach the keyring, and the first start has 120 seconds instead of 10 (#147).
 
 ## 5.6.0
