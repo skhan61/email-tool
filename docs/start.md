@@ -150,11 +150,16 @@ No terminal.
 
         ![Privacy and Security with the Open Anyway button highlighted](assets/screens/chatgpt-mac/installer-open-anyway.png)
 
-    5. macOS asks once more. Select **Open Anyway**, and type your Mac password if it asks.
+    5. macOS asks once more. Select **Open Anyway**.
 
         ![macOS asks to open Install-email-tool.command, with Open Anyway highlighted](assets/screens/chatgpt-mac/installer-confirm.png){ width="272" }
 
-    6. Terminal opens and installs. Wait until it says **Done**, then close the window.
+    6. macOS asks for an administrator's password. Type your Mac password and select **OK**.
+       On a Mac you do not manage yourself, such as one from work, ask your IT department.
+
+        ![macOS asks for an administrator's password, with the Password box and OK highlighted](assets/screens/chatgpt-mac/installer-password.png){ width="298" }
+
+    7. Terminal opens and installs. Wait until it says **Done**, then close the window.
 
         ![Terminal after the installer, with Done and the next steps highlighted](assets/screens/chatgpt-mac/installer-done.png)
 
