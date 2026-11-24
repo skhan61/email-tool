@@ -9,6 +9,7 @@ assistant, which can tell you the same.
 |---|---|
 | `uvx: command not found` | [Install uv](install.md#install-uv-by-hand), then close and reopen the terminal. |
 | The email tools do not appear in a desktop app on macOS | The app cannot find `uvx`. Use its full path from `which uvx` in the app's settings, as shown in [Advanced setup](install.md). |
+| ChatGPT desktop on Windows gives no setup link after you install email-tool | ChatGPT was open when uv was installed and cannot find it yet. Closing the window only hides ChatGPT: right-click its icon next to the clock, select **Exit**, then open ChatGPT again. |
 | The email tools do not appear in normal ChatGPT Chat | Local tools work in ChatGPT's **Work** and **Codex** modes. Normal Chat does not reach them yet. |
 | `No mailbox is configured.` | Ask your assistant to "add my mailbox" ([Start here](start.md)). |
 | No setup page opens when you ask to add a mailbox | Your app may not open pages itself: your assistant then shows a link. Open that link. |

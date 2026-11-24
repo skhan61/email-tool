@@ -19,6 +19,10 @@ uv is a free tool from Astral that downloads and runs Python programs. You insta
     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
     ```
 
+    Then quit any AI app that was already open and open it again, so it finds uv. Closing a
+    window may not be enough: ChatGPT keeps running next to the clock, so right-click its icon
+    there (it may be under the **^** arrow) and select **Exit**.
+
 === "macOS"
 
     Open **Terminal** and run:
