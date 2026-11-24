@@ -11,9 +11,8 @@ if ! curl -LsSf https://astral.sh/uv/install.sh | sh; then
 fi
 echo
 echo "Done. Next, in the ChatGPT desktop app:"
-echo "  1. Select Plugins, then Add Marketplace, and type skhan61/email-tool"
-echo "  2. Install email-tool, then quit ChatGPT (Command-Q) and open it again"
-echo "  3. In Work or Codex mode, ask: add my mailbox"
+echo "  1. Select Plugins, then Add a marketplace, and type skhan61/email-tool"
+echo "  2. Install email-tool, then in Work or Codex mode ask: add my mailbox"
 echo
 # With no keyboard (a script, a test) read fails; the install itself succeeded, so exit 0 (#170).
 read -n 1 -s -r -p "Press any key to close." || true

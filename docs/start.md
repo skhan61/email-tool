@@ -28,8 +28,15 @@ No terminal.
     1. Install [ChatGPT desktop](https://apps.microsoft.com/detail/9PLM9XGG6VKS) from the
        Microsoft Store and sign in.
     2. Download [Install-email-tool.cmd](https://github.com/skhan61/email-tool/releases/latest/download/Install-email-tool.cmd)
-       and open it. If Windows warns about a downloaded file, select **Run**, or **More info** and
-       then **Run anyway**. Wait until it says **Done**.
+       and open it. Windows warns about a downloaded file: select **Run**. If it shows a blue
+       **Windows protected your PC** screen instead, select **More info** and then **Run anyway**.
+
+        ![Windows asks whether to run Install-email-tool.cmd, with the Run button highlighted](assets/screens/chatgpt-windows/installer-warning.png){ width="496" }
+
+        Wait until it says **Done**, then press any key to close the window.
+
+        ![The installer window after it finishes, with Done and the next steps highlighted](assets/screens/chatgpt-windows/installer-done.png)
+
     3. If ChatGPT was open, quit it and open it again, so it finds what the installer added.
        Closing the window is not enough: ChatGPT keeps running next to the clock. Right-click
        the ChatGPT icon next to the clock (it may be under the **^** arrow), select **Exit**, and
@@ -132,8 +139,28 @@ No terminal.
 
     1. Install [ChatGPT desktop](https://chatgpt.com/download/) and sign in.
     2. Download [Install-email-tool-macOS.zip](https://github.com/skhan61/email-tool/releases/latest/download/Install-email-tool-macOS.zip).
-       Open the zip, then right-click **Install-email-tool.command** and select **Open**. macOS
-       asks once because the file comes from the internet. Wait until it says **Done**.
+       Open the zip, then double-click **Install-email-tool.command**.
+    3. macOS says the file was **Not Opened**, because Apple has not checked it. Select **Done**.
+
+        ![macOS says Install-email-tool.command was Not Opened, with the Done button highlighted](assets/screens/chatgpt-mac/installer-not-opened.png){ width="272" }
+
+    4. Open **System Settings**, select **Privacy & Security**, and scroll down to **Security**.
+       Next to "Install-email-tool.command" was blocked, select **Open Anyway**. It shows for about
+       an hour after step 3; if it is not there, double-click the installer again.
+
+        ![Privacy and Security with the Open Anyway button highlighted](assets/screens/chatgpt-mac/installer-open-anyway.png)
+
+    5. macOS asks once more. Select **Open Anyway**, and type your Mac password if it asks.
+
+        ![macOS asks to open Install-email-tool.command, with Open Anyway highlighted](assets/screens/chatgpt-mac/installer-confirm.png){ width="272" }
+
+    6. Terminal opens and installs. Wait until it says **Done**, then close the window.
+
+        ![Terminal after the installer, with Done and the next steps highlighted](assets/screens/chatgpt-mac/installer-done.png)
+
+    These steps are macOS's way to open a downloaded file that Apple has not checked
+    ([Apple's help](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac)).
+    You do them once.
 
     **Open Plugins**
 

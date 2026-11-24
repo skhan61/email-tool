@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- Start here (macOS): macOS 15 and later block the downloaded installer; the steps now go through
+  **Privacy & Security > Open Anyway**, with pictures. The Windows installer step has pictures too, and
+  the macOS installer's closing message matches the guide (#185).
+
 ## 5.7.3
 
 ### Fixed
