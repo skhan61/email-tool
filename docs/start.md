@@ -1,10 +1,11 @@
 # Start here
 
-Three steps, for any AI app. No terminal.
-
-## 1. Install email-tool in your app
+Choose your app. Its tab has every step, from installing email-tool to adding your mailbox.
+No terminal.
 
 === "Claude Desktop and Cowork"
+
+    **Install email-tool**
 
     1. [Download email-tool](https://github.com/skhan61/email-tool/releases/latest/download/email-tool.mcpb).
        You get one file, `email-tool.mcpb`.
@@ -12,6 +13,10 @@ Three steps, for any AI app. No terminal.
     3. Leave every field blank and select **Install**.
 
     Claude Cowork uses what Claude Desktop installs, so it needs nothing more.
+
+    **Add your mailbox**
+
+    --8<-- "add-mailbox.md"
 
 === "ChatGPT desktop on Windows"
 
@@ -25,6 +30,10 @@ Three steps, for any AI app. No terminal.
     2. Download [Install-email-tool.cmd](https://github.com/skhan61/email-tool/releases/latest/download/Install-email-tool.cmd)
        and open it. If Windows warns about a downloaded file, select **Run**, or **More info** and
        then **Run anyway**. Wait until it says **Done**.
+    3. If ChatGPT was open, quit it and open it again, so it finds what the installer added.
+       Closing the window is not enough: ChatGPT keeps running next to the clock. Right-click
+       the ChatGPT icon next to the clock (it may be under the **^** arrow), select **Exit**, and
+       then open ChatGPT from the Start menu.
 
     **Open Plugins**
 
@@ -102,7 +111,7 @@ Three steps, for any AI app. No terminal.
     **Fill in the page**
 
     This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
-    other kinds, see [Add your mailbox](#2-add-your-mailbox).
+    other kinds, see [Mailbox details](mailboxes.md).
 
     1. Select **Any other mailbox**.
     2. Type your email address.
@@ -205,7 +214,7 @@ Three steps, for any AI app. No terminal.
     **Fill in the page**
 
     This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
-    other kinds, see [Add your mailbox](#2-add-your-mailbox).
+    other kinds, see [Mailbox details](mailboxes.md).
 
     1. Select **Any other mailbox**.
     2. Type your email address.
@@ -310,7 +319,7 @@ Three steps, for any AI app. No terminal.
     **Fill in the page**
 
     This example is for a mailbox at your own domain or a hosting company. For Gmail, Outlook and
-    other kinds, see [Add your mailbox](#2-add-your-mailbox).
+    other kinds, see [Mailbox details](mailboxes.md).
 
     1. Select **Any other mailbox**.
     2. Type your email address.
@@ -323,6 +332,8 @@ Three steps, for any AI app. No terminal.
 
 
 === "Claude Code"
+
+    **Install email-tool**
 
     1. Install uv once with the installer for your computer (see the ChatGPT desktop on Windows or macOS tab), or
        [by hand](install.md#install-uv-by-hand).
@@ -341,44 +352,20 @@ Three steps, for any AI app. No terminal.
         then `/plugin install email-tool@email-tool`.
     3. Close Claude Code and open it again.
 
+    **Add your mailbox**
+
+    --8<-- "add-mailbox.md"
+
 === "Another app"
 
     Any app that supports the Model Context Protocol (MCP) can run email-tool.
     See [Advanced setup](install.md#connect-through-a-configuration-file-or-command).
 
-## 2. Add your mailbox
+    **Add your mailbox**
 
-In ChatGPT desktop, these steps are in its tab above, with pictures. In any other app:
+    --8<-- "add-mailbox.md"
 
-In your app, type:
-
-> add my mailbox
-
-A page opens in your browser. It runs on your computer only. If your app shows a link
-instead, open the link.
-
-![The Add a mailbox page, with the kind of mailbox, the email address, the password and the Add mailbox button highlighted](assets/screens/setup-page.png){ width="560" }
-
-1. Choose your kind of mailbox.
-2. Type your email address.
-3. Then, depending on the kind:
-    - **Gmail:** type an App Password, not your Google password.
-      [How to get an App Password](mailboxes.md#gmail).
-    - **Outlook, Hotmail or Microsoft 365:** nothing more. After you select **Add mailbox**,
-      Microsoft's sign-in page opens. Sign in and select **Accept**.
-      At a university or company, Microsoft may say **Need admin approval**: your IT
-      department must approve email-tool first. Send them the application ID
-      `82731d7a-ac7f-4a5e-88d3-acce522f85ce`. If IT gives you its own app ID or a directory ID
-      instead, type them under **Outlook or Microsoft 365 at a university or company**.
-    - **Google Workspace at a company or school:** ask your IT department for the client file,
-      or [create one](mailboxes.md#google-workspace).
-    - **Any other mailbox:** type your password and, under **Any other mailbox: server names**,
-      the server names from your provider.
-4. Select **Add mailbox**. When the page says **Mailbox added**, go back to your app.
-
-Your password never passes through the AI assistant. To add another mailbox, ask again.
-
-## 3. Try it
+## Try it
 
 - "Summarize my unread mail."
 - "Draft a reply to the last message from Dana, with the report from my Downloads attached."

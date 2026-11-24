@@ -15,8 +15,9 @@ if errorlevel 1 (
 )
 echo.
 echo Done. Next, in the ChatGPT desktop app:
-echo   1. Select Plugins, then Add Marketplace, and type skhan61/email-tool
-echo   2. Install email-tool, then close and reopen ChatGPT
-echo   3. In Work or Codex mode, ask: add my mailbox
+echo   1. If ChatGPT is open, quit it: right-click its icon next to the clock and select Exit.
+echo      Closing the window is not enough. Then open ChatGPT again.
+echo   2. Select Plugins, then Add a marketplace, and type skhan61/email-tool
+echo   3. Install email-tool, then in Work or Codex mode ask: add my mailbox
 echo.
 pause

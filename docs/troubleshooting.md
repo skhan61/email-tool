@@ -10,7 +10,7 @@ assistant, which can tell you the same.
 | `uvx: command not found` | [Install uv](install.md#install-uv-by-hand), then close and reopen the terminal. |
 | The email tools do not appear in a desktop app on macOS | The app cannot find `uvx`. Use its full path from `which uvx` in the app's settings, as shown in [Advanced setup](install.md). |
 | The email tools do not appear in normal ChatGPT Chat | Local tools work in ChatGPT's **Work** and **Codex** modes. Normal Chat does not reach them yet. |
-| `No mailbox is configured.` | Ask your assistant to "add my mailbox" ([Start here](start.md#2-add-your-mailbox)). |
+| `No mailbox is configured.` | Ask your assistant to "add my mailbox" ([Start here](start.md)). |
 | No setup page opens when you ask to add a mailbox | Your app may not open pages itself: your assistant then shows a link. Open that link. |
 | `This setup page has closed` | It closes after one mailbox or 10 minutes. Ask your assistant to add a mailbox again. |
 | `You already have a mailbox called ..., for ...` | That name belongs to another address. Leave the name blank or choose another. |
