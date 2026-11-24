@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- Windows: the guide and the installer say to quit ChatGPT with **Exit** (its icon next to the clock) and
+  open it again after the installer; closing the window keeps it running, so it did not find email-tool (#173).
+- Start here: every app tab holds its whole flow, so adding a mailbox no longer shows twice (#174).
+
 ## 5.7.1
 
 ### Fixed

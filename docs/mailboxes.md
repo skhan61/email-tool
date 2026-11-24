@@ -1,7 +1,7 @@
 # Mailbox details
 
 Most people add a mailbox on the setup page: ask your assistant to "add my mailbox"
-([Start here](start.md#2-add-your-mailbox), step 2). This page has what each kind of
+([Start here](start.md), in your app's tab). This page has what each kind of
 mailbox needs, which the setup page links to, and the same steps from a terminal.
 
 You add each mailbox once on each computer. email-tool checks that it can both read and
