@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+- Start here (macOS): the administrator password is its own step, with its picture, and a Mac someone else
+  manages needs their IT department (#188).
+
 ## 5.7.4
 
 ### Fixed
