@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+## 5.7.3
+
 ### Fixed
 - Start here (Claude Code): start it in a new terminal after installing uv; the old one does not find it (#179).
+
+### Changed
+- Dependencies: pypdf 7.0.1 (PDF attachment text), pydantic 2.14.3, google-auth 2.62.1, platformdirs 4.14.5,
+  filelock 4.2.10, oauthlib 4.0.1, pyasn1 0.6.5, opentelemetry-api 1.45.2, and newer CI actions and dev tools (#153, #181).
 
 ## 5.7.2
 
