@@ -350,7 +350,8 @@ No terminal.
 
         Or type the same inside Claude Code: `/plugin marketplace add skhan61/email-tool`,
         then `/plugin install email-tool@email-tool`.
-    3. Close Claude Code and open it again.
+    3. Close Claude Code and the terminal, then open a new terminal and start Claude Code.
+       A terminal that was open before uv was installed does not find it.
 
     **Add your mailbox**
 

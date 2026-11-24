@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- Start here (Claude Code): start it in a new terminal after installing uv; the old one does not find it (#179).
+
 ## 5.7.2
 
 ### Fixed
